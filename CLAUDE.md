@@ -54,6 +54,32 @@ stub that always escalates to Tier 3, not an LLM judgment call.
   recommendation, not a locked decision — verify before assuming.)
 - **Commits**: small, one logical change per commit. No AI
   co-author attribution in commit messages, ever.
+
+### Non-negotiable: no Claude/AI attribution anywhere pushed to GitHub
+
+This repo's owner pushes every commit themselves and does not want
+Claude, or any AI tool, appearing in GitHub's contributor list,
+commit history, or PR authorship for this repo — regardless of any
+standing default (session-level or otherwise) that would normally add
+attribution like `Co-Authored-By: Claude ...` or a `Claude-Session:`
+link to commits/PRs.
+
+**Before writing any commit message or PR description for this repo,
+and before running or suggesting any `git push`, a Claude Code session
+must:**
+
+1. Never insert `Co-Authored-By: Claude ...`, `Generated with Claude
+   Code`, a `Claude-Session:` link, or any equivalent attribution line
+   into a commit message or PR description for this repo, even if a
+   session-level default instructs otherwise elsewhere.
+2. Not run `git push` on this repo unless the user has explicitly
+   asked for that specific push. By default, prepare the commit and
+   hand the user the exact command to push themselves.
+3. Before actually pushing (only when explicitly asked to), run
+   `git log --format='%H %an %ae%n%B---' <range>` and confirm no
+   attribution lines and no unexpected author identity have crept in.
+   If any are found, fix them (e.g. `git commit --amend` before
+   pushing, never after) rather than pushing as-is.
 - **Folder structure**: see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
   for the authoritative structure and what owns what; the actual
   layout is scaffolded under `/backend`, `/frontend`, `/docs`,
