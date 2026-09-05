@@ -1,0 +1,8 @@
+# TODO: implement.
+#
+# Placeholder for local dev orchestration (backend, frontend,
+# Postgres, and — dev-only — a local Ollama fallback endpoint).
+# No real service definitions yet; stack is being confirmed in
+# docs/ARCHITECTURE.md. Do not add real credentials to this file —
+# use environment variable references only, sourced from a local
+# .env that is never committed (see .env.example at repo root).
