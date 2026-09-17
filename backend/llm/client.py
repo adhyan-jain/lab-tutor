@@ -10,6 +10,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -17,6 +18,22 @@ import httpx
 from backend.config import Settings, get_settings
 
 log = logging.getLogger(__name__)
+
+# Every system prompt in this codebase tells the model "plain prose only,
+# no markdown" -- weaker models (local Ollama in particular) sometimes
+# ignore that and emit **bold**/__bold__ anyway. The frontend renders
+# replies as plain text, so unstripped markers show up as literal
+# asterisks to the student. Structural enforcement here, in the one place
+# every LLMReply is built, rather than trusting every prompt to work:
+# only the unambiguous double-marker forms are stripped (single `*`/`_`
+# are left alone -- they're common in chemistry notation, e.g. a radical
+# dot or a subscript-adjacent underscore, and stripping them risks
+# changing the text rather than just its markup).
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*|__(.+?)__", re.DOTALL)
+
+
+def _strip_markdown_emphasis(text: str) -> str:
+    return _BOLD_RE.sub(lambda m: m.group(1) or m.group(2), text)
 
 
 #: Bounds how many LLM calls run at once across every backend instance
@@ -114,7 +131,11 @@ class HostedBackend(LLMBackend):
             text = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMUnavailable(f"Unexpected hosted backend response shape: {exc}") from exc
-        return LLMReply(text=(text or "").strip(), backend=self.name, model=self._model)
+        return LLMReply(
+            text=_strip_markdown_emphasis((text or "").strip()),
+            backend=self.name,
+            model=self._model,
+        )
 
     async def health(self) -> bool:
         if not self._configured():
@@ -168,7 +189,11 @@ class OllamaBackend(LLMBackend):
             raise LLMUnavailable(f"Ollama request failed: {exc}") from exc
 
         text = (data.get("message") or {}).get("content", "")
-        return LLMReply(text=(text or "").strip(), backend=self.name, model=self._model)
+        return LLMReply(
+            text=_strip_markdown_emphasis((text or "").strip()),
+            backend=self.name,
+            model=self._model,
+        )
 
     async def health(self) -> bool:
         try:
