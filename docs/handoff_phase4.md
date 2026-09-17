@@ -1,8 +1,9 @@
 # Phase 4 handoff
 
-Written 2026-09-17, branch `master`, HEAD `430a699`, continuing directly
-from `docs/handoff_phase3.md` (still accurate — nothing in it was
-reversed this session; treat it as background, this document as current).
+Written 2026-09-17, branch `master`, HEAD `3e099ee` (updated in place as
+the session continued — see item 8), continuing directly from
+`docs/handoff_phase3.md` (still accurate — nothing in it was reversed
+this session; treat it as background, this document as current).
 
 ## What changed this session, in order
 
@@ -68,6 +69,19 @@ reversed this session; treat it as background, this document as current).
 
 7. `.playwright-mcp/` (local browser-testing snapshot dumps) added to
    `.gitignore` (`1a92e55`).
+
+8. **Markdown leaking into student-facing text, found live and fixed**:
+   the local Ollama model sometimes emitted `**bold**`/`__bold__` despite
+   every system prompt saying "plain prose only, no markdown" — the
+   frontend renders replies as plain text, so a student saw literal
+   double-asterisks around terms like `**CH4**`. Fixed structurally at
+   the one place every `LLMReply` is built
+   (`backend/llm/client.py::_strip_markdown_emphasis`), so it's fixed for
+   every caller (Q&A, Socratic, diagnosis phrasing, summaries) at once —
+   not by re-wording the prompt and hoping. Only the unambiguous
+   double-marker forms are stripped; single `*`/`_` are left alone
+   (ordinary chemistry notation — a radical dot, a subscript-adjacent
+   underscore) (`3e099ee`).
 
 ## The conversational router
 
