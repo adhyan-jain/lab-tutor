@@ -145,6 +145,32 @@ Student submits finished record
    Tier 3 review queue.
 ```
 
+### 1.3 Conversational routing (added a later session)
+
+The two modes above run behind a single chat surface
+(`POST /api/chat/messages`), not two separate UIs. Deciding *which* of
+the three (Q&A / Socratic / diagnostic) a given message is for was
+originally pure keyword matching (does it contain numbers? does it read
+like "guide me"?), which correctly refuses to guess about anything it
+can't detect deterministically, but also cannot tell a genuine
+mid-experiment question ("why is V_inf needed?") from a follow-up that
+only makes sense given the conversation ("why?").
+
+`backend/router/` sits in front of that dispatch as an LLM-driven
+routing layer: given the message, a bounded window of the thread's own
+prior turns, and the classroom's active experiment, it decides `qa` /
+`socratic` / `diagnostic` / `clarification` / `out_of_scope` and
+(`qa` only) an optional context-expanded search query. It is
+**routing-only, never authoritative** — Tier 1-3 still computes every
+diagnosis, the Socratic engine and answer gate still own step
+verification and the reveal, and `classify_scope`/`resolve_status`
+still independently decide whether a `qa`-routed message is actually
+answerable. Any failure of the router (unavailable, malformed output,
+low confidence, disabled) falls back to the original keyword-based
+dispatch unchanged. See `backend/router/router.py`'s module docstring
+for the exact authority boundary, and `docs/handoff_phase4.md` for how
+and why this was built.
+
 ## 2. Pilot scope vs. full vision
 
 | Piece | Pilot (2-week timeline) | Full vision (deferred) |
