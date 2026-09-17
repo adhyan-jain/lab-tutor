@@ -52,6 +52,28 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  /** For binary responses (e.g. the marks .xlsx export) that `request`'s
+   * JSON parsing can't handle -- triggers a normal browser download. */
+  download: async (path: string, filename: string) => {
+    const response = await fetch(path, { credentials: "same-origin" });
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const body = await response.json();
+        if (typeof body?.detail === "string") detail = body.detail;
+      } catch {
+        // Non-JSON error body; the status text will do.
+      }
+      throw new ApiError(response.status, detail);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 /**
@@ -311,4 +333,26 @@ export interface StudentSummary {
   flagged: boolean;
   flag_reason: string | null;
   generated_at: string;
+}
+
+// --- pre/post-test marks -----------------------------------------------------
+
+export interface ExperimentMarksRow {
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  pre_test_marks: number | null;
+  pre_test_max: number;
+  post_test_marks: number | null;
+  post_test_max: number;
+}
+
+export interface MarksAnalyticsRow {
+  experiment_id: string;
+  n: number;
+  mean_pre: number | null;
+  mean_post: number | null;
+  mean_gain: number | null;
+  percent_improved: number | null;
+  std_gain: number | null;
 }

@@ -171,6 +171,25 @@ Health checks:
 - `GET /health/llm` — inference connectivity, separately, so an inference
   outage does not make the container look dead and get restarted.
 
+### Remote DB (Supabase)
+
+The bundled `db` service in `infra/docker-compose.yml` is plain Postgres
+and works fine for local dev/pilot use, but for a shared/remote database
+(e.g. for the marks-analytics data used in the paper), point the backend
+at a Supabase project instead:
+
+1. Create a Supabase project (Settings → Database has the connection
+   string).
+2. Use the **direct connection** (port 5432), not the pgbouncer
+   transaction pooler on 6543 -- that pooler doesn't reliably support the
+   prepared statements the async psycopg driver issues.
+3. Set `LABTUTOR_DATABASE_URL` in `.env` to that connection string. It
+   overrides every `POSTGRES_*` value above, so nothing else needs to
+   change.
+4. Run `alembic upgrade head` from `backend/` to create the schema on
+   Supabase (production startup does not call `create_all()` -- see
+   `backend/main.py`).
+
 ### Load-testing before the pilot
 
 ```bash

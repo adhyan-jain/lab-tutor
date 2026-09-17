@@ -10,6 +10,7 @@ itsdangerous==2.2.0
 python-multipart==0.0.20
 numpy==2.2.1
 pypdf==5.1.0
+openpyxl==3.1.5
 greenlet==3.1.1
 
 # --- retrieval / page images ---

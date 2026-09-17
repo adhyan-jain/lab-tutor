@@ -47,6 +47,7 @@ CLASS_FACULTY_PROMOTED = "classroom.faculty_promoted"
 CLASS_FACULTY_DEMOTED = "classroom.faculty_demoted"
 PROFILE_COMPLETED = "auth.profile_completed"
 ESCALATION_RESOLVED = "tier3.resolved"
+MARKS_ENTERED = "marks.entered"
 
 
 async def record(

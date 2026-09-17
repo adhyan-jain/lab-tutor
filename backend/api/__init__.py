@@ -8,6 +8,7 @@ from backend.api import (
     dashboard_routes,
     diagnostic_routes,
     health,
+    marks_routes,
     qa_routes,
     socratic_routes,
 )
@@ -22,6 +23,7 @@ ROUTERS = [
     socratic_routes.router,
     diagnostic_routes.router,
     dashboard_routes.router,
+    marks_routes.router,
 ]
 
 __all__ = ["ROUTERS"]

@@ -441,6 +441,42 @@ class StudentSummary(Base):
     generated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class ExperimentMarks(Base):
+    """Faculty/admin-entered pre- and post-test scores for one student's
+    attempt at one experiment, for the pilot's before/after evaluation
+    (does Socratic-mode use measurably improve outcomes?). Entirely
+    separate from Tier 1 diagnosis -- these are exam marks a human
+    enters by hand, never computed or judged by this system.
+
+    Keyed by (student, classroom, experiment) rather than class_session:
+    a repeat/make-up session for the same experiment updates the same
+    pre/post pair instead of creating a second ungraded row, since the
+    unit of analysis for the paper is "this student's gain on this
+    experiment," not "this particular lab meeting."
+    """
+
+    __tablename__ = "experiment_marks"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id", "classroom_id", "experiment_id", name="uq_experiment_marks"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    student_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    classroom_id: Mapped[str] = mapped_column(ForeignKey("classrooms.id"), index=True)
+    experiment_id: Mapped[str] = mapped_column(String(64), index=True)
+    pre_test_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pre_test_max: Mapped[float] = mapped_column(Float, default=20.0)
+    post_test_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
+    post_test_max: Mapped[float] = mapped_column(Float, default=20.0)
+    entered_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
 class Escalation(Base):
     __tablename__ = "escalations"
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   api,
   ApiError,
@@ -26,6 +27,7 @@ export function FacultyModal({
   onClose: () => void;
   onClassroomUpdated: () => void;
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<"roster" | "session" | "settings" | "activity" | "summaries">("roster");
   const [students, setStudents] = useState<RosterStudent[]>([]);
   const [faculty, setFaculty] = useState<RosterFaculty[]>([]);
@@ -212,9 +214,17 @@ export function FacultyModal({
             <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Classroom Management</h2>
             <p className="muted" style={{ margin: 0 }}>{classroom.name}</p>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={onClose} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <CloseIcon size={14} /> Close
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => router.push(`/faculty/marks?classroom=${classroom.id}`)}
+            >
+              Marks &amp; Analytics
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={onClose} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <CloseIcon size={14} /> Close
+            </button>
+          </div>
         </div>
 
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface-hover)" }}>
