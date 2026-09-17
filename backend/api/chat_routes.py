@@ -50,6 +50,8 @@ from backend.models import (
 )
 from backend.pipeline import run_diagnosis
 from backend.retrieval.pipeline import answer_question
+from backend.router import RouterMode, route_message
+from backend.scope import ontology
 from backend.socratic_engine import (
     compute_reveal,
     handle_attempt,
@@ -803,77 +805,189 @@ async def send_message(
                 db, principal.id, body.classroom_id, experiment_id, actor_type
             )
 
-        if plugin is not None and socratic_session is not None and not socratic_session.all_steps_complete:
-            if extracted_dict:
-                # 3a. Guided mode was already engaged (the student asked
-                # for guidance at some point) and is incomplete: this
-                # numeric message is an attempt on the CURRENT step,
-                # verified the exact same deterministic way POST
-                # /api/socratic/session/{id}/attempt does. The LLM is not
-                # involved in deciding pass/fail/completion here.
-                reply_text, msg_kind, meta = await _handle_socratic_attempt(
-                    db, principal, plugin, socratic_session, extracted_dict, body.message
+        socratic_active = (
+            plugin is not None
+            and socratic_session is not None
+            and not socratic_session.all_steps_complete
+        )
+
+        if socratic_active and extracted_dict:
+            # 3a. Guided mode was already engaged (the student asked for
+            # guidance at some point) and is incomplete: this numeric
+            # message is an attempt on the CURRENT step, verified the
+            # exact same deterministic way POST
+            # /api/socratic/session/{id}/attempt does. This never goes
+            # through the router -- a numeric message during active
+            # guidance is always Tier 1's to verify, never a routing
+            # question.
+            reply_text, msg_kind, meta = await _handle_socratic_attempt(
+                db, principal, plugin, socratic_session, extracted_dict, body.message
+            )
+        else:
+            # Everything else is routed by the LLM conversational router
+            # (backend/router/), which decides *which subsystem* handles
+            # this turn using the conversation, not just this one
+            # message -- this is what lets a bare "why?" reach the same
+            # grounded answer path as the question it's following up on.
+            # Any failure (disabled, unavailable, malformed, low
+            # confidence) returns None, and the pre-existing
+            # deterministic dispatch below runs completely unchanged --
+            # see backend/router/router.py's module docstring for the
+            # full authority boundary.
+            socratic_step_prompt = None
+            if socratic_active:
+                current_steps = steps_for(plugin)
+                socratic_step_prompt = current_steps[
+                    min(socratic_session.current_step, len(current_steps) - 1)
+                ].prompt
+
+            router_decision = await route_message(
+                message=body.message,
+                history=history_text,
+                active_experiment=experiment_id,
+                known_experiments={t.id: t.title for t in ontology.routable_topics()},
+                socratic_active=socratic_active,
+                socratic_step_prompt=socratic_step_prompt,
+            )
+
+            if router_decision is None:
+                # --- Deterministic keyword-based dispatch, unchanged ---
+                if socratic_active:
+                    # 3b. Guided mode is active and incomplete, but this
+                    # message has no data in it -- a question, a request
+                    # for a nudge, confusion. Real Socratic conversation:
+                    # phrases the CURRENT step's hint (chosen by attempt
+                    # count, not by the model) or answers a genuine
+                    # question grounded in the manual, and structurally
+                    # cannot reveal the answer.
+                    reply_text, msg_kind, meta = await _handle_socratic_chat_turn(
+                        db, principal, plugin, socratic_session, body.message, intent, history_text
+                    )
+                elif plugin is not None and extracted_dict:
+                    # 4. No guided session exists yet, or it already
+                    # finished, and the student pasted numeric data:
+                    # treat it as an independent final diagnostic, Tier
+                    # 1-3, exactly like POST /api/submissions -- pasting
+                    # a finished record straight into chat without ever
+                    # asking for guidance is exactly what "provide
+                    # experiment values/results naturally in chat"
+                    # describes.
+                    reply_text, msg_kind, meta = await _handle_final_diagnostic(
+                        db, principal, plugin, actor_type, body, class_session_id, experiment_id
+                    )
+                elif (
+                    plugin is not None
+                    and has_socratic_steps
+                    and socratic_session is None
+                    and triage.is_guidance_request(body.message)
+                ):
+                    # 4b. No data, no guided session yet, but this
+                    # experiment has Socratic steps configured AND the
+                    # message reads as a guidance request ("guide me",
+                    # "help me through this", "what's step 2") rather
+                    # than a general question -- this is the first "help
+                    # me through this" message, so guided mode starts
+                    # now, at step one, the same lazy get-or-create POST
+                    # /api/socratic/session does. A plain factual
+                    # question ("what is X used for?") falls through to
+                    # plain Q&A instead (branch 5) -- asking about the
+                    # subject should never itself enrol the student in a
+                    # guided walkthrough.
+                    socratic_session = await _start_socratic_session(
+                        db, principal.id, body.classroom_id, class_session_id, experiment_id, actor_type
+                    )
+                    reply_text, msg_kind, meta = await _handle_socratic_chat_turn(
+                        db, principal, plugin, socratic_session, body.message, intent, history_text
+                    )
+                else:
+                    # 5. Plain grounded Q&A -- theory, procedure,
+                    # troubleshooting, software questions, or a
+                    # follow-up once guided mode is done.
+                    result = await answer_question(
+                        body.message, active_experiment=experiment_id, conversation_history=history_text
+                    )
+                    reply_text = result.text
+                    msg_kind = ChatMessageKind.QA
+                    meta = {
+                        "type": "qa",
+                        "status": result.status.value,
+                        "citations": [
+                            {"text": c.text, "page": c.page, "tier": c.tier.value}
+                            for c in result.citations
+                        ],
+                        "answer_source": result.answer_source,
+                        "intent": intent.value,
+                    }
+            elif (
+                router_decision.mode is RouterMode.DIAGNOSTIC
+                and plugin is not None
+                and extracted_dict
+            ):
+                # Router identified a diagnostic submission; Tier 1-3
+                # still computes the actual verdict, unchanged.
+                reply_text, msg_kind, meta = await _handle_final_diagnostic(
+                    db, principal, plugin, actor_type, body, class_session_id, experiment_id
                 )
-            else:
-                # 3b. Guided mode is active and incomplete, but this
-                # message has no data in it -- a question, a request for
-                # a nudge, confusion. Real Socratic conversation: phrases
-                # the CURRENT step's hint (chosen by attempt count, not by
-                # the model) or answers a genuine question grounded in
-                # the manual, and structurally cannot reveal the answer.
+            elif (
+                router_decision.mode is RouterMode.SOCRATIC
+                and plugin is not None
+                and has_socratic_steps
+                and (socratic_session is None or not socratic_session.all_steps_complete)
+            ):
+                # Router identified a guidance request; the existing
+                # Socratic state machine and deterministic verifier
+                # remain authoritative for everything past this point.
+                if socratic_session is None:
+                    socratic_session = await _start_socratic_session(
+                        db, principal.id, body.classroom_id, class_session_id, experiment_id, actor_type
+                    )
                 reply_text, msg_kind, meta = await _handle_socratic_chat_turn(
                     db, principal, plugin, socratic_session, body.message, intent, history_text
                 )
-        elif plugin is not None and extracted_dict:
-            # 4. No guided session exists yet, or it already finished, and
-            # the student pasted numeric data: treat it as an independent
-            # final diagnostic, Tier 1-3, exactly like POST /api/
-            # submissions -- pasting a finished record straight into chat
-            # without ever asking for guidance is exactly what "provide
-            # experiment values/results naturally in chat" describes.
-            reply_text, msg_kind, meta = await _handle_final_diagnostic(
-                db, principal, plugin, actor_type, body, class_session_id, experiment_id
-            )
-        elif (
-            plugin is not None
-            and has_socratic_steps
-            and socratic_session is None
-            and triage.is_guidance_request(body.message)
-        ):
-            # 4b. No data, no guided session yet, but this experiment has
-            # Socratic steps configured AND the message reads as a
-            # guidance request ("guide me", "help me through this",
-            # "what's step 2") rather than a general question -- this is
-            # the first "help me through this" message, so guided mode
-            # starts now, at step one, the same lazy get-or-create
-            # POST /api/socratic/session does. A plain factual question
-            # ("what is X used for?") falls through to plain Q&A instead
-            # (branch 5) -- asking about the subject should never itself
-            # enrol the student in a guided walkthrough.
-            socratic_session = await _start_socratic_session(
-                db, principal.id, body.classroom_id, class_session_id, experiment_id, actor_type
-            )
-            reply_text, msg_kind, meta = await _handle_socratic_chat_turn(
-                db, principal, plugin, socratic_session, body.message, intent, history_text
-            )
-        else:
-            # 5. Plain grounded Q&A -- theory, procedure, troubleshooting,
-            # software questions, or a follow-up once guided mode is done.
-            result = await answer_question(
-                body.message, active_experiment=experiment_id, conversation_history=history_text
-            )
-            reply_text = result.text
-            msg_kind = ChatMessageKind.QA
-            meta = {
-                "type": "qa",
-                "status": result.status.value,
-                "citations": [
-                    {"text": c.text, "page": c.page, "tier": c.tier.value}
-                    for c in result.citations
-                ],
-                "answer_source": result.answer_source,
-                "intent": intent.value,
-            }
+            elif router_decision.mode is RouterMode.CLARIFICATION:
+                # Genuinely not enough context to route conservatively --
+                # ask, rather than guess an experiment. Deterministic
+                # fixed text; no LLM/retrieval call for this branch.
+                reply_text = (
+                    "I want to make sure I answer the right thing -- could you say a "
+                    "bit more, or which experiment this is about?"
+                )
+                msg_kind = ChatMessageKind.QA
+                meta = {"type": "clarification", "router_rationale": router_decision.rationale}
+            else:
+                # "qa", "out_of_scope", or a diagnostic/socratic guess
+                # the deterministic checks above couldn't back up (no
+                # numbers to diagnose; no steps to guide through). Both
+                # "qa" and "out_of_scope" are deliberately routed the
+                # same way: answer_question() re-derives scope via
+                # classify_scope()/resolve_status() deterministically and
+                # is precision-biased against wrongly refusing a real
+                # question, so the router's own out-of-scope call is
+                # advisory only -- this pipeline's existing grounding
+                # stays the sole authority on whether to actually answer.
+                # The only thing the router changes here is the search
+                # text: a context-expanded restatement (retrieval_query)
+                # for a follow-up that would otherwise search on its own
+                # content-free wording. `body.message` (unedited) is
+                # still what's stored as the student's turn.
+                result = await answer_question(
+                    router_decision.retrieval_query or body.message,
+                    active_experiment=router_decision.experiment_id or experiment_id,
+                    conversation_history=history_text,
+                )
+                reply_text = result.text
+                msg_kind = ChatMessageKind.QA
+                meta = {
+                    "type": "qa",
+                    "status": result.status.value,
+                    "citations": [
+                        {"text": c.text, "page": c.page, "tier": c.tier.value}
+                        for c in result.citations
+                    ],
+                    "answer_source": result.answer_source,
+                    "intent": intent.value,
+                    "router_mode": router_decision.mode.value,
+                }
 
     # Record Assistant Message
     assistant_msg = ChatMessage(

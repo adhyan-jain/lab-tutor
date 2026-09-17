@@ -104,6 +104,7 @@ def fake_llm(monkeypatch):
         "backend.rag.qualitative",
         "backend.socratic_engine.chat",
         "backend.summaries.jobs",
+        "backend.router.router",
     ):
         try:
             monkeypatch.setattr(f"{module}.get_backend", _get_backend, raising=False)

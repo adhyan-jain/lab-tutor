@@ -99,6 +99,27 @@ class Settings(BaseSettings):
     ollama_think: bool = Field(False, alias="LABTUTOR_OLLAMA_THINK")
     llm_auto_fallback: bool = Field(True, alias="LABTUTOR_LLM_AUTO_FALLBACK")
 
+    # --- conversational router ---
+    # A model-driven routing decision layered in front of the deterministic
+    # QA/Socratic/diagnostic dispatch in chat_routes.py -- see
+    # backend/router/. Purely additive: any failure (unavailable backend,
+    # malformed output, low confidence) falls back to the pre-existing
+    # keyword-based dispatch unchanged, so this is a zero-risk kill switch.
+    router_enabled: bool = Field(True, alias="LABTUTOR_ROUTER_ENABLED")
+    #: Below this, a router decision is treated the same as a router
+    #: failure -- "not sure" and "failed" get identical, safe handling.
+    router_min_confidence: float = Field(0.4, alias="LABTUTOR_ROUTER_MIN_CONFIDENCE")
+    #: Deliberately much shorter than `llm_timeout_seconds`. Found live: a
+    #: contended/slow backend previously let the router's own attempt run
+    #: the full domain-call timeout before failing, then the deterministic
+    #: fallback made its own full-length call on top of that -- up to
+    #: double the per-turn latency in exactly the degraded-backend case
+    #: this system is supposed to degrade gracefully from. Routing is an
+    #: enhancement, not core functionality, so it should fail fast and
+    #: hand off to the deterministic dispatch rather than eat into the
+    #: same budget as the answer itself.
+    router_timeout_seconds: float = Field(8.0, alias="LABTUTOR_ROUTER_TIMEOUT_SECONDS")
+
     # --- retrieval ---
     # Points at the markdown transcription (manual/IACHY102_manual.md), not
     # a PDF binary -- see manual/README.md. `build_index` in
