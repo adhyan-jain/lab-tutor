@@ -51,6 +51,12 @@ services:
     build:
       context: ..
       dockerfile: infra/frontend.Dockerfile
+      # next.config.mjs's rewrites() is evaluated once at `next build`
+      # time and baked into .next/routes-manifest.json -- a runtime-only
+      # env var (below) is too late to affect it, so it has to be a
+      # build arg too.
+      args:
+        BACKEND_INTERNAL_URL: http://backend:8000
     restart: unless-stopped
     environment:
       # Server-side calls go over the internal network; the browser uses

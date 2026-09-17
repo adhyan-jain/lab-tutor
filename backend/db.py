@@ -36,8 +36,15 @@ def get_engine() -> AsyncEngine:
         url = _async_url(settings.database_url)
         kwargs: dict = {"echo": False, "future": True}
         if not url.startswith("sqlite"):
-            # Sized for ~70 concurrent users on one backend container.
-            kwargs.update(pool_size=20, max_overflow=10, pool_pre_ping=True)
+            # Sized for ~70 concurrent users. Configurable because this
+            # pool is per-process: several uvicorn workers in one
+            # container, or several Cloud Run instances, each get their
+            # own -- see Settings.db_pool_size's docstring.
+            kwargs.update(
+                pool_size=settings.db_pool_size,
+                max_overflow=settings.db_max_overflow,
+                pool_pre_ping=True,
+            )
         _engine = create_async_engine(url, **kwargs)
     return _engine
 

@@ -1,0 +1,15 @@
+substitutions:
+  _BACKEND_INTERNAL_URL: ""
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "infra/frontend.Dockerfile"
+      - "--build-arg"
+      - "BACKEND_INTERNAL_URL=${_BACKEND_INTERNAL_URL}"
+      - "-t"
+      - "asia-south1-docker.pkg.dev/$PROJECT_ID/labtutor/frontend:latest"
+      - "."
+images:
+  - "asia-south1-docker.pkg.dev/$PROJECT_ID/labtutor/frontend:latest"

@@ -17,9 +17,16 @@ COPY backend /app/backend
 # all (backend/migrations/env.py's script_location is relative to it).
 COPY alembic.ini /app/alembic.ini
 
-# Runs unprivileged. The manual PDF is mounted read-only at /app/manual.
+# Docker Compose mounts the manual read-only at runtime
+# (../manual:/app/manual:ro); a platform with no host-volume equivalent
+# (e.g. Cloud Run) needs it baked into the image instead. Baking it in
+# here doesn't change Compose's behavior -- its bind-mount still overlays
+# this same path at container start, taking precedence over image
+# content, so local dev keeps editing the manual live exactly as before.
+COPY manual /app/manual
+
+# Runs unprivileged.
 RUN useradd --create-home --uid 10001 labtutor \
-    && mkdir -p /app/manual \
     && chown -R labtutor:labtutor /app
 USER labtutor
 
@@ -31,7 +38,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # Migrations run once, on container start, before the app takes traffic --
 # `backend.main`'s startup deliberately does NOT call create_all() in
 # production (see its lifespan()), so this is the only thing that builds
-# or updates the schema there. Workers sized for ~70 concurrent students on
-# one container; raise this only alongside the database pool in
-# backend/db.py.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+# or updates the schema there. Worker count is env-driven (default 2,
+# matching Docker Compose's single always-on container) because each
+# worker is a separate process with its OWN DB connection pool
+# (backend/db.py) -- a platform that already scales horizontally by
+# adding container instances (e.g. Cloud Run) should run ONE worker per
+# instance and let the platform's own autoscaling do the rest, or the
+# real connection ceiling multiplies twice over.
+ENV UVICORN_WORKERS=2
+CMD ["sh", "-c", "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers ${UVICORN_WORKERS}"]

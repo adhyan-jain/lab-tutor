@@ -70,8 +70,20 @@ class Settings(BaseSettings):
     google_client_id: str = Field("", alias="GOOGLE_CLIENT_ID")
     google_client_secret: str = Field("", alias="GOOGLE_CLIENT_SECRET")
 
+    # --- database pool ---
+    # Per-process pool size. A single Docker Compose container running
+    # multiple uvicorn workers -- or several Cloud Run instances -- each
+    # get their OWN pool, since `db.py`'s engine is a per-process global,
+    # so the real ceiling is workers/instances multiplied by these two.
+    # Defaults match the pre-Cloud-Run sizing; a smaller-tier Cloud SQL
+    # deployment overrides both via env vars (see infra/deployment docs).
+    db_pool_size: int = Field(20, alias="LABTUTOR_DB_POOL_SIZE")
+    db_max_overflow: int = Field(10, alias="LABTUTOR_DB_MAX_OVERFLOW")
+
     # --- llm ---
-    llm_backend: Literal["hosted", "ollama"] = Field("hosted", alias="LABTUTOR_LLM_BACKEND")
+    llm_backend: Literal["hosted", "ollama", "vertex"] = Field(
+        "hosted", alias="LABTUTOR_LLM_BACKEND"
+    )
     llm_base_url: str = Field("", alias="LABTUTOR_LLM_BASE_URL")
     llm_api_key: str = Field("", alias="LABTUTOR_LLM_API_KEY")
     llm_model: str = Field("", alias="LABTUTOR_LLM_MODEL")
@@ -98,6 +110,15 @@ class Settings(BaseSettings):
     #: reasoning (and raises llm_max_tokens accordingly) can opt in.
     ollama_think: bool = Field(False, alias="LABTUTOR_OLLAMA_THINK")
     llm_auto_fallback: bool = Field(True, alias="LABTUTOR_LLM_AUTO_FALLBACK")
+
+    # Vertex AI Gemini (the pilot's production backend). Authenticates via
+    # Application Default Credentials -- the Cloud Run service account's
+    # identity -- never an API key. `vertex_project` left blank lets the
+    # client fall back to ADC's own default project when unset (local
+    # dev); a real deployment sets it explicitly.
+    vertex_project: str = Field("", alias="LABTUTOR_VERTEX_PROJECT")
+    vertex_location: str = Field("asia-south1", alias="LABTUTOR_VERTEX_LOCATION")
+    vertex_model: str = Field("gemini-2.5-flash", alias="LABTUTOR_VERTEX_MODEL")
 
     # --- conversational router ---
     # A model-driven routing decision layered in front of the deterministic

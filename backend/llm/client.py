@@ -1,8 +1,8 @@
-"""LLM backend interface and the two concrete implementations.
+"""LLM backend interface and the concrete implementations.
 
-Callers depend on `LLMBackend`, never on a provider. Adding a third
-backend means adding a class here and one value to the config enum; no
-call site changes.
+Callers depend on `LLMBackend`, never on a provider. Adding a backend
+means adding a class here and one value to the config enum; no call site
+changes.
 """
 
 from __future__ import annotations
@@ -14,6 +14,10 @@ import re
 from dataclasses import dataclass
 
 import httpx
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
 from backend.config import Settings, get_settings
 
@@ -204,6 +208,83 @@ class OllamaBackend(LLMBackend):
             return False
 
 
+def _is_retryable_vertex_error(exc: BaseException) -> bool:
+    """429 (quota) and 5xx are worth a retry; anything else (bad request,
+    auth failure, model not found) will just fail again immediately."""
+    return isinstance(exc, genai_errors.APIError) and exc.code in (429, 500, 502, 503, 504)
+
+
+class VertexBackend(LLMBackend):
+    """Vertex AI Gemini -- the pilot's production backend.
+
+    Authenticates via Application Default Credentials (the Cloud Run
+    runtime service account's identity), never an API key -- the
+    `google-genai` client picks this up automatically when `vertexai=True`
+    and no explicit credentials are passed.
+    """
+
+    name = "vertex"
+
+    def __init__(self, settings: Settings) -> None:
+        self._model = settings.vertex_model
+        self._timeout = settings.llm_timeout_seconds
+        self._default_max_tokens = settings.llm_max_tokens
+        self._client = genai.Client(
+            vertexai=True,
+            project=settings.vertex_project or None,
+            location=settings.vertex_location,
+        )
+
+    @retry(
+        retry=retry_if_exception(_is_retryable_vertex_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=1, max=8),
+        reraise=True,
+    )
+    async def _generate(self, *, system: str, user: str, max_tokens: int):
+        async with _get_semaphore():
+            return await asyncio.wait_for(
+                self._client.aio.models.generate_content(
+                    model=self._model,
+                    contents=user,
+                    config=genai_types.GenerateContentConfig(
+                        system_instruction=system,
+                        max_output_tokens=max_tokens,
+                        temperature=0.2,
+                    ),
+                ),
+                timeout=self._timeout,
+            )
+
+    async def complete(
+        self, *, system: str, user: str, max_tokens: int | None = None
+    ) -> LLMReply:
+        try:
+            response = await self._generate(
+                system=system, user=user, max_tokens=max_tokens or self._default_max_tokens
+            )
+        except (genai_errors.APIError, TimeoutError) as exc:
+            raise LLMUnavailable(f"Vertex AI request failed: {exc}") from exc
+        text = (getattr(response, "text", None) or "").strip()
+        return LLMReply(
+            text=_strip_markdown_emphasis(text), backend=self.name, model=self._model
+        )
+
+    async def health(self) -> bool:
+        try:
+            await asyncio.wait_for(
+                self._client.aio.models.generate_content(
+                    model=self._model,
+                    contents="ping",
+                    config=genai_types.GenerateContentConfig(max_output_tokens=1),
+                ),
+                timeout=5.0,
+            )
+            return True
+        except (genai_errors.APIError, TimeoutError):
+            return False
+
+
 class FallbackBackend(LLMBackend):
     """Tries the primary backend, then the secondary.
 
@@ -251,6 +332,8 @@ def build_backend(settings: Settings) -> LLMBackend:
     secondary: LLMBackend
     if settings.llm_backend == "ollama":
         primary, secondary = OllamaBackend(settings), HostedBackend(settings)
+    elif settings.llm_backend == "vertex":
+        primary, secondary = VertexBackend(settings), OllamaBackend(settings)
     else:
         primary, secondary = HostedBackend(settings), OllamaBackend(settings)
 
