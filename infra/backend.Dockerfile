@@ -25,6 +25,18 @@ COPY alembic.ini /app/alembic.ini
 # content, so local dev keeps editing the manual live exactly as before.
 COPY manual /app/manual
 
+# backend/sources/manifest.py refuses to ingest anything not declared in
+# docs/source_manifest.json, and every document that manifest marks
+# "present: true" must actually exist at that path -- found live via a
+# deployed-service smoke test: the very first real chat message 500'd
+# with ManifestError because none of these three were in the image
+# (only manual/ was, from the fix above). Only the manifest itself is
+# copied out of docs/ -- the rest of that folder is internal handoff/
+# audit notes with no runtime purpose.
+COPY docs/source_manifest.json /app/docs/source_manifest.json
+COPY knowledge/adjacent /app/knowledge/adjacent
+COPY golden_dataset/qa /app/golden_dataset/qa
+
 # Runs unprivileged.
 RUN useradd --create-home --uid 10001 labtutor \
     && chown -R labtutor:labtutor /app
