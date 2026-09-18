@@ -295,19 +295,27 @@ export function ChatWorkspace({ me }: { me: Me }) {
       });
 
       if (!activeThreadId || activeThreadId !== res.thread_id) {
+        // Switching onto a (possibly just-created) thread also fires the
+        // activeThreadId effect below, which calls loadMessages() and
+        // replaces `messages` wholesale from the server. Appending here
+        // too raced with that fetch -- whichever resolved second won,
+        // and when loadMessages won first, this append landed on top of
+        // the already-loaded pair, rendering the question+reply twice.
+        // The thread-switch effect is the sole source of truth for
+        // `messages` in this branch; only the "still on the same
+        // thread" branch below needs to append locally.
         setActiveThreadId(res.thread_id);
         await loadThreads();
       } else {
         setThreads((prev) =>
           prev.map((t) => (t.id === res.thread_id ? { ...t, title: res.thread_title } : t))
         );
+        setMessages((prev) => [
+          ...prev.filter((m) => !m.id.startsWith("temp-")),
+          tempUserMsg,
+          res.message,
+        ]);
       }
-
-      setMessages((prev) => [
-        ...prev.filter((m) => !m.id.startsWith("temp-")),
-        tempUserMsg,
-        res.message,
-      ]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
       setMessages((prev) => prev.filter((m) => !m.id.startsWith("temp-")));
