@@ -1,4 +1,37 @@
+/* Dark is the default theme regardless of OS/browser preference --
+   :root holds dark values directly, and [data-theme="light"] (set by
+   ThemeToggle, persisted in localStorage) overrides them. See
+   app/layout.tsx for the pre-hydration inline script that applies the
+   saved choice before first paint, avoiding a flash of the wrong theme. */
 :root {
+  --bg: #0b0f19;
+  --surface: #111827;
+  --surface-hover: #1f2937;
+  --sidebar-bg: #030712;
+  --sidebar-surface: #111827;
+  --sidebar-border: #1f2937;
+  --sidebar-text: #f9fafb;
+  --sidebar-muted: #9ca3af;
+  --border: #1f2937;
+  --text: #f9fafb;
+  --muted: #9ca3af;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-weak: #1e293b;
+  --accent-border: #1d4ed8;
+  --success: #22c55e;
+  --success-weak: #14532d;
+  --warn: #f59e0b;
+  --warn-weak: #451a03;
+  --danger: #ef4444;
+  --danger-weak: #450a0a;
+  --purple: #a855f7;
+  --purple-weak: #3b0764;
+  --radius: 8px;
+  --radius-lg: 12px;
+}
+
+:root[data-theme="light"] {
   --bg: #f8fafc;
   --surface: #ffffff;
   --surface-hover: #f1f5f9;
@@ -22,36 +55,6 @@
   --danger-weak: #fef2f2;
   --purple: #7c3aed;
   --purple-weak: #f5f3ff;
-  --radius: 8px;
-  --radius-lg: 12px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0f19;
-    --surface: #111827;
-    --surface-hover: #1f2937;
-    --sidebar-bg: #030712;
-    --sidebar-surface: #111827;
-    --sidebar-border: #1f2937;
-    --sidebar-text: #f9fafb;
-    --sidebar-muted: #9ca3af;
-    --border: #1f2937;
-    --text: #f9fafb;
-    --muted: #9ca3af;
-    --accent: #3b82f6;
-    --accent-hover: #60a5fa;
-    --accent-weak: #1e293b;
-    --accent-border: #1d4ed8;
-    --success: #22c55e;
-    --success-weak: #14532d;
-    --warn: #f59e0b;
-    --warn-weak: #451a03;
-    --danger: #ef4444;
-    --danger-weak: #450a0a;
-    --purple: #a855f7;
-    --purple-weak: #3b0764;
-  }
 }
 
 * {
@@ -64,7 +67,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -82,6 +85,7 @@ html, body {
   border-radius: var(--radius);
   border: 1px solid transparent;
   cursor: pointer;
+  text-decoration: none;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -189,4 +193,161 @@ header.bar {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+}
+
+/* --- Auth screens (Shell.tsx: signed-out, loading, role-mismatch,
+   profile-completion) --------------------------------------------------
+   A burette reading, not a generic SaaS card: graduated marks on the
+   left edge, read top-to-bottom the way a real burette is (0 at the
+   top, increasing as liquid is dispensed), with a tinted fill standing
+   in for the liquid level. It's the one place this pass spends its
+   boldness -- everything else here stays quiet. */
+
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.auth-topbar {
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.auth-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.auth-card {
+  display: flex;
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+}
+
+.auth-scale {
+  position: relative;
+  flex: 0 0 34px;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--surface-hover);
+}
+
+.auth-scale-fill {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, var(--accent-weak), var(--accent-border));
+  opacity: 0.6;
+  transition: height 1.2s ease;
+}
+
+.auth-shell[data-busy="true"] .auth-scale-fill {
+  animation: auth-dispense 2.4s ease-in-out infinite;
+}
+
+@keyframes auth-dispense {
+  0%, 100% { height: 60%; }
+  50% { height: 22%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-shell[data-busy="true"] .auth-scale-fill {
+    animation: none;
+    height: 40%;
+  }
+  .auth-scale-fill {
+    transition: none;
+  }
+}
+
+.auth-scale-marks {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 0;
+}
+
+.auth-scale-mark {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-scale-mark::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 10px;
+  height: 1px;
+  background: var(--muted);
+  opacity: 0.6;
+}
+
+.auth-scale-mark span {
+  position: absolute;
+  left: 14px;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.auth-content {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 28px;
+}
+
+.auth-wordmark {
+  font-family: var(--font-serif), Georgia, serif;
+  font-size: 1.65rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.auth-tagline {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.auth-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 0 20px;
+}
+
+.auth-body {
+  margin: 0 0 20px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.auth-fineprint {
+  margin: 16px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.auth-card .btn-primary {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 0.9rem;
 }
