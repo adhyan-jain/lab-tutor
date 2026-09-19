@@ -9,12 +9,15 @@ never bypasses the role check itself.
 
 from __future__ import annotations
 
+import io
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from openpyxl import Workbook
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import StreamingResponse
 
 from backend import audit, idempotency
 from backend.auth import Principal, classroom_faculty_scope, current_user
@@ -22,10 +25,15 @@ from backend.classrooms import roster_with_users
 from backend.data_access import FacultyScope
 from backend.db import get_session
 from backend.models import (
+    ActorType,
     AuditLog,
+    ChatMessage,
     ClassSession,
     Diagnosis,
     Escalation,
+    LoginSession,
+    SocraticAttempt,
+    SocraticSession,
     StudentSummary,
     Submission,
     SummaryJob,
@@ -33,6 +41,7 @@ from backend.models import (
 )
 from backend.summaries import run_job, start_job_for_session, track_background_task
 from backend.summaries.coverage import compute_topic_coverage
+from backend.summaries.trajectory import build_trajectory
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -455,3 +464,241 @@ async def classroom_coverage(
             }
         )
     return {"students": out}
+
+
+async def _trajectory_rows_for_classroom(
+    db: AsyncSession, classroom_id: str
+) -> list[tuple[str, str, object]]:
+    """One (student_id, class_session_id, Trajectory) tuple per pair with
+    any recorded activity, across every class session this classroom has
+    ever run -- the same deterministic counting `backend/summaries/jobs.py`
+    does for one session's summary job, just rolled up across all of them
+    for the research export. Skips empty pairs (a student who never
+    touched that particular session) so the sheet isn't mostly blank rows.
+    """
+    sessions = list(
+        (
+            await db.scalars(
+                select(ClassSession).where(ClassSession.classroom_id == classroom_id)
+            )
+        ).all()
+    )
+    roster = await roster_with_users(db, classroom_id)
+    rows: list[tuple[str, str, object]] = []
+    for class_session in sessions:
+        for _membership, user in roster:
+            attempts = list(
+                (
+                    await db.scalars(
+                        select(SocraticAttempt)
+                        .join(SocraticSession, SocraticSession.id == SocraticAttempt.session_id)
+                        .where(
+                            SocraticAttempt.student_id == user.id,
+                            SocraticSession.class_session_id == class_session.id,
+                            SocraticSession.actor_type == ActorType.STUDENT,
+                        )
+                    )
+                ).all()
+            )
+            messages = list(
+                (
+                    await db.scalars(
+                        select(ChatMessage).where(
+                            ChatMessage.student_id == user.id,
+                            ChatMessage.class_session_id == class_session.id,
+                            ChatMessage.actor_type == ActorType.STUDENT,
+                        )
+                    )
+                ).all()
+            )
+            submissions = list(
+                (
+                    await db.scalars(
+                        select(Submission).where(
+                            Submission.student_id == user.id,
+                            Submission.class_session_id == class_session.id,
+                            Submission.actor_type == ActorType.STUDENT,
+                        )
+                    )
+                ).all()
+            )
+            diagnoses = list(
+                (
+                    await db.scalars(
+                        select(Diagnosis).where(
+                            Diagnosis.student_id == user.id,
+                            Diagnosis.class_session_id == class_session.id,
+                        )
+                    )
+                ).all()
+            )
+            session_row = (
+                await db.scalars(
+                    select(SocraticSession).where(
+                        SocraticSession.student_id == user.id,
+                        SocraticSession.class_session_id == class_session.id,
+                    )
+                )
+            ).first()
+            traj = build_trajectory(
+                user.id,
+                attempts=attempts,
+                messages=messages,
+                submissions=submissions,
+                diagnoses=diagnoses,
+                all_steps_complete=bool(session_row and session_row.all_steps_complete),
+            )
+            if not traj.is_empty:
+                rows.append((user.id, class_session.id, traj))
+    return rows
+
+
+@router.get("/classrooms/{classroom_id}/research-export.xlsx")
+async def research_export(
+    classroom_id: str,
+    principal: Principal = Depends(current_user),
+    scope: FacultyScope = Depends(classroom_faculty_scope),
+    db: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """One workbook combining everything a research write-up on this
+    tool's effectiveness needs: who used it and for how long (Sessions),
+    how much they engaged (Prompt counts), the deterministic learning-
+    trajectory counts (Trajectory -- the same numbers that already back
+    the LLM-phrased per-student summaries, just surfaced as data instead
+    of prose), and the pre/post-test scores (Marks, reusing the marks
+    endpoint's own export logic so faculty get one download instead of
+    two).
+    """
+    from backend.api import marks_routes
+
+    classroom = await _classroom_or_404(db, principal, scope, classroom_id)
+    roster = await roster_with_users(db, classroom.id)
+    users_by_id = {user.id: user for _membership, user in roster}
+
+    workbook = Workbook()
+
+    roster_sheet = workbook.active
+    roster_sheet.title = "Roster"
+    roster_sheet.append(["Student name", "Student email", "Reg no", "Joined at"])
+    for membership, user in roster:
+        roster_sheet.append(
+            [user.name, user.email, user.reg_no, membership.joined_at.isoformat()]
+        )
+
+    sessions_sheet = workbook.create_sheet("Sessions")
+    sessions_sheet.append(
+        ["Student name", "Student email", "Login at", "Logout at", "Last seen at", "End reason"]
+    )
+    login_sessions = list(
+        (
+            await db.scalars(
+                select(LoginSession)
+                .where(LoginSession.user_id.in_(users_by_id.keys()))
+                .order_by(LoginSession.login_at)
+            )
+        ).all()
+    )
+    for row in login_sessions:
+        user = users_by_id.get(row.user_id)
+        sessions_sheet.append(
+            [
+                user.name if user else row.user_id,
+                user.email if user else "",
+                row.login_at.isoformat(),
+                row.logout_at.isoformat() if row.logout_at else None,
+                row.last_seen_at.isoformat(),
+                row.end_reason or "inferred timeout",
+            ]
+        )
+
+    prompts_sheet = workbook.create_sheet("Prompt counts")
+    prompts_sheet.append(
+        ["Student name", "Student email", "Experiment", "Class session", "Kind", "Count"]
+    )
+    faculty_scope = FacultyScope(db, principal.id)
+    for count in await faculty_scope.prompt_counts(classroom_id):
+        user = users_by_id.get(count.student_id)
+        prompts_sheet.append(
+            [
+                user.name if user else count.student_id,
+                user.email if user else "",
+                count.experiment_id,
+                count.class_session_id,
+                count.kind,
+                count.count,
+            ]
+        )
+
+    trajectory_sheet = workbook.create_sheet("Trajectory")
+    trajectory_sheet.append(
+        [
+            "Student name", "Student email", "Class session", "Completed",
+            "Total attempts", "Steps attempted", "Steps passed",
+            "Passed first try", "Self-corrected", "Told directly",
+            "Total hints", "Max attempts on one step",
+            "Student messages", "Submissions", "Diagnoses failed", "Diagnoses escalated",
+        ]
+    )
+    for student_id, class_session_id, traj in await _trajectory_rows_for_classroom(
+        db, classroom_id
+    ):
+        user = users_by_id.get(student_id)
+        trajectory_sheet.append(
+            [
+                user.name if user else student_id,
+                user.email if user else "",
+                class_session_id,
+                traj.completed,
+                traj.total_attempts,
+                traj.steps_attempted,
+                traj.steps_passed,
+                traj.first_try_steps,
+                traj.self_corrected_steps,
+                traj.told_directly_steps,
+                traj.total_hints,
+                traj.max_attempts_on_one_step,
+                traj.student_messages,
+                traj.submissions,
+                traj.diagnoses_failed,
+                traj.diagnoses_escalated,
+            ]
+        )
+
+    marks_sheet = workbook.create_sheet("Marks")
+    marks_sheet.append(
+        [
+            "Experiment", "Student name", "Student email",
+            "Pre-test", "Pre-test max", "Post-test", "Post-test max", "Gain",
+        ]
+    )
+    by_experiment = await marks_routes._all_marks_by_experiment(db, classroom_id)
+    for experiment_id, rows in sorted(by_experiment.items()):
+        for row in sorted(rows, key=lambda r: users_by_id.get(r.student_id).email if users_by_id.get(r.student_id) else ""):
+            user = users_by_id.get(row.student_id)
+            gain = (
+                row.post_test_marks - row.pre_test_marks
+                if row.pre_test_marks is not None and row.post_test_marks is not None
+                else None
+            )
+            marks_sheet.append(
+                [
+                    experiment_id,
+                    user.name if user else row.student_id,
+                    user.email if user else "",
+                    row.pre_test_marks,
+                    row.pre_test_max,
+                    row.post_test_marks,
+                    row.post_test_max,
+                    gain,
+                ]
+            )
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    filename = f"labtutor_research_export_{classroom.name.replace(' ', '_')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

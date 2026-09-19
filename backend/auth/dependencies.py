@@ -13,6 +13,7 @@ edited by hand, a client that decided it was faculty.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from dataclasses import dataclass
 
@@ -25,7 +26,13 @@ from backend.auth import session as session_cookie
 from backend.auth.roles import DomainNotPermitted, role_for_email
 from backend.data_access import FacultyScope, StudentScope
 from backend.db import get_session
-from backend.models import Role, User
+from backend.models import LoginSession, Role, User
+
+# Throttle for the `LoginSession.last_seen_at` heartbeat below -- writing on
+# every request would double the write load of every authenticated
+# endpoint for no research benefit; a per-minute resolution is more than
+# enough to tell a real timeout apart from an explicit logout.
+_HEARTBEAT_MIN_INTERVAL_SECONDS = 60
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +87,7 @@ async def current_user(
     # read from the DB on every request just like the domain-derived path,
     # so it carries the same never-trust-a-stale-value guarantee.
     if user.role_override is not None:
+        await _touch_login_session(db, user.id)
         return Principal(id=user.id, email=user.email, name=user.name, role=user.role_override)
 
     try:
@@ -96,7 +104,29 @@ async def current_user(
             detail="This account's email domain is not permitted",
         ) from None
 
+    await _touch_login_session(db, user.id)
     return Principal(id=user.id, email=user.email, name=user.name, role=role)
+
+
+async def _touch_login_session(db: AsyncSession, user_id: str) -> None:
+    """Bump the open `LoginSession.last_seen_at`, throttled -- see the
+    module-level comment on `_HEARTBEAT_MIN_INTERVAL_SECONDS`."""
+    open_session = (
+        await db.scalars(
+            select(LoginSession)
+            .where(LoginSession.user_id == user_id, LoginSession.logout_at.is_(None))
+            .order_by(LoginSession.login_at.desc())
+        )
+    ).first()
+    if open_session is None:
+        return
+    now = dt.datetime.now(dt.timezone.utc)
+    last_seen = open_session.last_seen_at
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=dt.timezone.utc)
+    if (now - last_seen).total_seconds() >= _HEARTBEAT_MIN_INTERVAL_SECONDS:
+        open_session.last_seen_at = now
+        await db.commit()
 
 
 async def require_student(

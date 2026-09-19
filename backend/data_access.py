@@ -22,12 +22,14 @@ authority and does not need to join a classroom).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from sqlalchemy import Select, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models import (
+    ActorType,
     Base,
     ChatMessage,
     Classroom,
@@ -59,6 +61,18 @@ STUDENT_OWNED_MODELS: tuple[type[Base], ...] = (
 
 class ScopeViolation(RuntimeError):
     """Raised when a query is built against a model this scope cannot own."""
+
+
+@dataclass
+class PromptCount:
+    """One (student, experiment, class session, message kind) row's
+    student-authored chat-message count. See `FacultyScope.prompt_counts`."""
+
+    student_id: str
+    experiment_id: str
+    class_session_id: str | None
+    kind: str
+    count: int
 
 
 class StudentScope:
@@ -228,3 +242,51 @@ class FacultyScope:
                 StudentSummary.student_id.in_(student_ids),
             )
         )
+
+    async def prompt_counts(self, classroom_id: str) -> list[PromptCount]:
+        """Chat-message volume per student/experiment/class-session/kind.
+
+        For research-paper "how many prompts did each student send"
+        reporting. Counts only genuine student-authored turns
+        (`ActorType.STUDENT`, `author == "student"`) -- excludes faculty/
+        admin test traffic and the tutor's own replies, same predicate
+        `backend/summaries/coverage.py`'s `qa_messages` count uses.
+
+        Takes a bare `classroom_id`, not filtered through `self.select` --
+        same trust boundary as `marks_routes.py`'s `_all_marks_by_experiment`
+        and `dashboard_routes.py`'s per-classroom queries: the caller
+        (`_classroom_or_404`) has already resolved that this account may
+        see this classroom, including the admin case this scope's own
+        membership predicate would otherwise incorrectly exclude.
+        """
+        stmt = (
+            select(
+                ChatMessage.student_id,
+                ChatMessage.experiment_id,
+                ChatMessage.class_session_id,
+                ChatMessage.kind,
+                func.count().label("count"),
+            )
+            .where(
+                ChatMessage.classroom_id == classroom_id,
+                ChatMessage.actor_type == ActorType.STUDENT,
+                ChatMessage.author == "student",
+            )
+            .group_by(
+                ChatMessage.student_id,
+                ChatMessage.experiment_id,
+                ChatMessage.class_session_id,
+                ChatMessage.kind,
+            )
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [
+            PromptCount(
+                student_id=row.student_id,
+                experiment_id=row.experiment_id,
+                class_session_id=row.class_session_id,
+                kind=row.kind.value,
+                count=row.count,
+            )
+            for row in rows
+        ]

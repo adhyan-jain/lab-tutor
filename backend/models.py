@@ -535,3 +535,26 @@ class IdempotencyRecord(Base):
     status: Mapped[str] = mapped_column(String(16), default="in_flight")  # in_flight|done
     response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class LoginSession(Base):
+    """One row per login, for research-paper time-on-system reporting.
+
+    `logout_at` is set only on an explicit sign-out. A student who closes
+    the tab or lets the cookie expire leaves `logout_at` null forever --
+    `last_seen_at` (updated on authenticated requests) plus the cookie's
+    fixed TTL is what a reader uses to infer that timeout case at query
+    time, rather than a background job guessing and writing a value.
+    """
+
+    __tablename__ = "login_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    classroom_id: Mapped[str | None] = mapped_column(
+        ForeignKey("classrooms.id"), nullable=True, index=True
+    )
+    login_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    last_seen_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    logout_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)  # "logout" | null (inferred timeout)

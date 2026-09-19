@@ -11,13 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel, Field
 
+import datetime as dt
+
 from backend import audit
 from backend.auth import Principal, current_user
 from backend.auth import oauth, session as session_cookie
 from backend.auth.roles import DomainNotPermitted
 from backend.config import get_settings
 from backend.db import get_session
-from backend.models import User
+from backend.models import LoginSession, User
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -138,6 +140,7 @@ async def callback(
     await audit.record(
         db, audit.AUTH_SUCCESS, user_id=user.id, detail={"role": role.value}
     )
+    db.add(LoginSession(user_id=user.id))
     await db.commit()
 
     settings = get_settings()
@@ -154,7 +157,22 @@ async def callback(
 
 
 @router.post("/logout")
-async def logout() -> JSONResponse:
+async def logout(
+    principal: Principal = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> JSONResponse:
+    open_session = (
+        await db.scalars(
+            select(LoginSession)
+            .where(LoginSession.user_id == principal.id, LoginSession.logout_at.is_(None))
+            .order_by(LoginSession.login_at.desc())
+        )
+    ).first()
+    if open_session is not None:
+        open_session.logout_at = dt.datetime.now(dt.timezone.utc)
+        open_session.end_reason = "logout"
+        await db.commit()
+
     response = JSONResponse({"ok": True})
     response.delete_cookie(session_cookie.COOKIE_NAME, path="/")
     return response
