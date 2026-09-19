@@ -98,11 +98,11 @@ async def test_exhausted_retries_surface_as_llm_unavailable(monkeypatch):
     server_error = genai_errors.APIError(
         code=503, response_json={"error": {"message": "unavailable", "status": "UNAVAILABLE"}}
     )
-    models = _install_fake_client(monkeypatch, [server_error, server_error, server_error])
+    models = _install_fake_client(monkeypatch, [server_error] * 6)
     backend = VertexBackend(Settings())
     with pytest.raises(LLMUnavailable):
         await backend.complete(system="s", user="u")
-    assert len(models.calls) == 3  # stopped after the configured attempt cap
+    assert len(models.calls) == 6  # stopped after the configured attempt cap
 
 
 async def test_non_retryable_error_fails_on_first_attempt(monkeypatch):

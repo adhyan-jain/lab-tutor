@@ -290,11 +290,13 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -653,11 +655,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -833,11 +838,13 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -1196,11 +1203,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -2714,10 +2724,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2737,10 +2748,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2755,11 +2767,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -2780,10 +2795,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2846,10 +2862,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2869,10 +2886,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2891,7 +2909,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -2937,10 +2956,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2955,11 +2975,13 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -2979,10 +3001,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3002,10 +3025,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3044,10 +3068,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3133,10 +3158,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3175,10 +3201,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3198,10 +3225,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3216,11 +3244,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -3241,10 +3272,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3622,11 +3654,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -3642,11 +3677,13 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -3662,11 +3699,13 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -3682,11 +3721,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -3771,11 +3813,14 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -3791,11 +3836,13 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"

@@ -264,8 +264,12 @@ class VertexBackend(LLMBackend):
 
     @retry(
         retry=retry_if_exception(_is_retryable_vertex_error),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential_jitter(initial=1, max=8),
+        # The project's Gemini quota is a per-minute request budget, so a
+        # 429 clears within seconds and is worth waiting for: giving up
+        # after ~7s (the old 3 attempts) degraded real answers to a raw
+        # manual excerpt under even light classroom load.
+        stop=stop_after_attempt(6),
+        wait=wait_exponential_jitter(initial=2, max=20),
         reraise=True,
     )
     async def _generate(self, *, system: str, user: str, max_tokens: int, temperature: float):

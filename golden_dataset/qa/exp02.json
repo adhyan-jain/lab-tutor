@@ -1765,10 +1765,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1807,7 +1808,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -1829,10 +1831,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1871,7 +1874,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -1893,10 +1897,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1937,7 +1942,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -2003,7 +2009,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -2025,7 +2032,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -2067,7 +2075,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
       "supplementary": true,
@@ -2089,10 +2098,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },

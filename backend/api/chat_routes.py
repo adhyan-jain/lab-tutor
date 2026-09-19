@@ -50,7 +50,7 @@ from backend.models import (
     Submission,
 )
 from backend.pipeline import run_diagnosis
-from backend.retrieval.pipeline import answer_question
+from backend.retrieval.pipeline import QUALITATIVE_EXPERIMENTS, answer_question
 from backend.router import RouterMode, route_message
 from backend.scope import ontology
 from backend.socratic_engine import (
@@ -109,6 +109,10 @@ def derive_title(text: str) -> str:
 #: cannot silently balloon a prompt.
 MAX_HISTORY_MESSAGES = 12
 MAX_HISTORY_CHARS_PER_MESSAGE = 500
+#: Tutor turns are long numbered procedures; clipping them at the student
+#: limit would cut a walkthrough off before "go back to step 2" can be
+#: answered from it.
+MAX_HISTORY_CHARS_PER_TUTOR_MESSAGE = 1800
 
 
 async def _recent_history_text(db: AsyncSession, thread_id: str) -> str:
@@ -129,7 +133,8 @@ async def _recent_history_text(db: AsyncSession, thread_id: str) -> str:
     )
     rows.reverse()
     lines = [
-        f"{'STUDENT' if m.author == 'student' else 'TUTOR'}: {m.content[:MAX_HISTORY_CHARS_PER_MESSAGE]}"
+        f"{'STUDENT' if m.author == 'student' else 'TUTOR'}: "
+        f"{m.content[: MAX_HISTORY_CHARS_PER_MESSAGE if m.author == 'student' else MAX_HISTORY_CHARS_PER_TUTOR_MESSAGE]}"
         for m in rows
     ]
     return "\n".join(lines)
@@ -873,13 +878,23 @@ async def send_message(
                     min(socratic_session.current_step, len(current_steps) - 1)
                 ].prompt
 
-            router_decision = await route_message(
-                message=body.message,
-                history=history_text,
-                active_experiment=experiment_id,
-                known_experiments={t.id: t.title for t in ontology.routable_topics()},
-                socratic_active=socratic_active,
-                socratic_step_prompt=socratic_step_prompt,
+            # Exp7/Exp8 never need the LLM router: everything a student
+            # says about them is answered by the same grounded Q&A pipeline
+            # (numeric pastes are still caught deterministically below), and
+            # the router costs a second model call per message -- which, at
+            # the project's Vertex request quota, is the difference between
+            # ~12 and ~25 messages a minute for the whole class.
+            router_decision = (
+                None
+                if experiment_id in QUALITATIVE_EXPERIMENTS
+                else await route_message(
+                    message=body.message,
+                    history=history_text,
+                    active_experiment=experiment_id,
+                    known_experiments={t.id: t.title for t in ontology.routable_topics()},
+                    socratic_active=socratic_active,
+                    socratic_step_prompt=socratic_step_prompt,
+                )
             )
 
             if router_decision is None:
