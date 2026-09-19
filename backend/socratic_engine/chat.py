@@ -101,6 +101,11 @@ class TutorReply:
     #: What the message was classified as. The API layer uses this to
     #: decide whether staff should see that it happened.
     intent: triage.Intent = triage.Intent.LAB_QUESTION
+    #: Populated only when a backend was actually called (source in
+    #: "llm"/"qa_fallback"); None for "triage"/"template".
+    latency_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
 
 
 def _build_user_prompt(gate_input: SocraticLLMInput) -> str:
@@ -144,18 +149,21 @@ def _build_user_prompt(gate_input: SocraticLLMInput) -> str:
 
 async def _grounded_fallback_answer(
     student_message: str, experiment_id: str | None, conversation_history: str
-) -> str | None:
-    """A real, manual-grounded answer for a genuine question, used only
-    when the in-character tutor phrasing failed or was rejected.
+):
+    """A real, manual-grounded answer for a genuine question.
 
     Deliberately routed through the *same* pipeline plain Q&A uses
     (`backend.retrieval.pipeline.answer_question`) rather than the
     Socratic hint: that pipeline never sees the withheld final answer at
     all (it only retrieves manual passages), so it is safe to return
     verbatim -- unlike the current-step hint, which is simply wrong
-    content for a "what does V_inf mean" question. Returns None if it
-    has nothing better than the hint to offer, so the caller keeps the
-    existing hint-verbatim behaviour.
+    content for a "what does V_inf mean" question. Returns the full
+    `AnswerResult` (not just text) so callers can also surface its
+    latency/token metadata; returns None if it has nothing better than
+    the hint to offer, so the caller keeps the existing hint-verbatim
+    behaviour. For exp07/exp08 this is the PRIMARY answer path (see
+    `tutor_reply`), not a last resort -- for every other experiment it
+    remains the fallback it always was.
     """
     # Deferred: backend.retrieval.pipeline transitively imports
     # backend.scope.classifier, which imports backend.socratic_engine.triage
@@ -172,7 +180,7 @@ async def _grounded_fallback_answer(
     except Exception:
         log.warning("Grounded fallback Q&A also failed; using the hint verbatim", exc_info=True)
         return None
-    return result.text if result.status.answerable else None
+    return result if result.status.answerable else None
 
 
 async def tutor_reply(
@@ -203,6 +211,34 @@ async def tutor_reply(
         log.info("Message triaged as %s; answered without a model", intent.value)
         return TutorReply(text=fixed, source="triage", intent=intent)
 
+    is_qualitative = experiment_id in ("exp07", "exp08")
+
+    if is_qualitative:
+        # Exp7/8 chat is Q&A-shaped regardless of the hint-ladder framing
+        # -- these two can never really "complete" through the step
+        # machine (docs/ARCHITECTURE.md Sec 2.1.1's known limitation), and
+        # there is no withheld numeric key to protect on any turn. Route
+        # straight through the richer hybrid-retrieval Q&A pipeline
+        # (more candidates, more citations, an exp-aware system prompt)
+        # as the PRIMARY path instead of the generic hint-ladder LLM call,
+        # which only ever had a single 800-char legacy-retrieval excerpt
+        # as background and no per-experiment instruction.
+        result = await _grounded_fallback_answer(
+            student_message, experiment_id, conversation_history
+        )
+        if result is not None:
+            decision = filter_outbound(result.text, mode="diagnostic")
+            return TutorReply(
+                text=decision.text,
+                source="qa_fallback",
+                intent=intent,
+                latency_ms=result.latency_ms,
+                prompt_tokens=result.prompt_tokens,
+                completion_tokens=result.completion_tokens,
+            )
+        decision = filter_outbound(hint_text or templates.refusal_text(), mode="diagnostic")
+        return TutorReply(text=decision.text, source="template", intent=intent)
+
     passages = retrieve(retrieval_query or step_prompt, k=1)
     excerpt = passages[0].text[:800] if passages else ""
 
@@ -225,29 +261,30 @@ async def tutor_reply(
         student_message
     )
 
-    async def _fallback() -> tuple[str, str]:
-        if is_genuine_question or experiment_id in ("exp07", "exp08"):
-            grounded = await _grounded_fallback_answer(
+    async def _fallback() -> tuple[str, str, object]:
+        if is_genuine_question:
+            result = await _grounded_fallback_answer(
                 student_message, experiment_id, conversation_history
             )
-            if grounded:
-                return grounded, "qa_fallback"
-        return hint_text or templates.refusal_text(), "template"
+            if result is not None:
+                return result.text, "qa_fallback", result
+        return hint_text or templates.refusal_text(), "template", None
 
+    reply_meta: object = None
     try:
         reply = await get_backend().complete(
             system=SYSTEM_PROMPT, user=_build_user_prompt(gate_input), max_tokens=1000
         )
-        text, source = reply.text, "llm"
+        text, source, reply_meta = reply.text, "llm", reply
     except LLMUnavailable as exc:
         log.warning("Socratic phrasing unavailable, falling back: %s", exc)
-        text, source = await _fallback()
+        text, source, reply_meta = await _fallback()
 
     if not text.strip():
-        text, source = await _fallback()
+        text, source, reply_meta = await _fallback()
     elif source == "llm" and _looks_like_meta_commentary(text):
         log.warning("Rejected a tutor reply that narrated its own task; falling back")
-        text, source = await _fallback()
+        text, source, reply_meta = await _fallback()
 
     if source == "qa_fallback":
         # This text came from the manual-Q&A pipeline, not the Socratic
@@ -260,16 +297,22 @@ async def tutor_reply(
         # control-character sanitisation that every other outbound path
         # gets aren't skipped just because the number-scrub is.
         decision = filter_outbound(text, mode="diagnostic")
-        return TutorReply(text=decision.text, source=source, intent=intent)
+        return TutorReply(
+            text=decision.text,
+            source=source,
+            intent=intent,
+            latency_ms=getattr(reply_meta, "latency_ms", None),
+            prompt_tokens=getattr(reply_meta, "prompt_tokens", None),
+            completion_tokens=getattr(reply_meta, "completion_tokens", None),
+        )
 
     # Outbound gate: in quantitative experiments, a hint may echo numbers
-    # the student or step put on the table, but may not introduce novel calculation answers.
-    # In qualitative computational experiments (Exp 7/8), there is no withheld numeric key.
-    is_qualitative = experiment_id in ("exp07", "exp08")
+    # the student or step put on the table, but may not introduce novel
+    # calculation answers. (Exp 7/8 never reach this branch -- see above.)
     decision = filter_outbound(
         text,
-        mode="diagnostic" if is_qualitative else "socratic",
-        all_steps_complete=all_steps_complete or is_qualitative,
+        mode="socratic",
+        all_steps_complete=all_steps_complete,
         permitted_sources=(student_message, step_prompt, hint_text, excerpt, conversation_history),
     )
     if decision.redacted:
@@ -283,5 +326,8 @@ async def tutor_reply(
         source=source,
         redacted=decision.redacted,
         intent=intent,
+        latency_ms=getattr(reply_meta, "latency_ms", None),
+        prompt_tokens=getattr(reply_meta, "prompt_tokens", None),
+        completion_tokens=getattr(reply_meta, "completion_tokens", None),
     )
 

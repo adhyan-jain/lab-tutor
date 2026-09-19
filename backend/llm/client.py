@@ -11,6 +11,7 @@ import abc
 import asyncio
 import logging
 import re
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -61,6 +62,13 @@ class LLMReply:
     text: str
     backend: str
     model: str
+    #: Wall-clock time for the completion call, populated by every
+    #: backend. Token counts are populated where the backend's response
+    #: reports them (Vertex does; others may not) -- None rather than an
+    #: invented number when unavailable.
+    latency_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
 
 
 class LLMBackend(abc.ABC):
@@ -121,6 +129,7 @@ class HostedBackend(LLMBackend):
             ],
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
+        started = time.monotonic()
         try:
             async with _get_semaphore():
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -131,15 +140,20 @@ class HostedBackend(LLMBackend):
                     data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise LLMUnavailable(f"Hosted backend request failed: {exc}") from exc
+        latency_ms = (time.monotonic() - started) * 1000
 
         try:
             text = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMUnavailable(f"Unexpected hosted backend response shape: {exc}") from exc
+        usage = data.get("usage") or {}
         return LLMReply(
             text=_strip_markdown_emphasis((text or "").strip()),
             backend=self.name,
             model=self._model,
+            latency_ms=latency_ms,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
         )
 
     async def health(self) -> bool:
@@ -190,6 +204,7 @@ class OllamaBackend(LLMBackend):
                 {"role": "user", "content": user},
             ],
         }
+        started = time.monotonic()
         try:
             async with _get_semaphore():
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -198,12 +213,16 @@ class OllamaBackend(LLMBackend):
                     data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise LLMUnavailable(f"Ollama request failed: {exc}") from exc
+        latency_ms = (time.monotonic() - started) * 1000
 
         text = (data.get("message") or {}).get("content", "")
         return LLMReply(
             text=_strip_markdown_emphasis((text or "").strip()),
             backend=self.name,
             model=self._model,
+            latency_ms=latency_ms,
+            prompt_tokens=data.get("prompt_eval_count"),
+            completion_tokens=data.get("eval_count"),
         )
 
     async def health(self) -> bool:
@@ -272,6 +291,7 @@ class VertexBackend(LLMBackend):
         max_tokens: int | None = None,
         temperature: float | None = None,
     ) -> LLMReply:
+        started = time.monotonic()
         try:
             response = await self._generate(
                 system=system,
@@ -281,9 +301,16 @@ class VertexBackend(LLMBackend):
             )
         except (genai_errors.APIError, TimeoutError) as exc:
             raise LLMUnavailable(f"Vertex AI request failed: {exc}") from exc
+        latency_ms = (time.monotonic() - started) * 1000
         text = (getattr(response, "text", None) or "").strip()
+        usage = getattr(response, "usage_metadata", None)
         return LLMReply(
-            text=_strip_markdown_emphasis(text), backend=self.name, model=self._model
+            text=_strip_markdown_emphasis(text),
+            backend=self.name,
+            model=self._model,
+            latency_ms=latency_ms,
+            prompt_tokens=getattr(usage, "prompt_token_count", None) if usage else None,
+            completion_tokens=getattr(usage, "candidates_token_count", None) if usage else None,
         )
 
     async def health(self) -> bool:

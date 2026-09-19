@@ -37,11 +37,13 @@ posture as `answer_gate.assert_gate_invariant`.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
 from dataclasses import dataclass, field
 
 from backend.llm import LLMUnavailable, get_backend
+from backend.llm.client import LLMReply
 from backend.rag.phrasing import sanitise_student_text
 from backend.retrieval.chunks import Chunk
 from backend.retrieval.grounding import overlap_terms
@@ -106,6 +108,11 @@ class AnswerResult:
     passages: tuple[ScoredChunk, ...] = field(default_factory=tuple, repr=False)
     supplementary: bool = False
     answer_source: str = "fallback"  # "llm" | "extractive" | "fallback"
+    #: Populated only when answer_source == "llm"; None for extractive/
+    #: fallback answers, which never called a backend.
+    latency_ms: float | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
 
     @property
     def experiment_id(self) -> str | None:
@@ -219,7 +226,7 @@ async def answer_question(
     chosen = (official if official else supplementary)[:MAX_CITATIONS]
     citations = tuple(_make_citation(item.chunk) for item in chosen)
 
-    text, source = await _generate_answer(
+    text, source, reply = await _generate_answer(
         decision=decision,
         status=status,
         passages=chosen,
@@ -235,6 +242,9 @@ async def answer_question(
         passages=tuple(scored),
         supplementary=status.requires_supplementary_label,
         answer_source=source,
+        latency_ms=reply.latency_ms if reply else None,
+        prompt_tokens=reply.prompt_tokens if reply else None,
+        completion_tokens=reply.completion_tokens if reply else None,
     )
     _validate(result)
     return result
@@ -267,26 +277,30 @@ async def _generate_answer(
     passages: list[ScoredChunk],
     use_llm: bool,
     conversation_history: str = "",
-) -> tuple[str, str]:
+) -> tuple[str, str, "LLMReply | None"]:
     if not passages:
         # Should not happen: status.answerable implies non-empty evidence.
         # Defensive fallback rather than a crash.
-        return (fallback_text(AnswerStatus.NEEDS_HUMAN_REVIEW), "fallback")
+        return (fallback_text(AnswerStatus.NEEDS_HUMAN_REVIEW), "fallback", None)
 
     if use_llm:
         try:
-            text = await _phrase_with_llm(
+            reply = await _phrase_with_llm(
                 decision=decision,
                 status=status,
                 passages=passages,
                 conversation_history=conversation_history,
             )
-            if text:
-                return (text, "llm")
+            if reply.text:
+                return (reply.text, "llm", reply)
         except LLMUnavailable as exc:
             log.info("Answer phrasing unavailable, using extractive fallback: %s", exc)
 
-    return (_extractive_answer(passages, supplementary=status.requires_supplementary_label), "extractive")
+    return (
+        _extractive_answer(passages, supplementary=status.requires_supplementary_label),
+        "extractive",
+        None,
+    )
 
 
 async def _phrase_with_llm(
@@ -295,7 +309,7 @@ async def _phrase_with_llm(
     status: AnswerStatus,
     passages: list[ScoredChunk],
     conversation_history: str = "",
-) -> str:
+) -> "LLMReply":
     question = sanitise_student_text(decision.query.raw)
     passage_block = "\n---\n".join(
         f"[{i + 1}] {item.chunk.text}" for i, item in enumerate(passages)
@@ -329,7 +343,9 @@ async def _phrase_with_llm(
     ]
     user = "\n".join(parts)
     reply = await get_backend().complete(system=SYSTEM_PROMPT, user=user, max_tokens=1000)
-    return (reply.text or "").strip()
+    if reply.text and reply.text != reply.text.strip():
+        reply = dataclasses.replace(reply, text=reply.text.strip())
+    return reply
 
 
 
