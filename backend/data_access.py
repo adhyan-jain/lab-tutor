@@ -174,11 +174,16 @@ class FacultyScope:
             ClassroomMembership.active.is_(True),
         )
 
-    def select_classrooms(self) -> Select[tuple[Classroom]]:
-        return select(Classroom).where(Classroom.id.in_(self._member_classroom_ids()))
+    def select_classrooms(self, *, include_archived: bool = False) -> Select[tuple[Classroom]]:
+        stmt = select(Classroom).where(Classroom.id.in_(self._member_classroom_ids()))
+        if not include_archived:
+            stmt = stmt.where(Classroom.archived_at.is_(None))
+        return stmt
 
     async def get_classroom(self, classroom_id: str) -> Classroom | None:
-        stmt = self.select_classrooms().where(Classroom.id == classroom_id)
+        # By id, an archived class is still reachable: its reports and
+        # exports must stay readable after it disappears from the lists.
+        stmt = self.select_classrooms(include_archived=True).where(Classroom.id == classroom_id)
         return (await self._session.scalars(stmt)).first()
 
     async def is_member(self, classroom_id: str) -> bool:

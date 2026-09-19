@@ -160,6 +160,12 @@ class Classroom(Base):
     faculty_join_code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     join_open: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    #: "Deleting" a class only archives it: hidden from lists, not joinable
+    #: or startable, but every session, prompt, mark and summary is kept
+    #: (research data must survive). Restorable.
+    archived_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
 
 
 class ClassroomMembership(Base):

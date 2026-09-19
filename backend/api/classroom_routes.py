@@ -52,6 +52,10 @@ class JoinOpenRequest(BaseModel):
     join_open: bool
 
 
+class RenameClassroomRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
 class RegenerateCodeRequest(BaseModel):
     which: str = Field(pattern="^(student|faculty)$")
 
@@ -113,6 +117,8 @@ async def _classroom_payload(db: AsyncSession, classroom: Classroom, *, include_
         "active_experiment_id": active_session.experiment_id if active_session else None,
         "active_session_id": active_session.id if active_session else None,
         "student_count": await classroom_service.student_count(db, classroom.id),
+        "archived": classroom.archived_at is not None,
+        "archived_at": classroom.archived_at.isoformat() if classroom.archived_at else None,
     }
     if include_codes:
         payload["student_join_code"] = classroom.student_join_code
@@ -188,20 +194,27 @@ async def create_classroom(
 
 @router.get("")
 async def list_all_classrooms(
+    include_archived: bool = False,
     principal: Principal = Depends(require_admin),
     db: AsyncSession = Depends(get_session),
 ) -> dict:
     """Admin-only: every classroom, without needing membership in any."""
-    rows = list((await db.scalars(select(Classroom))).all())
+    stmt = select(Classroom)
+    if not include_archived:
+        stmt = stmt.where(Classroom.archived_at.is_(None))
+    rows = list((await db.scalars(stmt)).all())
     return {"classrooms": [await _classroom_payload(db, c, include_codes=True) for c in rows]}
 
 
 @router.get("/mine")
 async def my_classrooms(
+    include_archived: bool = False,
     scope: FacultyScope = Depends(faculty_or_admin_scope),
     db: AsyncSession = Depends(get_session),
 ) -> dict:
-    rows = list((await db.scalars(scope.select_classrooms())).all())
+    rows = list(
+        (await db.scalars(scope.select_classrooms(include_archived=include_archived))).all()
+    )
     return {"classrooms": [await _classroom_payload(db, c, include_codes=True) for c in rows]}
 
 
@@ -228,7 +241,13 @@ async def enrolled_classrooms(
     ids = student_ids | co_faculty_ids
     if not ids:
         return {"classrooms": []}
-    rows = list((await db.scalars(select(Classroom).where(Classroom.id.in_(ids)))).all())
+    rows = list(
+        (
+            await db.scalars(
+                select(Classroom).where(Classroom.id.in_(ids), Classroom.archived_at.is_(None))
+            )
+        ).all()
+    )
     out = []
     for c in rows:
         payload = await _classroom_payload(db, c, include_codes=False)
@@ -286,6 +305,62 @@ async def join(
     await idempotency.complete(db, claim, payload)
     await db.commit()
     return payload
+
+
+@router.patch("/{classroom_id}")
+async def rename_classroom(
+    classroom_id: str,
+    body: RenameClassroomRequest,
+    principal: Principal = Depends(require_classroom_faculty),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    classroom = await _get_classroom_or_404(db, classroom_id)
+    old_name = classroom.name
+    try:
+        await classroom_service.rename_classroom(db, classroom, name=body.name)
+    except classroom_service.ClassroomError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    await audit.record(
+        db, audit.CLASSROOM_RENAMED, user_id=principal.id, classroom_id=classroom.id,
+        detail={"from": old_name, "to": classroom.name},
+    )
+    await db.commit()
+    return await _classroom_payload(db, classroom, include_codes=True)
+
+
+@router.delete("/{classroom_id}")
+async def archive_classroom(
+    classroom_id: str,
+    principal: Principal = Depends(require_classroom_faculty),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """"Delete" a class: archive it. Any live session is ended, the class
+    leaves every list and can no longer be joined or started -- and every
+    session, prompt, mark and summary is kept (see `Classroom.archived_at`)."""
+    classroom = await _get_classroom_or_404(db, classroom_id)
+    await classroom_service.archive_classroom(db, classroom, archived_by=principal.id)
+    await audit.record(
+        db, audit.CLASSROOM_ARCHIVED, user_id=principal.id, classroom_id=classroom.id,
+        detail={"name": classroom.name},
+    )
+    await db.commit()
+    return await _classroom_payload(db, classroom, include_codes=True)
+
+
+@router.post("/{classroom_id}/restore")
+async def restore_classroom(
+    classroom_id: str,
+    principal: Principal = Depends(require_classroom_faculty),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    classroom = await _get_classroom_or_404(db, classroom_id)
+    await classroom_service.restore_classroom(db, classroom)
+    await audit.record(
+        db, audit.CLASSROOM_RESTORED, user_id=principal.id, classroom_id=classroom.id,
+        detail={"name": classroom.name},
+    )
+    await db.commit()
+    return await _classroom_payload(db, classroom, include_codes=True)
 
 
 @router.patch("/{classroom_id}/join-open")

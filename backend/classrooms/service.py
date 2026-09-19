@@ -139,7 +139,8 @@ async def join_classroom(
             )
         )
     ).first()
-    if classroom is None:
+    if classroom is None or classroom.archived_at is not None:
+        # An archived class is indistinguishable from a wrong code.
         raise ClassroomError("No classroom matches that code")
 
     if code == classroom.student_join_code:
@@ -204,6 +205,43 @@ async def set_join_open(
 ) -> Classroom:
     """Lock the roster once the section has joined."""
     classroom.join_open = open_
+    await db.flush()
+    return classroom
+
+
+async def rename_classroom(db: AsyncSession, classroom: Classroom, *, name: str) -> Classroom:
+    cleaned = " ".join((name or "").split())
+    if not cleaned:
+        raise ClassroomError("A classroom needs a name.")
+    classroom.name = cleaned[:200]
+    await db.flush()
+    return classroom
+
+
+async def archive_classroom(
+    db: AsyncSession, classroom: Classroom, *, archived_by: str
+) -> Classroom:
+    """"Delete" a classroom: hide it and stop it running, keep every row.
+
+    A live session is ended first so students cannot keep chatting into a
+    class that has disappeared from the lists. Nothing else is touched --
+    prompts, attempts, diagnoses, marks and summaries all stay, and the
+    class is restorable.
+    """
+    from backend.models import _now
+
+    if classroom.archived_at is not None:
+        return classroom
+    active = await get_active_session(db, classroom.id)
+    if active is not None:
+        await end_session(db, active, ended_by=archived_by)
+    classroom.archived_at = _now()
+    await db.flush()
+    return classroom
+
+
+async def restore_classroom(db: AsyncSession, classroom: Classroom) -> Classroom:
+    classroom.archived_at = None
     await db.flush()
     return classroom
 
@@ -384,6 +422,10 @@ async def start_session(
         get_plugin(experiment_id)
     except UnknownExperimentError as exc:
         raise ClassroomError(str(exc)) from exc
+
+    classroom = await db.get(Classroom, classroom_id)
+    if classroom is not None and classroom.archived_at is not None:
+        raise ClassroomError("This classroom is archived. Restore it before starting a class.")
 
     existing = await get_active_session(db, classroom_id)
     if existing is not None:

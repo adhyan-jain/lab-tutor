@@ -10,6 +10,7 @@ from backend.api import (
     health,
     marks_routes,
     qa_routes,
+    session_report_routes,
     socratic_routes,
 )
 
@@ -18,6 +19,7 @@ ROUTERS = [
     auth_routes.router,
     admin_routes.router,
     classroom_routes.router,
+    session_report_routes.router,
     chat_routes.router,
     qa_routes.router,
     socratic_routes.router,
