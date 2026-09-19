@@ -207,12 +207,9 @@ def is_guidance_request(text: str) -> bool:
     experiment / give me the current step's hint" phrasing, as opposed to
     a general factual question.
 
-    Two call sites lean on this: `chat_routes` uses it to decide whether a
-    first-time message should silently enrol a student into a guided
-    Socratic session (only a guidance request should), and
-    `socratic_engine.chat` uses its negation to decide whether a *failed*
-    model call should fall back to the current step's hint or to a real
-    grounded answer -- repeating an unrelated hint at someone who asked
-    "what does V_inf mean" is not a fallback, it's a non-answer.
+    `chat_routes` uses it to decide whether a first-time message should
+    silently enrol a student into a guided Socratic session (only a
+    guidance request should); a plain factual question falls through to
+    grounded Q&A instead.
     """
     return bool(_GUIDANCE_RE.search(text))

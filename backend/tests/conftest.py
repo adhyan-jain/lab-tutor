@@ -69,8 +69,10 @@ class FakeBackend:
         self.available = True
 
     async def complete(self, *, system: str, user: str, max_tokens: int | None = None):
+        from backend.llm import telemetry
         from backend.llm.client import LLMReply, LLMUnavailable
 
+        telemetry.record_call()
         self.calls.append({"system": system, "user": user})
         if not self.available:
             raise LLMUnavailable("fake backend is offline")

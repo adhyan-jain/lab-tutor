@@ -22,7 +22,7 @@ from backend.answer_gate import (
     filter_outbound,
     prepare_socratic_input,
 )
-from backend.llm import LLMUnavailable, get_backend
+from backend.llm import LLMUnavailable, get_backend, telemetry
 from backend.rag import templates
 from backend.rag.retrieval import retrieve
 from backend.socratic_engine import triage
@@ -264,21 +264,10 @@ async def tutor_reply(
         conversation_history=conversation_history,
     )
 
-    # A message that doesn't read as "give me the hint/nudge" is a
-    # genuine question -- see triage.is_guidance_request's docstring for
-    # why repeating the current-step hint at it is not an acceptable
-    # degraded-mode answer.
-    is_genuine_question = bool(student_message.strip()) and not triage.is_guidance_request(
-        student_message
-    )
-
-    async def _fallback() -> tuple[str, str, object]:
-        if is_genuine_question:
-            result = await _grounded_fallback_answer(
-                student_message, experiment_id, conversation_history
-            )
-            if result is not None:
-                return result.text, "qa_fallback", result
+    # Any failure below degrades to the deterministic hint -- never to a
+    # second generation.
+    def _fallback() -> tuple[str, str, object]:
+        telemetry.record_fallback("template_hint")
         return hint_text or templates.refusal_text(), "template", None
 
     reply_meta: object = None
@@ -288,34 +277,14 @@ async def tutor_reply(
         )
         text, source, reply_meta = reply.text, "llm", reply
     except LLMUnavailable as exc:
-        log.warning("Socratic phrasing unavailable, falling back: %s", exc)
-        text, source, reply_meta = await _fallback()
+        log.warning("Socratic phrasing unavailable, using the hint template: %s", exc)
+        text, source, reply_meta = _fallback()
 
     if not text.strip():
-        text, source, reply_meta = await _fallback()
+        text, source, reply_meta = _fallback()
     elif source == "llm" and _looks_like_meta_commentary(text):
-        log.warning("Rejected a tutor reply that narrated its own task; falling back")
-        text, source, reply_meta = await _fallback()
-
-    if source == "qa_fallback":
-        # This text came from the manual-Q&A pipeline, not the Socratic
-        # hint machinery -- it was never at risk of carrying the withheld
-        # final answer (that pipeline doesn't have it either), so the
-        # student-secret-number scrub does not apply to it and would only
-        # misfire on legitimate manual figures (e.g. a quoted wavelength
-        # or tolerance) it correctly included. It still passes through
-        # `filter_outbound` in diagnostic mode so the length cap and
-        # control-character sanitisation that every other outbound path
-        # gets aren't skipped just because the number-scrub is.
-        decision = filter_outbound(text, mode="diagnostic")
-        return TutorReply(
-            text=decision.text,
-            source=source,
-            intent=intent,
-            latency_ms=getattr(reply_meta, "latency_ms", None),
-            prompt_tokens=getattr(reply_meta, "prompt_tokens", None),
-            completion_tokens=getattr(reply_meta, "completion_tokens", None),
-        )
+        log.warning("Rejected a tutor reply that narrated its own task; using the hint template")
+        text, source, reply_meta = _fallback()
 
     # Outbound gate: in quantitative experiments, a hint may echo numbers
     # the student or step put on the table, but may not introduce novel

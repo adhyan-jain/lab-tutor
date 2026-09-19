@@ -98,7 +98,23 @@ class Settings(BaseSettings):
     #: waiting out the full timeout -- compare `summaries/jobs.py`,
     #: which already bounds its own batch fan-out with a semaphore for
     #: the same reason.
+    #: This is a PER-PROCESS limit, not a project-wide one: with Cloud Run
+    #: `maxScale` N the real ceiling is N x this. The project's Vertex
+    #: quota (a per-minute request budget) is enforced by Google, not
+    #: here -- this only stops one instance from opening unbounded
+    #: connections and lets excess work fail over to the extractive
+    #: fallback instead of queueing for minutes.
     llm_max_concurrency: int = Field(20, alias="LABTUTOR_LLM_MAX_CONCURRENCY")
+    #: How long a request may wait for a concurrency slot before it gives
+    #: up on the model and takes the extractive fallback.
+    llm_queue_timeout_seconds: float = Field(10.0, alias="LABTUTOR_LLM_QUEUE_TIMEOUT_SECONDS")
+    #: The single retry owner is `VertexBackend._generate`. Retries only on
+    #: 429/5xx, exponential backoff with jitter, bounded by both an attempt
+    #: count and a wall-clock budget so a student never waits unbounded.
+    llm_max_attempts: int = Field(3, alias="LABTUTOR_LLM_MAX_ATTEMPTS")
+    llm_retry_initial_seconds: float = Field(1.0, alias="LABTUTOR_LLM_RETRY_INITIAL_SECONDS")
+    llm_retry_max_seconds: float = Field(8.0, alias="LABTUTOR_LLM_RETRY_MAX_SECONDS")
+    llm_retry_budget_seconds: float = Field(25.0, alias="LABTUTOR_LLM_RETRY_BUDGET_SECONDS")
     ollama_base_url: str = Field("http://localhost:11434", alias="LABTUTOR_OLLAMA_BASE_URL")
     ollama_model: str = Field("qwen2.5:7b", alias="LABTUTOR_OLLAMA_MODEL")
     #: Some local models (e.g. qwen3) default to an internal "thinking"
@@ -127,7 +143,11 @@ class Settings(BaseSettings):
     # backend/router/. Purely additive: any failure (unavailable backend,
     # malformed output, low confidence) falls back to the pre-existing
     # keyword-based dispatch unchanged, so this is a zero-risk kill switch.
-    router_enabled: bool = Field(True, alias="LABTUTOR_ROUTER_ENABLED")
+    #: Off by default: a message must cost at most one generation, and the
+    #: router is a second one. Interaction mode (Q&A / Socratic /
+    #: diagnostic / clarification) is picked by deterministic code and
+    #: stated to the single answering call instead.
+    router_enabled: bool = Field(False, alias="LABTUTOR_ROUTER_ENABLED")
     #: Below this, a router decision is treated the same as a router
     #: failure -- "not sure" and "failed" get identical, safe handling.
     router_min_confidence: float = Field(0.4, alias="LABTUTOR_ROUTER_MIN_CONFIDENCE")

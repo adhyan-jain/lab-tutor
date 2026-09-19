@@ -51,6 +51,7 @@ from backend.models import (
 )
 from backend.pipeline import run_diagnosis
 from backend.retrieval.pipeline import QUALITATIVE_EXPERIMENTS, answer_question
+from backend.llm import telemetry as llm_telemetry
 from backend.router import RouterMode, route_message
 from backend.scope import ontology
 from backend.socratic_engine import (
@@ -752,6 +753,7 @@ async def send_message(
     db: AsyncSession = Depends(get_session),
 ) -> dict:
     request_started = time.monotonic()
+    llm_stats = llm_telemetry.begin_request()
     actor_type = await _actor_type_for(db, principal, body.classroom_id)
     class_session_id, experiment_id = await _resolve_session_and_experiment(
         db, principal, actor_type, body.classroom_id, body.experiment_id
@@ -1053,7 +1055,18 @@ async def send_message(
     # Record Assistant Message. `response_ms` is end-to-end handling time
     # (routing + retrieval + every model call), distinct from the single
     # `llm_latency_ms` of the final answer call.
-    meta = {**(meta or {}), "response_ms": round((time.monotonic() - request_started) * 1000, 1)}
+    meta = {
+        **(meta or {}),
+        "response_ms": round((time.monotonic() - request_started) * 1000, 1),
+        **llm_stats.as_meta(),
+    }
+    log.info(
+        "chat_message llm_calls=%d attempts=%d retries=%d vertex_ok=%s fallback=%s "
+        "cache_hit=%s cached_tokens=%s model=%s student=%s classroom=%s exp=%s",
+        llm_stats.calls, llm_stats.attempts, llm_stats.retry_count,
+        llm_stats.vertex_succeeded, llm_stats.fallback_used, llm_stats.cache_hit,
+        llm_stats.cached_tokens, llm_stats.model, principal.id, body.classroom_id, experiment_id,
+    )
     assistant_msg = ChatMessage(
         thread_id=thread.id,
         kind=msg_kind,

@@ -42,7 +42,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 
-from backend.llm import LLMUnavailable, get_backend
+from backend.llm import LLMUnavailable, get_backend, telemetry
 from backend.llm.client import LLMReply
 from backend.rag.phrasing import sanitise_student_text
 from backend.retrieval.chunks import Chunk
@@ -505,8 +505,10 @@ async def _generate_answer(
             )
             if reply.text:
                 return (reply.text, "llm", reply)
+            telemetry.record_fallback("empty_model_reply")
         except LLMUnavailable as exc:
-            log.info("Answer phrasing unavailable, using extractive fallback: %s", exc)
+            telemetry.record_fallback("llm_unavailable")
+            log.warning("Answer phrasing unavailable, using extractive fallback: %s", exc)
 
     return (
         _extractive_answer(passages, supplementary=status.requires_supplementary_label),

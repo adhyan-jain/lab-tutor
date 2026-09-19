@@ -29,7 +29,7 @@ import secrets
 import unicodedata
 from dataclasses import dataclass
 
-from backend.llm import LLMUnavailable, get_backend
+from backend.llm import LLMUnavailable, get_backend, telemetry
 from backend.rag import templates
 from backend.rag.retrieval import Passage, retrieve
 from backend.tier1_compute.shared.types import Outcome, Tier1Result
@@ -229,6 +229,7 @@ async def phrase_diagnosis(
             user=_build_user_prompt(result, experiment_title, student_text, passage),
         )
     except LLMUnavailable as exc:
+        telemetry.record_fallback("llm_unavailable")
         log.warning("Phrasing unavailable, using template: %s", exc)
         return PhrasedOutput(
             text=fallback, source="template", citation=citation,

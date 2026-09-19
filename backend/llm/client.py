@@ -10,17 +10,19 @@ from __future__ import annotations
 import abc
 import asyncio
 import logging
-import re
+import random
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
 from backend.config import Settings, get_settings
+from backend.llm import telemetry
 
 log = logging.getLogger(__name__)
 
@@ -55,6 +57,29 @@ class LLMUnavailable(RuntimeError):
     *phrasing* something already decided, so an outage costs polish, never
     correctness. See README "Rollback plan".
     """
+
+
+@asynccontextmanager
+async def _slot() -> AsyncIterator[None]:
+    """A concurrency slot, or `LLMUnavailable` if none frees up in time.
+
+    Failing fast here sends the request to the extractive fallback instead
+    of letting a burst queue for minutes behind a slow provider.
+    """
+    sem = _get_semaphore()
+    try:
+        await asyncio.wait_for(sem.acquire(), timeout=get_settings().llm_queue_timeout_seconds)
+    except TimeoutError:
+        raise LLMUnavailable("LLM concurrency queue timeout") from None
+    try:
+        yield
+    finally:
+        sem.release()
+
+
+def _error_label(exc: BaseException) -> str:
+    code = getattr(exc, "code", None)
+    return f"{type(exc).__name__}:{code}" if code else type(exc).__name__
 
 
 @dataclass(frozen=True)
@@ -130,8 +155,10 @@ class HostedBackend(LLMBackend):
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
         started = time.monotonic()
+        telemetry.record_call()
+        telemetry.record_attempt()
         try:
-            async with _get_semaphore():
+            async with _slot():
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     resp = await client.post(
                         f"{self._base_url}/chat/completions", json=payload, headers=headers
@@ -139,6 +166,10 @@ class HostedBackend(LLMBackend):
                     resp.raise_for_status()
                     data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
+            telemetry.record_result(
+                backend=self.name, model=self._model, ok=False,
+                latency_ms=(time.monotonic() - started) * 1000, error=_error_label(exc),
+            )
             raise LLMUnavailable(f"Hosted backend request failed: {exc}") from exc
         latency_ms = (time.monotonic() - started) * 1000
 
@@ -205,13 +236,19 @@ class OllamaBackend(LLMBackend):
             ],
         }
         started = time.monotonic()
+        telemetry.record_call()
+        telemetry.record_attempt()
         try:
-            async with _get_semaphore():
+            async with _slot():
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     resp = await client.post(f"{self._base_url}/api/chat", json=payload)
                     resp.raise_for_status()
                     data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
+            telemetry.record_result(
+                backend=self.name, model=self._model, ok=False,
+                latency_ms=(time.monotonic() - started) * 1000, error=_error_label(exc),
+            )
             raise LLMUnavailable(f"Ollama request failed: {exc}") from exc
         latency_ms = (time.monotonic() - started) * 1000
 
@@ -240,6 +277,12 @@ def _is_retryable_vertex_error(exc: BaseException) -> bool:
     return isinstance(exc, genai_errors.APIError) and exc.code in (429, 500, 502, 503, 504)
 
 
+def _backoff_seconds(attempt: int, initial: float, cap: float) -> float:
+    """Exponential backoff with jitter: half to full of `initial * 2^(n-1)`."""
+    ceiling = min(cap, initial * (2 ** (attempt - 1)))
+    return ceiling * (0.5 + random.random() * 0.5)
+
+
 class VertexBackend(LLMBackend):
     """Vertex AI Gemini -- the pilot's production backend.
 
@@ -262,30 +305,47 @@ class VertexBackend(LLMBackend):
             location=settings.vertex_location,
         )
 
-    @retry(
-        retry=retry_if_exception(_is_retryable_vertex_error),
-        # The project's Gemini quota is a per-minute request budget, so a
-        # 429 clears within seconds and is worth waiting for: giving up
-        # after ~7s (the old 3 attempts) degraded real answers to a raw
-        # manual excerpt under even light classroom load.
-        stop=stop_after_attempt(6),
-        wait=wait_exponential_jitter(initial=2, max=20),
-        reraise=True,
-    )
     async def _generate(self, *, system: str, user: str, max_tokens: int, temperature: float):
-        async with _get_semaphore():
-            return await asyncio.wait_for(
-                self._client.aio.models.generate_content(
-                    model=self._model,
-                    contents=user,
-                    config=genai_types.GenerateContentConfig(
-                        system_instruction=system,
-                        max_output_tokens=max_tokens,
-                        temperature=temperature,
-                    ),
-                ),
-                timeout=self._timeout,
-            )
+        """The ONE place a Vertex generation is retried.
+
+        Nothing above (router, pipeline, chat) retries, and the SDK's own
+        retry is left unset, so a message can never multiply requests
+        beyond `llm_max_attempts`. The concurrency slot is held only while
+        a request is in flight, not while backing off.
+        """
+        settings = get_settings()
+        started = time.monotonic()
+        attempt = 0
+        while True:
+            attempt += 1
+            telemetry.record_attempt(retry=attempt > 1)
+            try:
+                async with _slot():
+                    return await asyncio.wait_for(
+                        self._client.aio.models.generate_content(
+                            model=self._model,
+                            contents=user,
+                            config=genai_types.GenerateContentConfig(
+                                system_instruction=system,
+                                max_output_tokens=max_tokens,
+                                temperature=temperature,
+                                automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(
+                                    disable=True
+                                ),
+                            ),
+                        ),
+                        timeout=self._timeout,
+                    )
+            except genai_errors.APIError as exc:
+                if not _is_retryable_vertex_error(exc) or attempt >= settings.llm_max_attempts:
+                    raise
+                delay = _backoff_seconds(
+                    attempt, settings.llm_retry_initial_seconds, settings.llm_retry_max_seconds
+                )
+                if (time.monotonic() - started) + delay > settings.llm_retry_budget_seconds:
+                    raise
+                log.info("Vertex %s; retry %d in %.1fs", exc.code, attempt, delay)
+                await asyncio.sleep(delay)
 
     async def complete(
         self,
@@ -296,6 +356,7 @@ class VertexBackend(LLMBackend):
         temperature: float | None = None,
     ) -> LLMReply:
         started = time.monotonic()
+        telemetry.record_call()
         try:
             response = await self._generate(
                 system=system,
@@ -303,18 +364,32 @@ class VertexBackend(LLMBackend):
                 max_tokens=max_tokens or self._default_max_tokens,
                 temperature=temperature if temperature is not None else self._temperature,
             )
-        except (genai_errors.APIError, TimeoutError) as exc:
+        except (genai_errors.APIError, TimeoutError, LLMUnavailable) as exc:
+            telemetry.record_result(
+                backend=self.name, model=self._model, ok=False,
+                latency_ms=(time.monotonic() - started) * 1000, error=_error_label(exc),
+            )
+            if isinstance(exc, LLMUnavailable):
+                raise
             raise LLMUnavailable(f"Vertex AI request failed: {exc}") from exc
         latency_ms = (time.monotonic() - started) * 1000
         text = (getattr(response, "text", None) or "").strip()
         usage = getattr(response, "usage_metadata", None)
+        prompt_tokens = getattr(usage, "prompt_token_count", None) if usage else None
+        completion_tokens = getattr(usage, "candidates_token_count", None) if usage else None
+        cached_tokens = getattr(usage, "cached_content_token_count", None) if usage else None
+        telemetry.record_result(
+            backend=self.name, model=self._model, ok=True, latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+            cached_tokens=cached_tokens,
+        )
         return LLMReply(
             text=_strip_markdown_emphasis(text),
             backend=self.name,
             model=self._model,
             latency_ms=latency_ms,
-            prompt_tokens=getattr(usage, "prompt_token_count", None) if usage else None,
-            completion_tokens=getattr(usage, "candidates_token_count", None) if usage else None,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
         )
 
     async def health(self) -> bool:
