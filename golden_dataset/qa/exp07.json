@@ -20,10 +20,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -43,10 +44,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -66,10 +68,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -89,10 +92,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -112,10 +116,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -135,10 +140,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -158,10 +164,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -181,10 +188,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -204,10 +212,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -227,10 +236,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -249,10 +259,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -272,10 +283,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -294,10 +306,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -317,10 +330,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -340,10 +354,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -363,10 +378,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -386,10 +402,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -409,10 +426,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -431,10 +449,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -454,10 +473,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -476,11 +496,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -500,10 +520,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -523,10 +544,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -546,10 +568,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -569,10 +592,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -592,10 +616,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -614,10 +639,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -637,10 +663,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -659,11 +686,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -683,10 +710,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -706,10 +734,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -729,10 +758,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -752,10 +782,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -775,10 +806,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -797,10 +829,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -820,10 +853,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -842,10 +876,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -865,10 +900,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -888,10 +924,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -911,10 +948,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -934,10 +972,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -957,10 +996,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -979,10 +1019,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1002,10 +1043,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1024,11 +1066,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1048,10 +1090,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1071,10 +1114,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1094,10 +1138,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1117,10 +1162,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1140,10 +1186,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1162,10 +1209,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1185,10 +1233,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1207,11 +1256,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1231,10 +1280,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1254,10 +1304,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1277,10 +1328,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1300,10 +1352,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1323,10 +1376,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1345,10 +1399,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1368,10 +1423,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1391,10 +1447,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1414,10 +1471,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1437,10 +1495,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1460,21 +1519,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-065",
       "experiment": "exp07",
-      "user_question": "how do i calculate isosurface in orca step by step",
+      "user_question": "how do i calculate isosurface in avogadro step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate isosurface in orca step by step",
+      "normalized_intent": "how do i calculate isosurface in avogadro step by step",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1483,10 +1543,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1506,10 +1567,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1529,21 +1591,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-068",
       "experiment": "exp07",
-      "user_question": "can you guide me through mo diagram calculation in avogadro",
+      "user_question": "can you guide me through mo diagram calculation in gabedit",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through mo diagram calculation in avogadro",
+      "normalized_intent": "can you guide me through mo diagram calculation in gabedit",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1552,10 +1615,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1575,10 +1639,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1598,21 +1663,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-071",
       "experiment": "exp07",
-      "user_question": "how do i get the orbital step calculation in gabedit",
+      "user_question": "how do i get the orbital step calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i get the orbital step calculation in gabedit",
+      "normalized_intent": "how do i get the orbital step calculation in orca",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1621,10 +1687,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1644,10 +1711,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1667,21 +1735,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-074",
       "experiment": "exp07",
-      "user_question": "which button in orca performs the orbital contributions calculation step",
+      "user_question": "which button in avogadro performs the orbital contributions calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in orca performs the orbital contributions calculation step",
+      "normalized_intent": "which button in avogadro performs the orbital contributions calculation step",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1690,10 +1759,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1713,10 +1783,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1736,21 +1807,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-077",
       "experiment": "exp07",
-      "user_question": "how to run avogadro for ab initio step calculation",
+      "user_question": "how to run gabedit for ab initio step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run avogadro for ab initio step calculation",
+      "normalized_intent": "how to run gabedit for ab initio step calculation",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1759,10 +1831,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1782,10 +1855,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1805,21 +1879,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-080",
       "experiment": "exp07",
-      "user_question": "can you guide me through step 1 in gabedit for ch4",
+      "user_question": "can you guide me through step 1 in orca for ch4",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through step 1 in gabedit for ch4",
+      "normalized_intent": "can you guide me through step 1 in orca for ch4",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1828,10 +1903,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1851,10 +1927,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1874,21 +1951,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-083",
       "experiment": "exp07",
-      "user_question": "how do i calculate hartree fock in orca step by step",
+      "user_question": "how do i calculate hartree fock in avogadro step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate hartree fock in orca step by step",
+      "normalized_intent": "how do i calculate hartree fock in avogadro step by step",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1897,10 +1975,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1920,10 +1999,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1943,21 +2023,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-086",
       "experiment": "exp07",
-      "user_question": "can you guide me through hybrid functional calculation in avogadro",
+      "user_question": "can you guide me through hybrid functional calculation in gabedit",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through hybrid functional calculation in avogadro",
+      "normalized_intent": "can you guide me through hybrid functional calculation in gabedit",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -1966,10 +2047,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1989,10 +2071,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2012,21 +2095,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-089",
       "experiment": "exp07",
-      "user_question": "how do i get the methane step calculation in gabedit",
+      "user_question": "how do i get the methane step calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i get the methane step calculation in gabedit",
+      "normalized_intent": "how do i get the methane step calculation in orca",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2035,10 +2119,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2058,10 +2143,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2081,21 +2167,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-092",
       "experiment": "exp07",
-      "user_question": "which button in orca performs the o2 calculation step",
+      "user_question": "which button in avogadro performs the o2 calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in orca performs the o2 calculation step",
+      "normalized_intent": "which button in avogadro performs the o2 calculation step",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2104,10 +2191,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2127,10 +2215,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2150,21 +2239,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-095",
       "experiment": "exp07",
-      "user_question": "how to run avogadro for orbital contribution step calculation",
+      "user_question": "how to run gabedit for orbital contribution step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run avogadro for orbital contribution step calculation",
+      "normalized_intent": "how to run gabedit for orbital contribution step calculation",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2173,10 +2263,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2196,10 +2287,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2219,21 +2311,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-098",
       "experiment": "exp07",
-      "user_question": "can you guide me through step 1 in gabedit for orbitals",
+      "user_question": "can you guide me through step 1 in orca for orbitals",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through step 1 in gabedit for orbitals",
+      "normalized_intent": "can you guide me through step 1 in orca for orbitals",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2242,10 +2335,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2265,10 +2359,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2288,21 +2383,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-101",
       "experiment": "exp07",
-      "user_question": "how do i calculate b3p in orca step by step",
+      "user_question": "how do i calculate b3p in avogadro step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate b3p in orca step by step",
+      "normalized_intent": "how do i calculate b3p in avogadro step by step",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2311,10 +2407,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2334,10 +2431,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2357,21 +2455,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-104",
       "experiment": "exp07",
-      "user_question": "can you guide me through dioxygen calculation in avogadro",
+      "user_question": "can you guide me through dioxygen calculation in gabedit",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through dioxygen calculation in avogadro",
+      "normalized_intent": "can you guide me through dioxygen calculation in gabedit",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2380,10 +2479,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2403,10 +2503,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2426,21 +2527,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-107",
       "experiment": "exp07",
-      "user_question": "how do i get the homo step calculation in gabedit",
+      "user_question": "how do i get the homo step calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i get the homo step calculation in gabedit",
+      "normalized_intent": "how do i get the homo step calculation in orca",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2449,10 +2551,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2472,10 +2575,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2495,21 +2599,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-110",
       "experiment": "exp07",
-      "user_question": "which button in orca performs the lumo calculation step",
+      "user_question": "which button in avogadro performs the lumo calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in orca performs the lumo calculation step",
+      "normalized_intent": "which button in avogadro performs the lumo calculation step",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2518,10 +2623,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2541,10 +2647,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2564,21 +2671,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-113",
       "experiment": "exp07",
-      "user_question": "how to run avogadro for molecular orbital step calculation",
+      "user_question": "how to run gabedit for molecular orbital step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run avogadro for molecular orbital step calculation",
+      "normalized_intent": "how to run gabedit for molecular orbital step calculation",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2587,10 +2695,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2610,10 +2719,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2633,21 +2743,22 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
     {
       "id": "qa-exp07-direct_messy-116",
       "experiment": "exp07",
-      "user_question": "can you guide me through step 1 in gabedit for orbital coefficient",
+      "user_question": "can you guide me through step 1 in orca for orbital coefficient",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through step 1 in gabedit for orbital coefficient",
+      "normalized_intent": "can you guide me through step 1 in orca for orbital coefficient",
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_1_direct",
@@ -2656,10 +2767,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2679,10 +2791,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2702,10 +2815,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2724,6 +2838,7 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
+        "A",
         "B",
         "C"
       ],
@@ -2771,11 +2886,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2819,10 +2934,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2932,11 +3048,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2979,10 +3095,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3001,6 +3118,7 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
+        "A",
         "B",
         "C"
       ],
@@ -3044,12 +3162,15 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_unsupported",
+      "expected_behavior": "adjacent_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "adjacent-knowledge corpus has no passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
-      "supplementary": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B",
+        "C"
+      ],
+      "citation_expected": true,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3068,6 +3189,7 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
+        "A",
         "B",
         "C"
       ],
@@ -3092,10 +3214,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3110,12 +3233,15 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_unsupported",
+      "expected_behavior": "adjacent_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "adjacent-knowledge corpus has no passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
-      "supplementary": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B",
+        "C"
+      ],
+      "citation_expected": true,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3135,10 +3261,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3177,12 +3304,15 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_unsupported",
+      "expected_behavior": "adjacent_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "adjacent-knowledge corpus has no passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
-      "supplementary": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "B",
+        "C"
+      ],
+      "citation_expected": true,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3201,6 +3331,7 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
+        "A",
         "B",
         "C"
       ],
@@ -3248,11 +3379,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3296,10 +3427,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3659,10 +3791,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3681,10 +3814,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3703,10 +3837,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3726,10 +3861,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3749,10 +3885,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3772,10 +3909,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3795,10 +3933,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3818,10 +3957,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3840,10 +3980,11 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     }
