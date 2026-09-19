@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -67,6 +68,29 @@ from backend.tier1_compute.experiments import (
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+def _llm_meta(
+    latency_ms: float | None, prompt_tokens: int | None, completion_tokens: int | None
+) -> dict:
+    """Research metadata for one tutor turn's model call. Empty when no
+    backend was actually called (triage, template, extractive answers) --
+    never invents a number for a backend that didn't report one."""
+    if latency_ms is None and prompt_tokens is None and completion_tokens is None:
+        return {}
+    from backend.config import get_settings
+
+    settings = get_settings()
+    model = {"vertex": settings.vertex_model, "ollama": settings.ollama_model}.get(
+        settings.llm_backend, settings.llm_model
+    )
+    return {
+        "llm_backend": settings.llm_backend,
+        "llm_model": model,
+        "llm_latency_ms": round(latency_ms, 1) if latency_ms is not None else None,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+    }
 
 
 def derive_title(text: str) -> str:
@@ -602,6 +626,8 @@ async def _handle_socratic_chat_turn(
         "current_step": session.current_step,
         "total_steps": len(steps),
         "complete": session.all_steps_complete,
+        "answer_source": reply.source,
+        **_llm_meta(reply.latency_ms, reply.prompt_tokens, reply.completion_tokens),
     }
 
 
@@ -707,6 +733,7 @@ async def send_message(
     principal: Principal = Depends(current_user),
     db: AsyncSession = Depends(get_session),
 ) -> dict:
+    request_started = time.monotonic()
     actor_type = await _actor_type_for(db, principal, body.classroom_id)
     class_session_id, experiment_id = await _resolve_session_and_experiment(
         db, principal, actor_type, body.classroom_id, body.experiment_id
@@ -919,6 +946,9 @@ async def send_message(
                         ],
                         "answer_source": result.answer_source,
                         "intent": intent.value,
+                        **_llm_meta(
+                            result.latency_ms, result.prompt_tokens, result.completion_tokens
+                        ),
                     }
             elif (
                 router_decision.mode is RouterMode.DIAGNOSTIC
@@ -989,9 +1019,13 @@ async def send_message(
                     "answer_source": result.answer_source,
                     "intent": intent.value,
                     "router_mode": router_decision.mode.value,
+                    **_llm_meta(result.latency_ms, result.prompt_tokens, result.completion_tokens),
                 }
 
-    # Record Assistant Message
+    # Record Assistant Message. `response_ms` is end-to-end handling time
+    # (routing + retrieval + every model call), distinct from the single
+    # `llm_latency_ms` of the final answer call.
+    meta = {**(meta or {}), "response_ms": round((time.monotonic() - request_started) * 1000, 1)}
     assistant_msg = ChatMessage(
         thread_id=thread.id,
         kind=msg_kind,

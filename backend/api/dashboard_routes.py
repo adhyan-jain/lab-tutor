@@ -466,6 +466,147 @@ async def classroom_coverage(
     return {"students": out}
 
 
+def _aware(value):
+    """SQLite hands back naive datetimes for tz-aware columns; Postgres
+    doesn't. Normalise so durations can be computed either way."""
+    import datetime as dt
+
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=dt.timezone.utc)
+    return value
+
+
+@router.get("/classrooms/{classroom_id}/activity")
+async def classroom_activity(
+    classroom_id: str,
+    principal: Principal = Depends(current_user),
+    scope: FacultyScope = Depends(classroom_faculty_scope),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Everything the research export holds, as JSON for the Activity &
+    Data page: per-student rollup (logins, time on system, prompt counts,
+    model latency/tokens) plus the raw login-session rows. Same access
+    rule as the export -- faculty of this classroom, or admin."""
+    classroom = await _classroom_or_404(db, principal, scope, classroom_id)
+    roster = await roster_with_users(db, classroom.id)
+    users_by_id = {user.id: user for _membership, user in roster}
+
+    login_rows = list(
+        (
+            await db.scalars(
+                select(LoginSession)
+                .where(LoginSession.user_id.in_(users_by_id.keys()))
+                .order_by(LoginSession.login_at.desc())
+            )
+        ).all()
+    )
+    sessions_out = []
+    per_student: dict[str, dict] = {
+        uid: {
+            "student_id": uid,
+            "name": u.name,
+            "email": u.email,
+            "reg_no": u.reg_no,
+            "logins": 0,
+            "last_login_at": None,
+            "last_seen_at": None,
+            "active_seconds": 0,
+            "prompts_total": 0,
+            "prompts_by_kind": {},
+            "experiments": set(),
+            "_latencies": [],
+            "_responses": [],
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+        for uid, u in users_by_id.items()
+    }
+    for row in login_rows:
+        login_at = _aware(row.login_at)
+        end = _aware(row.logout_at) or _aware(row.last_seen_at)
+        duration = max(0, int((end - login_at).total_seconds())) if end else 0
+        stat = per_student[row.user_id]
+        stat["logins"] += 1
+        stat["active_seconds"] += duration
+        if stat["last_login_at"] is None or login_at.isoformat() > stat["last_login_at"]:
+            stat["last_login_at"] = login_at.isoformat()
+        seen = _aware(row.last_seen_at)
+        if seen and (stat["last_seen_at"] is None or seen.isoformat() > stat["last_seen_at"]):
+            stat["last_seen_at"] = seen.isoformat()
+        u = users_by_id[row.user_id]
+        sessions_out.append(
+            {
+                "student_id": row.user_id,
+                "name": u.name,
+                "email": u.email,
+                "reg_no": u.reg_no,
+                "login_at": login_at.isoformat(),
+                "logout_at": _aware(row.logout_at).isoformat() if row.logout_at else None,
+                "last_seen_at": seen.isoformat() if seen else None,
+                "duration_seconds": duration,
+                "end_reason": row.end_reason or "inferred timeout",
+            }
+        )
+
+    for count in await FacultyScope(db, principal.id).prompt_counts(classroom_id):
+        stat = per_student.get(count.student_id)
+        if stat is None:
+            continue
+        stat["prompts_total"] += count.count
+        stat["prompts_by_kind"][count.kind] = stat["prompts_by_kind"].get(count.kind, 0) + count.count
+        stat["experiments"].add(count.experiment_id)
+
+    tutor_rows = (
+        await db.scalars(
+            select(ChatMessage).where(
+                ChatMessage.classroom_id == classroom_id,
+                ChatMessage.actor_type == ActorType.STUDENT,
+                ChatMessage.author == "tutor",
+            )
+        )
+    ).all()
+    for msg in tutor_rows:
+        stat = per_student.get(msg.student_id)
+        if stat is None:
+            continue
+        meta = msg.metadata_json or {}
+        if isinstance(meta.get("llm_latency_ms"), (int, float)):
+            stat["_latencies"].append(meta["llm_latency_ms"])
+        if isinstance(meta.get("response_ms"), (int, float)):
+            stat["_responses"].append(meta["response_ms"])
+        stat["prompt_tokens"] += meta.get("prompt_tokens") or 0
+        stat["completion_tokens"] += meta.get("completion_tokens") or 0
+
+    def _avg(values: list) -> float | None:
+        return round(sum(values) / len(values), 1) if values else None
+
+    students_out = []
+    for stat in per_student.values():
+        stat["avg_llm_latency_ms"] = _avg(stat.pop("_latencies"))
+        stat["avg_response_ms"] = _avg(stat.pop("_responses"))
+        stat["experiments"] = sorted(stat["experiments"])
+        students_out.append(stat)
+    students_out.sort(key=lambda s: (-s["prompts_total"], s["name"] or s["email"]))
+
+    all_lat = [s["avg_llm_latency_ms"] for s in students_out if s["avg_llm_latency_ms"] is not None]
+    totals = {
+        "students": len(students_out),
+        "students_with_activity": sum(1 for s in students_out if s["prompts_total"] or s["logins"]),
+        "logins": sum(s["logins"] for s in students_out),
+        "prompts": sum(s["prompts_total"] for s in students_out),
+        "active_seconds": sum(s["active_seconds"] for s in students_out),
+        "prompt_tokens": sum(s["prompt_tokens"] for s in students_out),
+        "completion_tokens": sum(s["completion_tokens"] for s in students_out),
+        "avg_llm_latency_ms": _avg(all_lat),
+    }
+    return {
+        "classroom": {"id": classroom.id, "name": classroom.name},
+        "totals": totals,
+        "students": students_out,
+        "sessions": sessions_out[:500],
+    }
+
+
 async def _trajectory_rows_for_classroom(
     db: AsyncSession, classroom_id: str
 ) -> list[tuple[str, str, object]]:

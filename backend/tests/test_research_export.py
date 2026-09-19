@@ -121,6 +121,69 @@ async def test_export_marks_sheet_matches_entered_values(client, make_user, db):
     assert marks_row[7] == 9  # gain
 
 
+async def test_activity_endpoint_rolls_up_sessions_prompts_and_llm_metadata(
+    client, make_user, db
+):
+    classroom_id, faculty_token, student, _ = await _make_classroom_with_student(
+        client, make_user
+    )
+    login_at = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=30)
+    logout_at = login_at + dt.timedelta(minutes=20)
+    db.add(
+        LoginSession(
+            user_id=student.id, login_at=login_at, last_seen_at=logout_at,
+            logout_at=logout_at, end_reason="logout",
+        )
+    )
+    for _ in range(2):
+        db.add(
+            ChatMessage(
+                student_id=student.id, classroom_id=classroom_id, experiment_id="exp07",
+                kind=ChatMessageKind.QA, actor_type=ActorType.STUDENT,
+                author="student", content="q",
+            )
+        )
+    for latency, pt, ct in ((1000.0, 100, 50), (3000.0, 300, 150)):
+        db.add(
+            ChatMessage(
+                student_id=student.id, classroom_id=classroom_id, experiment_id="exp07",
+                kind=ChatMessageKind.QA, actor_type=ActorType.STUDENT, author="tutor",
+                content="a",
+                metadata_json={
+                    "llm_latency_ms": latency, "response_ms": latency + 500,
+                    "prompt_tokens": pt, "completion_tokens": ct,
+                },
+            )
+        )
+    await db.commit()
+
+    resp = await client.get(
+        f"/api/dashboard/classrooms/{classroom_id}/activity", headers=auth(faculty_token)
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    row = body["students"][0]
+    assert row["email"] == "student.export@vitstudent.ac.in"
+    assert row["logins"] == 1
+    assert row["active_seconds"] == 20 * 60
+    assert row["prompts_total"] == 2
+    assert row["prompts_by_kind"] == {"qa": 2}
+    assert row["avg_llm_latency_ms"] == 2000.0  # mean of 1000 and 3000
+    assert row["prompt_tokens"] == 400 and row["completion_tokens"] == 200
+    assert body["totals"]["prompts"] == 2
+    assert len(body["sessions"]) == 1
+
+
+async def test_activity_endpoint_is_closed_to_students_and_outsiders(client, make_user):
+    classroom_id, _faculty, _student, student_token = await _make_classroom_with_student(
+        client, make_user
+    )
+    _, outsider_token = await make_user("prof.outsider2@vit.ac.in", "Outsider")
+    url = f"/api/dashboard/classrooms/{classroom_id}/activity"
+    assert (await client.get(url, headers=auth(student_token))).status_code == 403
+    assert (await client.get(url, headers=auth(outsider_token))).status_code == 404
+
+
 async def test_export_forbidden_for_a_non_member_faculty(client, make_user):
     classroom_id, _faculty_token, _student, _ = await _make_classroom_with_student(
         client, make_user
