@@ -36,6 +36,7 @@ COPY manual /app/manual
 COPY docs/source_manifest.json /app/docs/source_manifest.json
 COPY knowledge/adjacent /app/knowledge/adjacent
 COPY golden_dataset/qa /app/golden_dataset/qa
+COPY sources/tier_b /app/sources/tier_b
 
 # Runs unprivileged.
 RUN useradd --create-home --uid 10001 labtutor \
