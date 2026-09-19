@@ -23,6 +23,7 @@ from google.genai import types as genai_types
 
 from backend.config import Settings, get_settings
 from backend.llm import telemetry
+from backend.llm.context_cache import CacheRequest, ContextCacheManager
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +99,8 @@ class LLMReply:
 
 class LLMBackend(abc.ABC):
     name: str = "base"
+    #: Only backends with native context caching accept `cache=` in complete().
+    supports_context_cache: bool = False
 
     @abc.abstractmethod
     async def complete(
@@ -277,6 +280,13 @@ def _is_retryable_vertex_error(exc: BaseException) -> bool:
     return isinstance(exc, genai_errors.APIError) and exc.code in (429, 500, 502, 503, 504)
 
 
+def _is_cache_gone(exc: BaseException) -> bool:
+    """The server no longer has the cached content we referenced."""
+    if not isinstance(exc, genai_errors.APIError):
+        return False
+    return exc.code == 404 or (exc.code == 400 and "cache" in str(exc).lower())
+
+
 def _backoff_seconds(attempt: int, initial: float, cap: float) -> float:
     """Exponential backoff with jitter: half to full of `initial * 2^(n-1)`."""
     ceiling = min(cap, initial * (2 ** (attempt - 1)))
@@ -304,8 +314,29 @@ class VertexBackend(LLMBackend):
             project=settings.vertex_project or None,
             location=settings.vertex_location,
         )
+        self.cache_manager: ContextCacheManager | None = (
+            ContextCacheManager(
+                client=self._client,
+                model=settings.vertex_model,
+                location=settings.vertex_location,
+                ttl_seconds=settings.llm_context_cache_ttl_seconds,
+            )
+            if settings.llm_context_cache_enabled
+            else None
+        )
+        self.supports_context_cache = self.cache_manager is not None
 
-    async def _generate(self, *, system: str, user: str, max_tokens: int, temperature: float):
+    async def _generate(
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int,
+        temperature: float,
+        cache: CacheRequest | None = None,
+        cache_name: str | None = None,
+        cache_fp: str | None = None,
+    ):
         """The ONE place a Vertex generation is retried.
 
         Nothing above (router, pipeline, chat) retries, and the SDK's own
@@ -319,24 +350,43 @@ class VertexBackend(LLMBackend):
         while True:
             attempt += 1
             telemetry.record_attempt(retry=attempt > 1)
+            # With a live cache the system prompt and source material are
+            # already server-side; only the dynamic half is sent.
+            afc = genai_types.AutomaticFunctionCallingConfig(disable=True)
+            if cache_name and cache is not None:
+                contents = cache.dynamic_user
+                config = genai_types.GenerateContentConfig(
+                    cached_content=cache_name,
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
+                    automatic_function_calling=afc,
+                )
+            else:
+                contents = user
+                config = genai_types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
+                    automatic_function_calling=afc,
+                )
             try:
                 async with _slot():
                     return await asyncio.wait_for(
                         self._client.aio.models.generate_content(
-                            model=self._model,
-                            contents=user,
-                            config=genai_types.GenerateContentConfig(
-                                system_instruction=system,
-                                max_output_tokens=max_tokens,
-                                temperature=temperature,
-                                automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(
-                                    disable=True
-                                ),
-                            ),
+                            model=self._model, contents=contents, config=config
                         ),
                         timeout=self._timeout,
                     )
             except genai_errors.APIError as exc:
+                if cache_name and _is_cache_gone(exc) and attempt < settings.llm_max_attempts:
+                    # Expired or deleted server-side: same generation, sent
+                    # uncached this time (inline prompt), cache forgotten.
+                    log.warning("Vertex context cache no longer valid; sending this request uncached")
+                    if self.cache_manager is not None and cache_fp:
+                        self.cache_manager.invalidate(cache_fp)
+                    cache_name = None
+                    telemetry.record_cache(hit=False, ref=(cache_fp or "")[:8] or None)
+                    continue
                 if not _is_retryable_vertex_error(exc) or attempt >= settings.llm_max_attempts:
                     raise
                 delay = _backoff_seconds(
@@ -354,15 +404,25 @@ class VertexBackend(LLMBackend):
         user: str,
         max_tokens: int | None = None,
         temperature: float | None = None,
+        cache: CacheRequest | None = None,
     ) -> LLMReply:
         started = time.monotonic()
         telemetry.record_call()
+        cache_name: str | None = None
+        cache_fp: str | None = None
+        if cache is not None and self.cache_manager is not None:
+            cache_fp = self.cache_manager.fingerprint(cache)
+            cache_name = await self.cache_manager.resolve(cache)
+            telemetry.record_cache(hit=cache_name is not None, ref=cache_fp[:8])
         try:
             response = await self._generate(
                 system=system,
                 user=user,
                 max_tokens=max_tokens or self._default_max_tokens,
                 temperature=temperature if temperature is not None else self._temperature,
+                cache=cache,
+                cache_name=cache_name,
+                cache_fp=cache_fp,
             )
         except (genai_errors.APIError, TimeoutError, LLMUnavailable) as exc:
             telemetry.record_result(
@@ -420,6 +480,7 @@ class FallbackBackend(LLMBackend):
     def __init__(self, primary: LLMBackend, secondary: LLMBackend) -> None:
         self.primary = primary
         self.secondary = secondary
+        self.supports_context_cache = primary.supports_context_cache
 
     async def complete(
         self,
@@ -428,10 +489,12 @@ class FallbackBackend(LLMBackend):
         user: str,
         max_tokens: int | None = None,
         temperature: float | None = None,
+        cache: CacheRequest | None = None,
     ) -> LLMReply:
         try:
+            extra = {"cache": cache} if cache is not None else {}
             return await self.primary.complete(
-                system=system, user=user, max_tokens=max_tokens, temperature=temperature
+                system=system, user=user, max_tokens=max_tokens, temperature=temperature, **extra
             )
         except LLMUnavailable as exc:
             log.warning(

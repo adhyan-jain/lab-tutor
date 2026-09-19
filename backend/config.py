@@ -115,6 +115,15 @@ class Settings(BaseSettings):
     llm_retry_initial_seconds: float = Field(1.0, alias="LABTUTOR_LLM_RETRY_INITIAL_SECONDS")
     llm_retry_max_seconds: float = Field(8.0, alias="LABTUTOR_LLM_RETRY_MAX_SECONDS")
     llm_retry_budget_seconds: float = Field(25.0, alias="LABTUTOR_LLM_RETRY_BUDGET_SECONDS")
+    #: Native Vertex context caching of an experiment's stable prompt
+    #: (system prompt + source material). Off unless enabled: dev usually
+    #: doesn't want cache objects created in a shared project. Versioning is
+    #: automatic (content fingerprint); see backend/llm/context_cache.py.
+    llm_context_cache_enabled: bool = Field(False, alias="LABTUTOR_LLM_CONTEXT_CACHE")
+    #: Comma-separated experiment ids whose stable context may be cached.
+    llm_context_cache_scopes: str = Field("exp07", alias="LABTUTOR_LLM_CONTEXT_CACHE_SCOPES")
+    #: Long enough to cover a class session (renewed on use), never indefinite.
+    llm_context_cache_ttl_seconds: int = Field(10800, alias="LABTUTOR_LLM_CONTEXT_CACHE_TTL_SECONDS")
     ollama_base_url: str = Field("http://localhost:11434", alias="LABTUTOR_OLLAMA_BASE_URL")
     ollama_model: str = Field("qwen2.5:7b", alias="LABTUTOR_OLLAMA_MODEL")
     #: Some local models (e.g. qwen3) default to an internal "thinking"

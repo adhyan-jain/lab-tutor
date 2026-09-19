@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -62,7 +63,18 @@ async def lifespan(app: FastAPI):
             total - ready,
         )
 
+    # Create/verify the native context caches off the request path so the
+    # first student rarely pays for it. Never blocks startup; a failure is
+    # logged and requests simply go out uncached.
+    warm_up = None
+    if settings.llm_context_cache_enabled:
+        from backend.retrieval.stable_context import warm_up_context_caches
+
+        warm_up = asyncio.create_task(warm_up_context_caches())
+
     yield
+    if warm_up is not None and not warm_up.done():
+        warm_up.cancel()
     await dispose_engine()
 
 
