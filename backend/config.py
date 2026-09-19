@@ -115,6 +115,10 @@ class Settings(BaseSettings):
     llm_retry_initial_seconds: float = Field(1.0, alias="LABTUTOR_LLM_RETRY_INITIAL_SECONDS")
     llm_retry_max_seconds: float = Field(8.0, alias="LABTUTOR_LLM_RETRY_MAX_SECONDS")
     llm_retry_budget_seconds: float = Field(25.0, alias="LABTUTOR_LLM_RETRY_BUDGET_SECONDS")
+    #: Gemini 2.5 "thinking" token budget per request. -1 = model default
+    #: (dynamic); 0 = off; N = at most N. Hidden reasoning is billed and adds
+    #: seconds of wait that the visible token count does not show.
+    llm_thinking_budget: int = Field(-1, alias="LABTUTOR_LLM_THINKING_BUDGET")
     #: Native Vertex context caching of an experiment's stable prompt
     #: (system prompt + source material). Off unless enabled: dev usually
     #: doesn't want cache objects created in a shared project. Versioning is

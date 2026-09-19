@@ -183,6 +183,37 @@ th { color: var(--muted); font-weight: 600; font-size: 0.775rem; text-transform:
   overflow-y: auto;
   flex: 1;
 }
+.modal-header { flex-wrap: wrap; gap: 10px; }
+.modal-header > div:first-child { min-width: 0; flex: 1 1 200px; }
+.modal-header h2, .modal-header p { overflow-wrap: anywhere; }
+.modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.modal-tabs {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-hover);
+}
+.modal-tab {
+  flex: 1 0 auto;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.modal-tab.active {
+  background: var(--surface);
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.inline-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.inline-form input { flex: 1 1 200px; width: auto; min-width: 0; }
 
 /* --- App Shell Header --- */
 header.bar {

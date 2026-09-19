@@ -33,6 +33,9 @@ class LLMRequestStats:
     cache_hit: bool | None = None
     cache_ref: str | None = None
     cached_tokens: int | None = None
+    #: Hidden reasoning tokens (Gemini 2.5). Billed and slow, but not part of
+    #: the visible completion count, so a long wait can hide here.
+    thinking_tokens: int | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
 
@@ -55,6 +58,8 @@ class LLMRequestStats:
             meta["cache_ref"] = self.cache_ref
         if self.cached_tokens is not None:
             meta["cached_tokens"] = self.cached_tokens
+        if self.thinking_tokens is not None:
+            meta["thinking_tokens"] = self.thinking_tokens
         return meta
 
 
@@ -110,6 +115,7 @@ def record_result(
     prompt_tokens: int | None = None,
     completion_tokens: int | None = None,
     cached_tokens: int | None = None,
+    thinking_tokens: int | None = None,
 ) -> None:
     stats = _current.get()
     if stats is None:
@@ -125,6 +131,7 @@ def record_result(
         stats.prompt_tokens = prompt_tokens
         stats.completion_tokens = completion_tokens
         stats.cached_tokens = cached_tokens
+        stats.thinking_tokens = thinking_tokens
 
 
 def record_cache(*, hit: bool, ref: str | None) -> None:

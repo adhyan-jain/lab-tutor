@@ -353,6 +353,12 @@ class VertexBackend(LLMBackend):
             # With a live cache the system prompt and source material are
             # already server-side; only the dynamic half is sent.
             afc = genai_types.AutomaticFunctionCallingConfig(disable=True)
+            # -1 leaves the model's own (dynamic) thinking alone; >= 0 caps it.
+            thinking = (
+                genai_types.ThinkingConfig(thinking_budget=settings.llm_thinking_budget)
+                if settings.llm_thinking_budget >= 0
+                else None
+            )
             if cache_name and cache is not None:
                 contents = cache.dynamic_user
                 config = genai_types.GenerateContentConfig(
@@ -360,6 +366,7 @@ class VertexBackend(LLMBackend):
                     max_output_tokens=max_tokens,
                     temperature=temperature,
                     automatic_function_calling=afc,
+                    thinking_config=thinking,
                 )
             else:
                 contents = user
@@ -368,6 +375,7 @@ class VertexBackend(LLMBackend):
                     max_output_tokens=max_tokens,
                     temperature=temperature,
                     automatic_function_calling=afc,
+                    thinking_config=thinking,
                 )
             try:
                 async with _slot():
@@ -438,10 +446,11 @@ class VertexBackend(LLMBackend):
         prompt_tokens = getattr(usage, "prompt_token_count", None) if usage else None
         completion_tokens = getattr(usage, "candidates_token_count", None) if usage else None
         cached_tokens = getattr(usage, "cached_content_token_count", None) if usage else None
+        thinking_tokens = getattr(usage, "thoughts_token_count", None) if usage else None
         telemetry.record_result(
             backend=self.name, model=self._model, ok=True, latency_ms=latency_ms,
             prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
-            cached_tokens=cached_tokens,
+            cached_tokens=cached_tokens, thinking_tokens=thinking_tokens,
         )
         return LLMReply(
             text=_strip_markdown_emphasis(text),

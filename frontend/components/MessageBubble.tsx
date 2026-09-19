@@ -32,12 +32,22 @@ const markdownComponents = {
   a: (props: React.ComponentProps<"a">) => <a target="_blank" rel="noopener noreferrer" {...props} />,
 };
 
+// react-markdown passes its parser `node` to every custom component; spreading
+// it onto a DOM element renders a bogus `node="[object Object]"` attribute.
+const cleanMarkdownComponents = Object.fromEntries(
+  Object.entries(markdownComponents).map(([tag, Component]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Clean = ({ node: _node, ...rest }: any) => <Component {...rest} />;
+    return [tag, Clean];
+  }),
+);
+
 function renderFormattedContent(content: string) {
   if (!content) return null;
   // react-markdown does not render raw HTML by default, so model output
   // cannot inject markup.
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={cleanMarkdownComponents}>
       {content}
     </ReactMarkdown>
   );

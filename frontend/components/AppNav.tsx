@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 const LINKS = [
   { href: "/", label: "Chat" },
   { href: "/faculty/activity", label: "Activity & Data" },
+  { href: "/faculty/sessions", label: "Session reports" },
   { href: "/faculty/marks", label: "Pre/Post Marks" },
 ];
 

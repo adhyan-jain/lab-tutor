@@ -163,11 +163,11 @@ export function ActivityWorkspace({ me }: { me: Me }) {
               <strong>{fmtDuration(t.active_seconds)}</strong>
             </div>
             <div className="card stat">
-              <span className="muted">Avg model latency</span>
+              <span className="muted">Avg reply time</span>
               <strong>{fmtMs(t.avg_llm_latency_ms)}</strong>
             </div>
             <div className="card stat">
-              <span className="muted">Tokens (in / out)</span>
+              <span className="muted">Tokens in / out (total)</span>
               <strong>
                 {t.prompt_tokens.toLocaleString()} / {t.completion_tokens.toLocaleString()}
               </strong>
@@ -215,10 +215,13 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                       <th>Last sign-in</th>
                       <th>Time on system</th>
                       <th>Prompts</th>
-                      <th>By mode</th>
                       <th>Experiments</th>
-                      <th>Avg latency</th>
-                      <th>Tokens in/out</th>
+                      <th title="Average time the tutor took to reply, over this student's prompts that used the model">
+                        Avg reply time
+                      </th>
+                      <th title="Total tokens sent to / received from the model across all of this student's prompts">
+                        Tokens in / out (total)
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -234,13 +237,6 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                         <td>{fmtDuration(s.active_seconds)}</td>
                         <td>
                           <strong>{s.prompts_total}</strong>
-                        </td>
-                        <td>
-                          {Object.keys(s.prompts_by_kind).length === 0
-                            ? "—"
-                            : Object.entries(s.prompts_by_kind)
-                                .map(([k, v]) => `${k} ${v}`)
-                                .join(", ")}
                         </td>
                         <td>{s.experiments.map((e) => e.toUpperCase()).join(", ") || "—"}</td>
                         <td>{fmtMs(s.avg_llm_latency_ms)}</td>

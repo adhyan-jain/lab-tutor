@@ -117,6 +117,78 @@ export interface Classroom {
   /** True when the current (student) caller reaches this classroom via a
    * classroom-scoped co-faculty promotion rather than plain enrolment. */
   co_faculty?: boolean;
+  /** "Deleted" classes are archived: hidden from lists, data kept. */
+  archived?: boolean;
+  archived_at?: string | null;
+}
+
+export interface SessionListItem {
+  id: string;
+  experiment_id: string;
+  experiment_title: string;
+  status: "active" | "ended";
+  started_at: string | null;
+  ended_at: string | null;
+  duration_minutes: number | null;
+  started_by: string;
+  students: number;
+  prompts: number;
+}
+
+export interface SessionReportStudent {
+  student_id: string;
+  name: string;
+  email: string;
+  reg_no: string | null;
+  prompts: number;
+  first_at: string | null;
+  last_at: string | null;
+  tutor_replies: number;
+  avg_latency_ms: number | null;
+  fallback_replies: number;
+  llm_calls: number;
+  attempts: number;
+  attempts_passed: number;
+  diagnoses: {
+    status: string;
+    tier: number;
+    signature_code: string | null;
+    action: string;
+    low_confidence: boolean;
+    created_at: string | null;
+  }[];
+  summary: string | null;
+  summary_flagged: boolean;
+  marks: { pre: number | null; pre_max: number; post: number | null; post_max: number } | null;
+}
+
+export interface SessionReport {
+  session: {
+    id: string;
+    experiment_id: string;
+    experiment_title: string;
+    status: "active" | "ended";
+    started_at: string | null;
+    ended_at: string | null;
+  };
+  totals: {
+    students: number;
+    prompts: number;
+    attempts: number;
+    diagnoses: number;
+    fallback_replies: number;
+  };
+  students: SessionReportStudent[];
+}
+
+export interface TranscriptMessage {
+  id: string;
+  author: "student" | "tutor";
+  kind: string;
+  content: string;
+  created_at: string | null;
+  meta: Record<string, unknown>;
+  citations: number;
 }
 
 export interface RosterStudent {

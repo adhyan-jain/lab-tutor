@@ -42,6 +42,8 @@ export function FacultyModal({
 
   const [selectedExp, setSelectedExp] = useState(classroom.active_experiment_id || experiments[0]?.id || "exp01");
   const [joinOpen, setJoinOpen] = useState(classroom.join_open ?? true);
+  const [newName, setNewName] = useState(classroom.name);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const loadRoster = async () => {
     setLoading(true);
@@ -195,6 +197,30 @@ export function FacultyModal({
     }
   };
 
+  const handleRename = async () => {
+    setError("");
+    setMsg("");
+    try {
+      await api.patch(`/api/classrooms/${classroom.id}`, { name: newName.trim() });
+      setMsg("Class renamed.");
+      onClassroomUpdated();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  };
+
+  const handleArchive = async () => {
+    setError("");
+    try {
+      await api.del(`/api/classrooms/${classroom.id}`);
+      onClassroomUpdated();
+      onClose();
+    } catch (e) {
+      setConfirmArchive(false);
+      setError(e instanceof ApiError ? e.message : String(e));
+    }
+  };
+
   const handleRegenCode = async (which: "student" | "faculty") => {
     setError("");
     try {
@@ -214,7 +240,13 @@ export function FacultyModal({
             <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Classroom Management</h2>
             <p className="muted" style={{ margin: 0 }}>{classroom.name}</p>
           </div>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div className="modal-actions">
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => router.push(`/faculty/sessions?classroom=${classroom.id}`)}
+            >
+              Session reports
+            </button>
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => router.push(`/faculty/marks?classroom=${classroom.id}`)}
@@ -227,23 +259,14 @@ export function FacultyModal({
           </div>
         </div>
 
-        <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface-hover)" }}>
+        <div className="modal-tabs" role="tablist">
           {(["roster", "session", "settings", "activity", "summaries"] as const).map((t) => (
             <button
               key={t}
+              role="tab"
+              aria-selected={tab === t}
+              className={`modal-tab ${tab === t ? "active" : ""}`}
               onClick={() => setTab(t)}
-              style={{
-                flex: 1,
-                padding: "10px",
-                border: "none",
-                background: tab === t ? "var(--surface)" : "transparent",
-                borderBottom: tab === t ? "2px solid var(--accent)" : "none",
-                color: tab === t ? "var(--accent)" : "var(--muted)",
-                fontWeight: tab === t ? 600 : 400,
-                cursor: "pointer",
-                fontSize: "0.85rem",
-                textTransform: "capitalize",
-              }}
             >
               {t}
             </button>
@@ -380,6 +403,25 @@ export function FacultyModal({
           {tab === "settings" && (
             <div>
               <div className="card">
+                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Class name</h3>
+                <div className="inline-form">
+                  <input
+                    value={newName}
+                    maxLength={200}
+                    onChange={(e) => setNewName(e.target.value)}
+                    aria-label="Class name"
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={handleRename}
+                    disabled={!newName.trim() || newName.trim() === classroom.name}
+                  >
+                    Rename
+                  </button>
+                </div>
+              </div>
+
+              <div className="card">
                 <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Join Settings</h3>
                 <p className="muted">Control student enrollment for this classroom section.</p>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -414,6 +456,30 @@ export function FacultyModal({
                     Regenerate
                   </button>
                 </div>
+              </div>
+
+              <div className="card" style={{ borderColor: "var(--danger)" }}>
+                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Delete this class</h3>
+                <p className="muted">
+                  The class is hidden and students can no longer join or chat in it. Any live session
+                  is ended. <strong>Nothing is erased</strong>: every session, prompt, mark and
+                  summary stays, stays in exports, and can be opened under Session reports. You can
+                  restore the class there at any time.
+                </p>
+                {confirmArchive ? (
+                  <div className="inline-form">
+                    <button className="btn btn-danger btn-sm" onClick={handleArchive}>
+                      Yes, delete &ldquo;{classroom.name}&rdquo;
+                    </button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setConfirmArchive(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button className="btn btn-danger btn-sm" onClick={() => setConfirmArchive(true)}>
+                    Delete class
+                  </button>
+                )}
               </div>
             </div>
           )}
