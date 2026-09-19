@@ -91,16 +91,19 @@ async def test_direct_question_with_evidence_is_supported_and_cited(fixture_inde
     assert "output file" in result.text.lower() or "orbital" in result.text.lower()
 
 
-async def test_direct_question_without_evidence_is_retrieval_insufficient(fixture_index):
+async def test_qualitative_experiment_is_answered_from_its_own_material_not_refused(fixture_index):
+    """Exp7/8 policy: their whole source material is a handful of chunks, so
+    the generic keyword grounding bar wrongly refuses natural troubleshooting
+    phrasings. An in-scope question is answered from the experiment's own
+    passages (the model is still bound to say what they do not cover)."""
     result = await answer_question(
         "how do i fix an obscure orca convergence error nobody documents",
         active_experiment="exp07",
         index=fixture_index,
         use_llm=False,
     )
-    assert result.status is AnswerStatus.IN_SCOPE_RETRIEVAL_INSUFFICIENT
-    assert not result.citations
-    assert "fair" in result.text.lower()
+    assert result.status is AnswerStatus.IN_SCOPE_SUPPORTED
+    assert result.citations
 
 
 async def test_out_of_scope_question_is_refused_before_any_retrieval(fixture_index):
@@ -215,3 +218,13 @@ async def test_off_topic_message_is_refused_mid_session_not_answered_as_a_gap(fi
     assert off_topic.status is AnswerStatus.OUT_OF_SCOPE
     assert off_topic.decision.experiment_id is None
     assert not off_topic.citations
+
+
+def test_leaked_passage_references_are_stripped_without_touching_layout():
+    from backend.retrieval.pipeline import _strip_passage_refs
+
+    assert _strip_passage_refs("opens it (Passage 5). Then") == "opens it. Then"
+    assert _strip_passage_refs("steps [3] and [1, 5] go (Passage [2], [3]) ok") == "steps go ok"
+    nested = "1.  **Open** Gabedit\n    *   nested item [4]\nnext"
+    assert _strip_passage_refs(nested) == "1.  **Open** Gabedit\n    *   nested item\nnext"
+    assert _strip_passage_refs("Step 5 of 6 costs 5 eV") == "Step 5 of 6 costs 5 eV"

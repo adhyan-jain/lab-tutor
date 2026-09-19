@@ -355,7 +355,7 @@ async def test_exp07_reply_keeps_a_chemistry_constant_unredacted(monkeypatch, pl
     """A standard constant (e.g. the tetrahedral bond angle) is not the
     withheld answer and must survive `tutor_reply` for exp07/exp08."""
 
-    async def _fake_grounded_answer(student_message, experiment_id, conversation_history):
+    async def _fake_grounded_answer(student_message, experiment_id, conversation_history, **kwargs):
         return _fake_answer_result("Expect bond angles close to 109.5 degrees once optimised.")
 
     monkeypatch.setattr(
@@ -384,7 +384,7 @@ async def test_exp07_qa_fallback_still_passes_through_the_outbound_gate(monkeypa
     `filter_outbound` entirely just because it also skips the
     number-scrub."""
 
-    async def _fake_grounded_answer(student_message, experiment_id, conversation_history):
+    async def _fake_grounded_answer(student_message, experiment_id, conversation_history, **kwargs):
         return _fake_answer_result(
             "answer\x07with a stray control character and 109.5 degrees"
         )
@@ -414,7 +414,7 @@ async def test_exp07_falls_back_to_hint_when_no_grounded_answer_available(monkey
     evidence), exp07/exp08 must still fall back to the step's hint rather
     than erroring or leaving the student with nothing."""
 
-    async def _fake_grounded_answer(student_message, experiment_id, conversation_history):
+    async def _fake_grounded_answer(student_message, experiment_id, conversation_history, **kwargs):
         return None
 
     monkeypatch.setattr(

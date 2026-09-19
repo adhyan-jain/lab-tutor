@@ -57,9 +57,30 @@ log = logging.getLogger(__name__)
 
 #: The model sometimes echoes the passage indices it was shown ("[3]",
 #: "[1, 5]"). The student cannot see those passages, so strip them.
+_INDEX = r"\[\d+(?:\s*,\s*\d+)*\]"
 _PASSAGE_REF_RE = re.compile(
-    r"\s*\(?\s*(?:Passages?\s+)?\[\d+\](?:\s*(?:,|and|&)\s*(?:Passages?\s+)?\[\d+\])*\s*\)?"
+    # "(Passage 5)" / "(Passages 2 and 3)"
+    r"[ \t]*\(\s*Passages?\s+\d+(?:\s*(?:,|and|&)\s*(?:Passages?\s+)?\d+)*\s*\)"
+    # "[3]" / "[1, 5]" / "(Passage [2], [3])"
+    rf"|[ \t]*\(?[ \t]*(?:Passages?[ \t]+)?{_INDEX}(?:[ \t]*(?:,|and|&)[ \t]*(?:Passages?[ \t]+)?{_INDEX})*[ \t]*\)?"
 )
+
+
+def _strip_passage_refs(text: str) -> str:
+    """Remove leaked passage references without disturbing spacing or the
+    markdown indentation of nested lists."""
+    out: list[str] = []
+    last = 0
+    for match in _PASSAGE_REF_RE.finditer(text):
+        before = text[last : match.start()]
+        out.append(before)
+        following = text[match.end() : match.end() + 1]
+        if before and not before[-1].isspace() and following.isalnum():
+            out.append(" ")
+        last = match.end()
+    out.append(text[last:])
+    return "".join(out).strip()
+
 
 _TIER_TAGS = {
     SourceTier.OFFICIAL_MANUAL: "lab manual",
@@ -282,9 +303,23 @@ async def answer_question(
     if (
         status is AnswerStatus.IN_SCOPE_RETRIEVAL_INSUFFICIENT
         and decision.experiment_id in QUALITATIVE_EXPERIMENTS
-        and official
+        and any(
+            c.experiment_id == decision.experiment_id
+            and c.tier in (SourceTier.OFFICIAL_MANUAL, SourceTier.OFFICIAL_SUPPLEMENTARY)
+            for c in idx.chunks
+        )
     ):
+        # Even a question sharing no keywords with the material (e.g. a
+        # Hinglish "sir said it's wrong, what do I check") is in scope
+        # here; the full-procedure block below supplies the evidence.
         status = AnswerStatus.IN_SCOPE_SUPPORTED
+        if not official:
+            official = [
+                ScoredChunk(chunk=c, score=0.0)
+                for c in idx.chunks
+                if c.experiment_id == decision.experiment_id
+                and c.tier in (SourceTier.OFFICIAL_MANUAL, SourceTier.OFFICIAL_SUPPLEMENTARY)
+            ]
 
     if not status.answerable:
         result = AnswerResult(
@@ -484,7 +519,7 @@ async def _phrase_with_llm(
     # Generous on purpose: Gemini 2.5 counts its internal reasoning tokens
     # against this budget, and a full-workflow walkthrough is long.
     reply = await get_backend().complete(system=SYSTEM_PROMPT, user=user, max_tokens=8192)
-    cleaned = _PASSAGE_REF_RE.sub("", reply.text or "").strip()
+    cleaned = _strip_passage_refs(reply.text or "")
     if cleaned != (reply.text or ""):
         reply = dataclasses.replace(reply, text=cleaned)
     return reply

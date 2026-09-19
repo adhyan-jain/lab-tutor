@@ -151,7 +151,11 @@ def _build_user_prompt(gate_input: SocraticLLMInput) -> str:
 
 
 async def _grounded_fallback_answer(
-    student_message: str, experiment_id: str | None, conversation_history: str
+    student_message: str,
+    experiment_id: str | None,
+    conversation_history: str,
+    *,
+    allow_unanswerable: bool = False,
 ):
     """A real, manual-grounded answer for a genuine question.
 
@@ -183,7 +187,10 @@ async def _grounded_fallback_answer(
     except Exception:
         log.warning("Grounded fallback Q&A also failed; using the hint verbatim", exc_info=True)
         return None
-    return result if result.status.answerable else None
+    # `allow_unanswerable` lets a caller show the pipeline's own honest
+    # fallback text (out of scope, no evidence) instead of substituting an
+    # unrelated canned hint.
+    return result if (allow_unanswerable or result.status.answerable) else None
 
 
 async def tutor_reply(
@@ -227,7 +234,7 @@ async def tutor_reply(
         # which only ever had a single 800-char legacy-retrieval excerpt
         # as background and no per-experiment instruction.
         result = await _grounded_fallback_answer(
-            student_message, experiment_id, conversation_history
+            student_message, experiment_id, conversation_history, allow_unanswerable=True
         )
         if result is not None:
             decision = filter_outbound(result.text, mode="diagnostic")
