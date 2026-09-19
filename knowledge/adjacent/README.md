@@ -47,11 +47,14 @@ tagged in its front-matter comment with the experiment(s) it supports.
 
 | File | Experiment(s) | Covers |
 | --- | --- | --- |
-| `exp07_molecular_orbital_theory.md` | exp07 | HOMO/LUMO, MO theory basics, why basis sets and functionals matter |
-| `exp07_orca_troubleshooting.md` | exp07 | General computational-chemistry job failure modes (not manual-specific) |
-| `exp08_conformational_analysis_theory.md` | exp08 | Torsional strain, steric effects, Newman projections, energy landscapes |
-| `exp02_reaction_kinetics_theory.md` | exp02 | Integrated rate laws, pseudo-order kinetics, Arrhenius, catalysis |
-| `exp03_beer_lambert_and_color_science.md` | exp03 | Beer-Lambert derivation, camera colour science, RGB method limitations |
+| `exp02_reaction_kinetics_theory.md` | exp02 | Basic kinetics terms, pseudo-order, what the titration measures, why the log plot is linear, Arrhenius, sources of error |
+| `exp03_beer_lambert_and_color_science.md` | exp03 | Basic colorimetry terms, Beer-Lambert law, Ni-DMG chemistry, dilution arithmetic, RGB method and its limits |
+| `exp07_background.md` | exp07 | Orbitals, HOMO/LUMO/gap, spin, DFT and basis sets, SCF, optimization, reading a run, troubleshooting |
+| `exp08_conformational_analysis_theory.md` | exp08 | Basic terms, ethane and cyclohexane (chair, twist-boat, boat, half-chair), energy units, optimizing saddle-point shapes |
+
+**One file per experiment.** Each experiment has exactly one background
+file, so a topic lives in one place and is never defined twice. Add to the
+experiment's file rather than creating a second one for it.
 
 Ingestion reads every `.md`/`.txt` file directly under this directory
 (`backend/retrieval/ingest.py::_extract_from_directory`); there is no

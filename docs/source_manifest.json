@@ -78,6 +78,18 @@
       "notes": "Genuinely-new procedural detail (O2 build sequence, Gabedit version, ORCA run command) confirmed present in the fuller course PDF/DOCX but absent from the markdown manual transcription, and confirmed absent nowhere else. Also holds the 'Where things are on screen' paragraphs for Exp 7, read from the DOCX screenshots with Vertex vision and hand-checked (toolbar/menu locations, ORCA input dialog fields, Run dialog, output file layout, Avogadro Orbitals panel). Table 1/2 numeric values are NOT here -- they are blank in every source seen, which manual/IACHY102_manual.md already states correctly. DOCX paragraph 212 (reference HOMO/LUMO ranges) and example numbers inside screenshots are deliberately excluded."
     },
     {
+      "document_id": "exp02_exp03_supplementary_v1",
+      "tier": "B",
+      "role": "supplementary_material",
+      "filename": "sources/tier_b/exp02_exp03_supplementary.md",
+      "title": "IACHY102 Exp 2/3 supplementary procedural detail",
+      "version": "1.0",
+      "experiments": ["exp02", "exp03"],
+      "present": true,
+      "visual": false,
+      "notes": "Procedure, reagents, table/result structure and marks for Exp 2 (pp.16-19) and Exp 3 (pp.20-23), transcribed from the fuller course PDF because the markdown manual transcription carries only a short summary of each. Table/result cells are blank in the source by design, so no values are given."
+    },
+    {
       "document_id": "adjacent_knowledge_v1",
       "tier": "C",
       "role": "supplementary_material",

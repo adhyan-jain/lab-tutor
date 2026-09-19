@@ -308,10 +308,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -834,10 +835,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -881,10 +883,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1083,11 +1086,11 @@
     {
       "id": "qa-exp08-direct_messy-046",
       "experiment": "exp08",
-      "user_question": "how do i calculate potential energy profile in orca step by step",
+      "user_question": "how do i calculate potential energy profile in gabedit step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate potential energy profile in orca step by step",
+      "normalized_intent": "how do i calculate potential energy profile in gabedit step by step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1155,11 +1158,11 @@
     {
       "id": "qa-exp08-direct_messy-049",
       "experiment": "exp08",
-      "user_question": "can you guide me through torsion calculation in gabedit",
+      "user_question": "can you guide me through torsion calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through torsional calculation in gabedit",
+      "normalized_intent": "can you guide me through torsional calculation in orca",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1299,11 +1302,11 @@
     {
       "id": "qa-exp08-direct_messy-055",
       "experiment": "exp08",
-      "user_question": "which button in orca performs the conformational calculation step",
+      "user_question": "which button in gabedit performs the conformational calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in orca performs the conformational calculation step",
+      "normalized_intent": "which button in gabedit performs the conformational calculation step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1371,11 +1374,11 @@
     {
       "id": "qa-exp08-direct_messy-058",
       "experiment": "exp08",
-      "user_question": "how to run gabedit for conformers step calculation",
+      "user_question": "how to run orca for conformers step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run gabedit for conformer step calculation",
+      "normalized_intent": "how to run orca for conformer step calculation",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1515,11 +1518,11 @@
     {
       "id": "qa-exp08-direct_messy-064",
       "experiment": "exp08",
-      "user_question": "how do i calculate gauche in orca step by step",
+      "user_question": "how do i calculate gauche in gabedit step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate gauche in orca step by step",
+      "normalized_intent": "how do i calculate gauche in gabedit step by step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1587,11 +1590,11 @@
     {
       "id": "qa-exp08-direct_messy-067",
       "experiment": "exp08",
-      "user_question": "can you guide me through ring flip calculation in gabedit",
+      "user_question": "can you guide me through ring flip calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through ring flip calculation in gabedit",
+      "normalized_intent": "can you guide me through ring flip calculation in orca",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1731,11 +1734,11 @@
     {
       "id": "qa-exp08-direct_messy-073",
       "experiment": "exp08",
-      "user_question": "which button in orca performs the chair calculation step",
+      "user_question": "which button in gabedit performs the chair calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in orca performs the chair calculation step",
+      "normalized_intent": "which button in gabedit performs the chair calculation step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1803,11 +1806,11 @@
     {
       "id": "qa-exp08-direct_messy-076",
       "experiment": "exp08",
-      "user_question": "how to run gabedit for conformations step calculation",
+      "user_question": "how to run orca for conformations step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run gabedit for conformation step calculation",
+      "normalized_intent": "how to run orca for conformation step calculation",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -2123,7 +2126,7 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
@@ -2219,7 +2222,7 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
@@ -2267,7 +2270,7 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
@@ -2584,10 +2587,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },

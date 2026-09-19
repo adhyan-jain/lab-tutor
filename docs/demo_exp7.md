@@ -34,8 +34,8 @@ run today shows:
    distinction, holding in a live multi-turn run.
 2. The adjacent-theory question (turn 14, "why does DFT work
    physically") resolves to `ADJACENT_SUPPORTED`, cited to
-   `knowledge/adjacent/exp07_molecular_orbital_theory.md` and
-   `exp07_orca_troubleshooting.md`, with the answer text itself opening
+   `knowledge/adjacent/exp07_background.md` (at the time of this run two
+   separate files, since merged into that one), with the answer text itself opening
    "This is supplementary material, not the manual itself".
 3. The out-of-scope question (turn 15, "what is the best gpu for
    gaming") is refused — correctly, even though every prior turn had the
