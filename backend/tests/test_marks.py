@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 
 from backend.auth import session as session_cookie
-from backend.models import ExperimentMarks
+from backend.models import ExperimentMarks, ExperimentMarksHistory
 
 pytestmark = pytest.mark.asyncio
 
@@ -84,6 +84,50 @@ class TestMarksEntry:
         )
         assert len(rows) == 1  # updated in place, not duplicated
         assert rows[0].post_test_marks == 18
+
+    async def test_repeat_submission_preserves_the_original_attempt_in_history(
+        self, client, make_user, db
+    ):
+        """The 'current value' row is upserted in place (see the test
+        above), but the first attempt must survive somewhere for research
+        validity -- a re-grade or typo fix should not erase it."""
+        classroom_id, faculty_token, student, _ = await _make_classroom_with_student(
+            client, make_user
+        )
+        body = {
+            "entries": [
+                {
+                    "student_id": student.id,
+                    "pre_test_marks": 10, "pre_test_max": 20,
+                    "post_test_marks": 12, "post_test_max": 20,
+                }
+            ]
+        }
+        await client.post(
+            f"/api/marks/classrooms/{classroom_id}/experiments/exp01",
+            json=body, headers=auth(faculty_token),
+        )
+        body["entries"][0]["post_test_marks"] = 18
+        await client.post(
+            f"/api/marks/classrooms/{classroom_id}/experiments/exp01",
+            json=body, headers=auth(faculty_token),
+        )
+
+        history = list(
+            (
+                await db.scalars(
+                    select(ExperimentMarksHistory)
+                    .where(
+                        ExperimentMarksHistory.classroom_id == classroom_id,
+                        ExperimentMarksHistory.experiment_id == "exp01",
+                    )
+                    .order_by(ExperimentMarksHistory.recorded_at)
+                )
+            ).all()
+        )
+        assert len(history) == 2, "both submissions must be recorded, not just the latest"
+        assert history[0].post_test_marks == 12, "the original attempt's value must survive"
+        assert history[1].post_test_marks == 18
 
     async def test_foreign_student_id_is_ignored(self, client, make_user):
         classroom_id, faculty_token, _student, _ = await _make_classroom_with_student(

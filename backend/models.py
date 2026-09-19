@@ -477,6 +477,32 @@ class ExperimentMarks(Base):
     )
 
 
+class ExperimentMarksHistory(Base):
+    """Append-only snapshot of every `ExperimentMarks` submission.
+
+    `ExperimentMarks` itself is upserted in place (see its docstring) so
+    the dashboard/export always show the current value -- but a second
+    submission for the same (student, classroom, experiment), whether a
+    typo fix or a re-grade, must not silently erase the first attempt for
+    research purposes. A row is written here on every submission and is
+    never updated or deleted; this table has no unique constraint on
+    (student, classroom, experiment) by design.
+    """
+
+    __tablename__ = "experiment_marks_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    student_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    classroom_id: Mapped[str] = mapped_column(ForeignKey("classrooms.id"), index=True)
+    experiment_id: Mapped[str] = mapped_column(String(64), index=True)
+    pre_test_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pre_test_max: Mapped[float] = mapped_column(Float, default=20.0)
+    post_test_marks: Mapped[float | None] = mapped_column(Float, nullable=True)
+    post_test_max: Mapped[float] = mapped_column(Float, default=20.0)
+    entered_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    recorded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Escalation(Base):
     __tablename__ = "escalations"
 

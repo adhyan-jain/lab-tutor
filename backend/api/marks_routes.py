@@ -27,7 +27,7 @@ from backend.auth import Principal, classroom_faculty_scope, current_user
 from backend.classrooms import roster_with_users
 from backend.data_access import FacultyScope
 from backend.db import get_session
-from backend.models import Classroom, ExperimentMarks, User
+from backend.models import Classroom, ExperimentMarks, ExperimentMarksHistory, User
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/marks", tags=["marks"])
@@ -145,6 +145,22 @@ async def submit_marks(
         row.post_test_marks = entry.post_test_marks
         row.post_test_max = entry.post_test_max
         row.entered_by = principal.id
+        # Append-only research record -- `row` above is the "current
+        # value" upserted in place, but a repeat submission (typo fix,
+        # re-grade) must not erase the prior attempt for research
+        # validity. This is a separate insert every time, never updated.
+        db.add(
+            ExperimentMarksHistory(
+                student_id=entry.student_id,
+                classroom_id=classroom_id,
+                experiment_id=experiment_id,
+                pre_test_marks=entry.pre_test_marks,
+                pre_test_max=entry.pre_test_max,
+                post_test_marks=entry.post_test_marks,
+                post_test_max=entry.post_test_max,
+                entered_by=principal.id,
+            )
+        )
         saved += 1
 
     await audit.record(
