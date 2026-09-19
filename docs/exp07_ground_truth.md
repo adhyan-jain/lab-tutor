@@ -64,10 +64,24 @@ report 5 = 10.
 
 ## Genuinely not available in any supplied material (say so, never invent)
 
-- The exact **field names/labels inside the ORCA input dialog** (the
-  text says only "job type, calculation method, DFT method, basis sets");
-  the dialog is shown only as screenshots. The manual also refers to a
-  link with screenshot instructions that is not part of the material.
+- ~~The exact field names inside the ORCA input dialog~~ — **now
+  available.** They are shown only as screenshots in
+  `BTech_Lab_V5_09072025.docx`; they were read with Vertex vision and
+  hand-checked, and are in `sources/tier_b/exp07_exp08_supplementary.md`
+  ("Where things are on screen" paragraphs): the ORCA button on Gabedit's
+  toolbar opens "Orca input" with Charge & Multiplicity, Job Type, SCF
+  Type, SCF Convergence, Type of method, Method, Excited states, Type,
+  Basis, Auxiliary basis and Mo Guess / Initial Guess. Still absent: the
+  charge/multiplicity to enter for O2 (the dialog screenshot in the O2
+  section still shows methane's "Number of electrons = 10").
+- **Deliberately excluded from every source the tutor can read:** DOCX
+  paragraph 212, which gives reference HOMO/LUMO ranges for B3LYP/6-31G
+  ("around -13.06 to -10.06 eV" and "-0.60 to -0.10 eV"). It states the
+  expected answer to the Results section, so it must not be retrievable;
+  the tutor tells students to read their values from their own run. Numbers
+  visible inside the screenshots (energies, orbital tables) are likewise
+  not reproduced. The manual's own link to screenshot instructions is
+  still not part of the material.
 - **Numeric HOMO/LUMO and s/p/d/f values** — the tables are blank in the
   source by design (students fill them from their own runs).
 - Any **menu path inside Avogadro beyond "open → output file → select

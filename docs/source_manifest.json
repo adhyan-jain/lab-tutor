@@ -75,7 +75,7 @@
       "experiments": ["exp07", "exp08"],
       "present": true,
       "visual": false,
-      "notes": "Genuinely-new procedural detail (O2 build sequence, Gabedit version, ORCA run command) confirmed present in the fuller course PDF/DOCX but absent from the markdown manual transcription, and confirmed absent nowhere else. Table 1/2 numeric values are NOT here -- they are blank in every source seen, which manual/IACHY102_manual.md already states correctly."
+      "notes": "Genuinely-new procedural detail (O2 build sequence, Gabedit version, ORCA run command) confirmed present in the fuller course PDF/DOCX but absent from the markdown manual transcription, and confirmed absent nowhere else. Also holds the 'Where things are on screen' paragraphs for Exp 7, read from the DOCX screenshots with Vertex vision and hand-checked (toolbar/menu locations, ORCA input dialog fields, Run dialog, output file layout, Avogadro Orbitals panel). Table 1/2 numeric values are NOT here -- they are blank in every source seen, which manual/IACHY102_manual.md already states correctly. DOCX paragraph 212 (reference HOMO/LUMO ranges) and example numbers inside screenshots are deliberately excluded."
     },
     {
       "document_id": "adjacent_knowledge_v1",
