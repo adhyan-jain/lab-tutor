@@ -4,7 +4,78 @@ import { useState } from "react";
 import type { UnifiedChatMessage } from "@/lib/api";
 import { BookIcon, CheckIcon, WarningIcon } from "@/components/Icons";
 
+function renderFormattedContent(content: string) {
+  if (!content) return null;
+  const lines = content.split("\n");
+  return lines.map((line, lineIdx) => {
+    const isBullet = /^\s*[-*•]\s+(.*)/.exec(line);
+    const isNumbered = /^\s*(\d+)\.\s+(.*)/.exec(line);
+
+    const parseInline = (text: string) => {
+      const parts: (string | React.ReactNode)[] = [];
+      const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+      let lastIndex = 0;
+      let match;
+      let key = 0;
+      while ((match = regex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(text.substring(lastIndex, match.index));
+        }
+        const m = match[0];
+        if (m.startsWith("**") && m.endsWith("**")) {
+          parts.push(<strong key={key++}>{m.slice(2, -2)}</strong>);
+        } else if (m.startsWith("`") && m.endsWith("`")) {
+          parts.push(
+            <code
+              key={key++}
+              style={{
+                backgroundColor: "rgba(128, 128, 128, 0.15)",
+                padding: "2px 5px",
+                borderRadius: "4px",
+                fontFamily: "monospace",
+                fontSize: "0.9em",
+              }}
+            >
+              {m.slice(1, -1)}
+            </code>
+          );
+        } else if (m.startsWith("*") && m.endsWith("*")) {
+          parts.push(<em key={key++}>{m.slice(1, -1)}</em>);
+        }
+        lastIndex = regex.lastIndex;
+      }
+      if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
+      }
+      return parts.length > 0 ? parts : text;
+    };
+
+    if (isBullet) {
+      return (
+        <div key={lineIdx} style={{ display: "flex", gap: "8px", marginLeft: "6px", margin: "3px 0" }}>
+          <span style={{ color: "var(--accent)" }}>•</span>
+          <div>{parseInline(isBullet[1])}</div>
+        </div>
+      );
+    }
+    if (isNumbered) {
+      return (
+        <div key={lineIdx} style={{ display: "flex", gap: "8px", marginLeft: "6px", margin: "3px 0" }}>
+          <span style={{ fontWeight: 600, color: "var(--accent)" }}>{isNumbered[1]}.</span>
+          <div>{parseInline(isNumbered[2])}</div>
+        </div>
+      );
+    }
+    return (
+      <div key={lineIdx} style={{ minHeight: line.trim() ? "auto" : "0.5em" }}>
+        {parseInline(line)}
+      </div>
+    );
+  });
+}
+
 export function MessageBubble({ message }: { message: UnifiedChatMessage }) {
+
   const isStudent = message.author === "student";
   const meta = message.metadata || {};
   const [copied, setCopied] = useState(false);
@@ -110,9 +181,10 @@ export function MessageBubble({ message }: { message: UnifiedChatMessage }) {
         )}
 
         {/* Message Content */}
-        <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.55 }}>
-          {message.content}
+        <div style={{ wordBreak: "break-word", lineHeight: 1.55 }}>
+          {renderFormattedContent(message.content)}
         </div>
+
 
         {/* Diagnostic Citation */}
         {meta.type === "diagnostic" && meta.citation && (

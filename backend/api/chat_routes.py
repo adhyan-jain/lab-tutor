@@ -562,19 +562,21 @@ async def _handle_socratic_chat_turn(
         or 0
     )
     hint = templates.hint_text(min(attempts_on_step, 3), step.hints) if attempts_on_step else ""
+    hint_to_use = hint or (step.hints[0] if step.hints else templates.refusal_text())
 
     reply = await tutor_reply(
         student_message=raw_message,
         step_prompt=step.prompt,
         step_index=session.current_step,
         total_steps=len(steps),
-        hint_text=hint or templates.refusal_text(),
+        hint_text=hint_to_use,
         attempts_on_this_step=attempts_on_step,
         all_steps_complete=session.all_steps_complete,
         retrieval_query=f"{plugin.title} {step.key}",
         conversation_history=history_text,
         experiment_id=session.experiment_id,
     )
+
 
     if reply.redacted:
         await audit.record(

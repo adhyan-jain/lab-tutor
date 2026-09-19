@@ -23,21 +23,11 @@ from backend.config import Settings, get_settings
 
 log = logging.getLogger(__name__)
 
-# Every system prompt in this codebase tells the model "plain prose only,
-# no markdown" -- weaker models (local Ollama in particular) sometimes
-# ignore that and emit **bold**/__bold__ anyway. The frontend renders
-# replies as plain text, so unstripped markers show up as literal
-# asterisks to the student. Structural enforcement here, in the one place
-# every LLMReply is built, rather than trusting every prompt to work:
-# only the unambiguous double-marker forms are stripped (single `*`/`_`
-# are left alone -- they're common in chemistry notation, e.g. a radical
-# dot or a subscript-adjacent underscore, and stripping them risks
-# changing the text rather than just its markup).
-_BOLD_RE = re.compile(r"\*\*(.+?)\*\*|__(.+?)__", re.DOTALL)
-
 
 def _strip_markdown_emphasis(text: str) -> str:
-    return _BOLD_RE.sub(lambda m: m.group(1) or m.group(2), text)
+    """Pass text through directly to allow natural markdown formatting in frontend."""
+    return text
+
 
 
 #: Bounds how many LLM calls run at once across every backend instance
@@ -78,7 +68,12 @@ class LLMBackend(abc.ABC):
 
     @abc.abstractmethod
     async def complete(
-        self, *, system: str, user: str, max_tokens: int | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> LLMReply:
         ...
 
@@ -98,12 +93,18 @@ class HostedBackend(LLMBackend):
         self._model = settings.llm_model
         self._timeout = settings.llm_timeout_seconds
         self._default_max_tokens = settings.llm_max_tokens
+        self._temperature = settings.llm_temperature
 
     def _configured(self) -> bool:
         return bool(self._base_url and self._api_key and self._model)
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> LLMReply:
         if not self._configured():
             raise LLMUnavailable(
@@ -113,7 +114,7 @@ class HostedBackend(LLMBackend):
         payload = {
             "model": self._model,
             "max_tokens": max_tokens or self._default_max_tokens,
-            "temperature": 0.2,
+            "temperature": temperature if temperature is not None else self._temperature,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -166,16 +167,22 @@ class OllamaBackend(LLMBackend):
         self._timeout = settings.llm_timeout_seconds
         self._default_max_tokens = settings.llm_max_tokens
         self._think = settings.ollama_think
+        self._temperature = settings.llm_temperature
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> LLMReply:
         payload = {
             "model": self._model,
             "stream": False,
             "think": self._think,
             "options": {
-                "temperature": 0.2,
+                "temperature": temperature if temperature is not None else self._temperature,
                 "num_predict": max_tokens or self._default_max_tokens,
             },
             "messages": [
@@ -229,6 +236,7 @@ class VertexBackend(LLMBackend):
         self._model = settings.vertex_model
         self._timeout = settings.llm_timeout_seconds
         self._default_max_tokens = settings.llm_max_tokens
+        self._temperature = settings.llm_temperature
         self._client = genai.Client(
             vertexai=True,
             project=settings.vertex_project or None,
@@ -241,7 +249,7 @@ class VertexBackend(LLMBackend):
         wait=wait_exponential_jitter(initial=1, max=8),
         reraise=True,
     )
-    async def _generate(self, *, system: str, user: str, max_tokens: int):
+    async def _generate(self, *, system: str, user: str, max_tokens: int, temperature: float):
         async with _get_semaphore():
             return await asyncio.wait_for(
                 self._client.aio.models.generate_content(
@@ -250,18 +258,26 @@ class VertexBackend(LLMBackend):
                     config=genai_types.GenerateContentConfig(
                         system_instruction=system,
                         max_output_tokens=max_tokens,
-                        temperature=0.2,
+                        temperature=temperature,
                     ),
                 ),
                 timeout=self._timeout,
             )
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> LLMReply:
         try:
             response = await self._generate(
-                system=system, user=user, max_tokens=max_tokens or self._default_max_tokens
+                system=system,
+                user=user,
+                max_tokens=max_tokens or self._default_max_tokens,
+                temperature=temperature if temperature is not None else self._temperature,
             )
         except (genai_errors.APIError, TimeoutError) as exc:
             raise LLMUnavailable(f"Vertex AI request failed: {exc}") from exc
@@ -300,11 +316,16 @@ class FallbackBackend(LLMBackend):
         self.secondary = secondary
 
     async def complete(
-        self, *, system: str, user: str, max_tokens: int | None = None
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
     ) -> LLMReply:
         try:
             return await self.primary.complete(
-                system=system, user=user, max_tokens=max_tokens
+                system=system, user=user, max_tokens=max_tokens, temperature=temperature
             )
         except LLMUnavailable as exc:
             log.warning(
@@ -314,7 +335,7 @@ class FallbackBackend(LLMBackend):
                 exc,
             )
         return await self.secondary.complete(
-            system=system, user=user, max_tokens=max_tokens
+            system=system, user=user, max_tokens=max_tokens, temperature=temperature
         )
 
     async def health(self) -> bool:

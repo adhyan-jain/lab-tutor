@@ -329,3 +329,61 @@ async def test_reveal_sets_the_students_own_answer_beside_the_computed_one(plugi
     )
     assert f"{EXPECTED_FINAL_VALUE:g}" in text, "computed value missing"
     assert "0.124" in text, "the student's own derived answer is missing"
+
+
+# --- exp07/exp08 diagnostic-mode gate bypass --------------------------------
+#
+# Exp07 and Exp08 are qualitative/computational: there is no withheld
+# numeric final answer for the socratic-mode number-scrub to protect, so
+# `tutor_reply` routes them through the gate's "diagnostic" mode instead
+# (sanitisation only, no number redaction). These tests are regression
+# coverage for a bypass that previously had none at all.
+
+
+async def test_exp07_reply_keeps_a_chemistry_constant_unredacted(fake_llm, plugin):
+    """A standard constant (e.g. the tetrahedral bond angle) is not the
+    withheld answer and must survive `tutor_reply` for exp07/exp08."""
+    fake_llm.reply = "Expect bond angles close to 109.5 degrees once optimised."
+    step = plugin.steps()[0]
+    reply = await tutor_reply(
+        student_message="what bond angles should I see after optimisation",
+        step_prompt=step.prompt,
+        step_index=0,
+        total_steps=len(plugin.steps()),
+        hint_text=templates.hint_text(1, step.hints),
+        attempts_on_this_step=0,
+        all_steps_complete=False,
+        experiment_id="exp07",
+    )
+    assert "109.5" in reply.text
+    assert not reply.redacted
+
+
+async def test_exp07_qa_fallback_still_passes_through_the_outbound_gate(monkeypatch, fake_llm, plugin):
+    """The qa_fallback path (genuine questions on exp07/exp08) must still
+    get the length cap and control-character sanitisation every other
+    outbound path gets -- it should not be a way to skip `filter_outbound`
+    entirely just because it also skips the number-scrub."""
+    fake_llm.available = False  # forces _fallback(), which tries qa_fallback first
+
+    async def _fake_grounded_answer(student_message, experiment_id, conversation_history):
+        return "answer\x07with a stray control character and 109.5 degrees"
+
+    monkeypatch.setattr(
+        "backend.socratic_engine.chat._grounded_fallback_answer", _fake_grounded_answer
+    )
+
+    step = plugin.steps()[0]
+    reply = await tutor_reply(
+        student_message="what basis set should I use for this run",
+        step_prompt=step.prompt,
+        step_index=0,
+        total_steps=len(plugin.steps()),
+        hint_text=templates.hint_text(1, step.hints),
+        attempts_on_this_step=0,
+        all_steps_complete=False,
+        experiment_id="exp07",
+    )
+    assert reply.source == "qa_fallback"
+    assert "\x07" not in reply.text, "control characters must be stripped even on qa_fallback"
+    assert "109.5" in reply.text, "legitimate content must survive sanitisation"

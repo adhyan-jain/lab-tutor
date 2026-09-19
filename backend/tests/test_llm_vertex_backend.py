@@ -72,12 +72,13 @@ def _install_fake_client(monkeypatch, side_effects: list) -> _FakeModels:
     return models
 
 
-async def test_successful_reply_is_markdown_stripped(monkeypatch):
+async def test_successful_reply_preserves_content(monkeypatch):
     _install_fake_client(monkeypatch, [_FakeResponse("**bold** reply")])
     backend = VertexBackend(Settings())
     reply = await backend.complete(system="s", user="u")
-    assert reply.text == "bold reply"
+    assert reply.text == "**bold** reply"
     assert reply.backend == "vertex"
+
 
 
 async def test_retries_on_429_then_succeeds(monkeypatch):

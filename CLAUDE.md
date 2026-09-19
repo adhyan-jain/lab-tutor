@@ -47,15 +47,28 @@ experiments that seem "too simple to bother with real Tier 1 logic."
 
 **Experiments 7 and 8 — amended.** This file originally said those two
 get "a stub that always escalates to Tier 3, not an LLM judgment call."
-The build session deviated: their energy **ordering** is now checked
-deterministically (staggered below eclipsed, chair below boat), a
-consistent ordering still escalates rather than passing, and a model may
-only add a low-confidence note about the student's method narrative. The
-hard rule above is intact — no model decides the ordering — but this is
-the one place a model contributes to a judgment at all. The full
-rationale and the containment measures are recorded in
-[docs/ARCHITECTURE.md §2.1](docs/ARCHITECTURE.md). Do not extend that
-exception to a third experiment; if one seems to need it, it needs a
+The build session deviated, but not identically for both — they are
+different experiment shapes, corrected in
+[docs/ARCHITECTURE.md §2.1.1](docs/ARCHITECTURE.md):
+
+- **Experiment 8** (conformer analysis) has energy **ordering** checked
+  deterministically (staggered below eclipsed, chair below boat). A
+  consistent ordering still escalates rather than passing, and a model
+  may add a low-confidence note about the student's method narrative
+  (`backend/rag/qualitative.py`, restricted to `exp08` only).
+- **Experiment 7** (Gabedit/ORCA orbital-energy runs) has no ordering to
+  check — a single run has one HOMO and one LUMO, not two conformers to
+  compare — so it uses a different deterministic checker instead
+  (`ComputationSanityPlugin`: optimisation must not raise energy, LUMO
+  must exceed HOMO), always escalating on a clean run exactly as
+  Experiment 8 does. It has no narrative-note mechanism at all.
+
+The hard rule above is intact for both — no model decides the ordering or
+the sanity check — but Experiment 8 is the one place a model contributes
+to a judgment at all. The full rationale and the containment measures are
+recorded in [docs/ARCHITECTURE.md §2.1](docs/ARCHITECTURE.md). Do not
+extend that exception to a third experiment; if one seems to need it, it
+needs a
 deterministic checker instead.
 
 ## Coding conventions

@@ -192,11 +192,13 @@ async def run_case(case: dict) -> dict:
             step_prompt=step.prompt,
             step_index=case["step_index"],
             total_steps=len(steps),
-            hint_text=templates.refusal_text(),  # first message on this step, matches prod
+            hint_text=step.hints[0] if step.hints else templates.refusal_text(),
             attempts_on_this_step=0,
             all_steps_complete=False,
             retrieval_query=retrieval_query,
+            experiment_id=case.get("experiment_id", "exp07"),
         )
+
         reply_text, reply_source, reply_intent = reply.text, reply.source, reply.intent.value
         redacted = reply.redacted
     except Exception as exc:  # noqa: BLE001 - a failed case must not kill the run

@@ -88,7 +88,8 @@ class Settings(BaseSettings):
     llm_api_key: str = Field("", alias="LABTUTOR_LLM_API_KEY")
     llm_model: str = Field("", alias="LABTUTOR_LLM_MODEL")
     llm_timeout_seconds: float = Field(30.0, alias="LABTUTOR_LLM_TIMEOUT_SECONDS")
-    llm_max_tokens: int = Field(400, alias="LABTUTOR_LLM_MAX_TOKENS")
+    llm_max_tokens: int = Field(1200, alias="LABTUTOR_LLM_MAX_TOKENS")
+    llm_temperature: float = Field(0.7, alias="LABTUTOR_LLM_TEMPERATURE")
     #: Caps how many LLM calls run at once, across every caller
     #: (Socratic chat, diagnostic phrasing, the Exp8 qualitative note).
     #: Found missing this session: nothing previously bounded this, so
@@ -99,7 +100,7 @@ class Settings(BaseSettings):
     #: the same reason.
     llm_max_concurrency: int = Field(20, alias="LABTUTOR_LLM_MAX_CONCURRENCY")
     ollama_base_url: str = Field("http://localhost:11434", alias="LABTUTOR_OLLAMA_BASE_URL")
-    ollama_model: str = Field("llama3.1:8b", alias="LABTUTOR_OLLAMA_MODEL")
+    ollama_model: str = Field("qwen2.5:7b", alias="LABTUTOR_OLLAMA_MODEL")
     #: Some local models (e.g. qwen3) default to an internal "thinking"
     #: pass before the visible reply. Measured during this session's
     #: evaluation run: with `llm_max_tokens` at its default (400) that
