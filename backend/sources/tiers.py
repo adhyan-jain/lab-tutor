@@ -101,8 +101,14 @@ def is_retrievable(tier: SourceTier) -> bool:
 
 
 def requires_supplementary_label(tier: SourceTier) -> bool:
-    """Whether an answer from this tier must be visibly marked as not-the-manual."""
-    return tier is SourceTier.CURATED_ADJACENT
+    """Whether an answer from this tier must be visibly marked as not-the-manual.
+
+    Tier B (official course material beyond the manual transcription
+    itself, e.g. a fuller source PDF/DOCX) is still not the manual, and a
+    citation that renders identically to a tier-A one would silently
+    misrepresent that -- so it gets a label too, distinct from tier C's.
+    """
+    return tier in (SourceTier.OFFICIAL_SUPPLEMENTARY, SourceTier.CURATED_ADJACENT)
 
 
 def outranks(a: SourceTier, b: SourceTier) -> bool:
@@ -158,8 +164,10 @@ def citation_for(
     if page is not None:
         parts.append(f"p. {page}")
     base = ", ".join(parts)
-    if requires_supplementary_label(document.tier):
+    if document.tier is SourceTier.CURATED_ADJACENT:
         return f"{base} — supplementary material, not the IACHY102 manual"
+    if document.tier is SourceTier.OFFICIAL_SUPPLEMENTARY:
+        return f"{base} — official supplementary material, not the IACHY102 manual itself"
     return base
 
 

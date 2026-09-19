@@ -66,6 +66,18 @@
       "notes": "Not present in this checkout. Note for whoever adds it: demonstrator notes may contain answer keys. Anything ingested from a professor-facing document is reachable by a student question, so review it for answer-key content before ingesting, and keep it out of Socratic-mode retrieval entirely."
     },
     {
+      "document_id": "exp07_exp08_supplementary_v1",
+      "tier": "B",
+      "role": "supplementary_material",
+      "filename": "sources/tier_b/exp07_exp08_supplementary.md",
+      "title": "IACHY102 Exp 7/8 supplementary procedural detail",
+      "version": "1.0",
+      "experiments": ["exp07", "exp08"],
+      "present": true,
+      "visual": false,
+      "notes": "Genuinely-new procedural detail (O2 build sequence, Gabedit version, ORCA run command) confirmed present in the fuller course PDF/DOCX but absent from the markdown manual transcription, and confirmed absent nowhere else. Table 1/2 numeric values are NOT here -- they are blank in every source seen, which manual/IACHY102_manual.md already states correctly."
+    },
+    {
       "document_id": "adjacent_knowledge_v1",
       "tier": "C",
       "role": "supplementary_material",

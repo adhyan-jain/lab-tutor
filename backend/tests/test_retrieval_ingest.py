@@ -338,3 +338,37 @@ def test_adjacent_knowledge_directory_ingests_with_correct_attribution():
     )
     assert {c.experiment_id for c in report.chunks} == {"exp02", "exp03", "exp07", "exp08"}
     assert all(c.tier == SourceTier.CURATED_ADJACENT for c in report.chunks)
+
+
+def test_exp07_exp08_tier_b_supplementary_document_ingests_with_correct_attribution():
+    """Integration check against the real sources/tier_b/ document added
+    for the genuinely-new Exp7/Exp8 procedural detail (O2 build sequence,
+    Gabedit version, ORCA run command) found outside the manual
+    transcription."""
+    entry = get_manifest().by_id("exp07_exp08_supplementary_v1")
+    report = ingest.ingest_document(entry)
+    assert report.status == "ingested"
+    assert report.chunk_count > 0
+    assert {c.experiment_id for c in report.chunks} == {"exp07", "exp08"}
+    assert all(c.tier == SourceTier.OFFICIAL_SUPPLEMENTARY for c in report.chunks)
+
+
+def test_tier_b_citation_is_visibly_distinct_from_tier_a():
+    """The user's explicit requirement: supplied course material beyond
+    the manual transcription must be cited as supplementary, not silently
+    rendered identically to a manual citation."""
+    from backend.sources.tiers import citation_for
+
+    manual_doc = SourceDocument(
+        document_id="manual", tier=SourceTier.OFFICIAL_MANUAL,
+        filename="x.md", title="IACHY102 manual", version="1.0", present=True,
+    )
+    supplementary_doc = SourceDocument(
+        document_id="supp", tier=SourceTier.OFFICIAL_SUPPLEMENTARY,
+        filename="y.md", title="IACHY102 manual", version="1.0", present=True,
+    )
+    manual_citation = citation_for(manual_doc, page=39)
+    supplementary_citation = citation_for(supplementary_doc, page=39)
+    assert manual_citation != supplementary_citation
+    assert "supplementary" in supplementary_citation.lower()
+    assert "supplementary" not in manual_citation.lower()

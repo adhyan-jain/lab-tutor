@@ -98,10 +98,14 @@ def test_curated_adjacent_may_supply_adjacent_explanations():
 # --- labelling ------------------------------------------------------------
 
 
-def test_only_curated_adjacent_requires_a_supplementary_label():
+def test_only_tier_a_is_exempt_from_a_supplementary_label():
+    """Tier A (the manual itself) is the only tier that never needs the
+    label. Tier B is official course material but still not the manual
+    transcription, so it gets a label too, distinct from tier C's -- see
+    `citation_for`."""
     assert requires_supplementary_label(SourceTier.CURATED_ADJACENT)
+    assert requires_supplementary_label(SourceTier.OFFICIAL_SUPPLEMENTARY)
     assert not requires_supplementary_label(SourceTier.OFFICIAL_MANUAL)
-    assert not requires_supplementary_label(SourceTier.OFFICIAL_SUPPLEMENTARY)
 
 
 def test_tier_c_citation_says_it_is_not_the_manual():
@@ -109,6 +113,12 @@ def test_tier_c_citation_says_it_is_not_the_manual():
     survives being screenshotted and quoted back."""
     citation = citation_for(_doc(SourceTier.CURATED_ADJACENT), page=4)
     assert "not the IACHY102 manual" in citation
+
+
+def test_tier_b_citation_says_it_is_not_the_manual_and_differs_from_tier_c():
+    citation = citation_for(_doc(SourceTier.OFFICIAL_SUPPLEMENTARY), page=4)
+    assert "not the IACHY102 manual" in citation
+    assert citation != citation_for(_doc(SourceTier.CURATED_ADJACENT), page=4)
 
 
 def test_tier_a_citation_carries_no_disclaimer():
