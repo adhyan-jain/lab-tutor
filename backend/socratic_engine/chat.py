@@ -106,6 +106,9 @@ class TutorReply:
     latency_ms: float | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    #: Source citations (`retrieval.pipeline.Citation`) when the answer came
+    #: from the grounded Q&A pipeline; empty otherwise.
+    citations: tuple = ()
 
 
 def _build_user_prompt(gate_input: SocraticLLMInput) -> str:
@@ -235,6 +238,7 @@ async def tutor_reply(
                 latency_ms=result.latency_ms,
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
+                citations=tuple(getattr(result, "citations", ()) or ()),
             )
         decision = filter_outbound(hint_text or templates.refusal_text(), mode="diagnostic")
         return TutorReply(text=decision.text, source="template", intent=intent)

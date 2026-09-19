@@ -55,8 +55,14 @@ from backend.sources.tiers import SourceTier, Usage, citation_for
 
 log = logging.getLogger(__name__)
 
-MAX_PASSAGES_RETRIEVED = 8
+MAX_PASSAGES_RETRIEVED = 10
 MAX_CITATIONS = 3
+#: Exp7/Exp8 are whole-workflow experiments whose useful answer often spans
+#: several consecutive steps (build -> optimise -> single point -> view), so
+#: a 3-passage cap truncates "walk me through it" questions. Their source
+#: material is small, so a wider window costs little.
+QUALITATIVE_EXPERIMENTS = frozenset({"exp07", "exp08"})
+MAX_CITATIONS_QUALITATIVE = 6
 MAX_EXTRACT_CHARS = 1200
 
 SYSTEM_PROMPT = """\
@@ -71,10 +77,23 @@ Formatting & Tone Guidelines:
 - Use natural markdown formatting: use **bold** for key menu items, parameters, or terms; bullet points or numbered lists for sequential steps; inline code (`...`) for keywords or commands when appropriate.
 - Keep explanations structured and easy to read.
 
+Voice: you are the lab tutor speaking directly to the student. Never \
+refer to "the passages", "the provided text", "the information provided", \
+"the context" or "the source" -- the student cannot see them. Write as \
+"the manual" only when you need to attribute a step, e.g. "the manual \
+has you...". Lead with the answer; give steps as a numbered list in the \
+order the student performs them, and end a procedure by saying what \
+comes next when the material says so. Answer every part of a multi-part \
+question, and when the student asks for a full walkthrough, give the \
+whole procedure rather than a summary.
+
 Rules you must follow:
 - Never state a fact that is not in the retrieved passages. If the \
-passages do not fully answer the question, say what they do cover and \
-stop there -- do not fill the gap from general knowledge.
+passages do not fully answer the question, answer the parts they do cover \
+first, then say plainly and briefly what the lab material does not spell \
+out (for example an exact dialog field or a numeric result the student \
+must obtain from their own run) -- do not fill the gap from general \
+knowledge, and never invent a menu path, button name or number.
 - Never invent a page number, section, or procedure step.
 - If SUPPLEMENTARY is marked true, make clear this is background \
 material and not the official manual's own instructions.
@@ -223,7 +242,12 @@ async def answer_question(
     # better outcome than falling back to a supplementary source. Only
     # when official evidence didn't qualify does supplementary evidence
     # (which is what made `status` answerable at all) get used.
-    chosen = (official if official else supplementary)[:MAX_CITATIONS]
+    limit = (
+        MAX_CITATIONS_QUALITATIVE
+        if decision.experiment_id in QUALITATIVE_EXPERIMENTS
+        else MAX_CITATIONS
+    )
+    chosen = (official if official else supplementary)[:limit]
     citations = tuple(_make_citation(item.chunk) for item in chosen)
 
     text, source, reply = await _generate_answer(
@@ -342,7 +366,9 @@ async def _phrase_with_llm(
         "QUESTION>>>",
     ]
     user = "\n".join(parts)
-    reply = await get_backend().complete(system=SYSTEM_PROMPT, user=user, max_tokens=1000)
+    # Generous on purpose: Gemini 2.5 counts its internal reasoning tokens
+    # against this budget, and a full-workflow walkthrough is long.
+    reply = await get_backend().complete(system=SYSTEM_PROMPT, user=user, max_tokens=8192)
     if reply.text and reply.text != reply.text.strip():
         reply = dataclasses.replace(reply, text=reply.text.strip())
     return reply

@@ -627,6 +627,9 @@ async def _handle_socratic_chat_turn(
         "total_steps": len(steps),
         "complete": session.all_steps_complete,
         "answer_source": reply.source,
+        "citations": [
+            {"text": c.text, "page": c.page, "tier": c.tier.value} for c in reply.citations
+        ],
         **_llm_meta(reply.latency_ms, reply.prompt_tokens, reply.completion_tokens),
     }
 

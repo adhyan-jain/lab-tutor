@@ -188,7 +188,7 @@ def build_reveal(
 #: Longest student-facing message the gate will emit. A model talked into
 #: producing a wall of text should not become a wall of text on a phone in
 #: a lab.
-MAX_OUTBOUND_CHARS = 2000
+MAX_OUTBOUND_CHARS = 8000
 
 
 def sanitise_outbound(text: str) -> str:

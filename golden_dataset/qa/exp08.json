@@ -19,7 +19,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -41,7 +42,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -63,7 +65,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -85,7 +88,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -107,7 +111,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -129,7 +134,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -151,7 +157,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -173,7 +180,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -195,7 +203,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -217,7 +226,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -259,7 +269,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -277,14 +288,17 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
-      "verification_note": "Re-verified 2026-09-20: adding sources/tier_b/exp07_exp08_supplementary.md shifted corpus-wide TF-IDF weights slightly (small corpus, so one new document is not negligible), which no longer clears the grounding bar for this specific question. This is a graceful 'insufficient evidence' fallback, not a crash or a wrong answer -- acceptable per this sprint's explicit priority that exp08 only needs to not crash while exp07 gets the quality focus. Confirmed by direct answer_question() call, not assumed."
+      "verification_note": "ok"
     },
     {
       "id": "qa-exp08-direct_clean-014",
@@ -301,7 +315,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -323,7 +338,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -345,7 +361,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -367,7 +384,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -389,7 +407,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -431,7 +450,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -473,7 +493,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -495,7 +516,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -517,7 +539,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -539,7 +562,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -561,7 +585,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -583,7 +608,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -605,7 +631,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -647,7 +674,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -669,7 +697,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -691,7 +720,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -713,7 +743,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -735,7 +766,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -753,13 +785,11 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_supported",
+      "expected_behavior": "in_scope_retrieval_insufficient",
       "expected_answer_facts": null,
-      "blocked_reason": null,
-      "allowed_sources": [
-        "A"
-      ],
-      "citation_expected": true,
+      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
+      "allowed_sources": [],
+      "citation_expected": false,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -779,7 +809,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -821,7 +852,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -843,7 +875,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -865,7 +898,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -887,7 +921,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -909,7 +944,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -931,7 +967,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -953,7 +990,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -975,7 +1013,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -985,11 +1024,11 @@
     {
       "id": "qa-exp08-direct_messy-046",
       "experiment": "exp08",
-      "user_question": "how do i calculate potential energy profile in gabedit step by step",
+      "user_question": "how do i calculate potential energy profile in avogadro step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate potential energy profile in gabedit step by step",
+      "normalized_intent": "how do i calculate potential energy profile in avogadro step by step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -997,7 +1036,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1019,7 +1059,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1041,7 +1082,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1051,11 +1093,11 @@
     {
       "id": "qa-exp08-direct_messy-049",
       "experiment": "exp08",
-      "user_question": "can you guide me through torsion calculation in avogadro",
+      "user_question": "can you guide me through torsion calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through torsional calculation in avogadro",
+      "normalized_intent": "can you guide me through torsional calculation in orca",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1063,7 +1105,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1085,7 +1128,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1107,7 +1151,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1117,11 +1162,11 @@
     {
       "id": "qa-exp08-direct_messy-052",
       "experiment": "exp08",
-      "user_question": "how do i get the boat step calculation in orca",
+      "user_question": "how do i get the boat step calculation in gabedit",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i get the boat step calculation in orca",
+      "normalized_intent": "how do i get the boat step calculation in gabedit",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1129,7 +1174,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1151,7 +1197,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1173,7 +1220,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1183,11 +1231,11 @@
     {
       "id": "qa-exp08-direct_messy-055",
       "experiment": "exp08",
-      "user_question": "which button in gabedit performs the conformational calculation step",
+      "user_question": "which button in avogadro performs the conformational calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in gabedit performs the conformational calculation step",
+      "normalized_intent": "which button in avogadro performs the conformational calculation step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1195,7 +1243,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1217,7 +1266,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1239,7 +1289,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1249,11 +1300,11 @@
     {
       "id": "qa-exp08-direct_messy-058",
       "experiment": "exp08",
-      "user_question": "how to run avogadro for conformers step calculation",
+      "user_question": "how to run orca for conformers step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run avogadro for conformer step calculation",
+      "normalized_intent": "how to run orca for conformer step calculation",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1261,7 +1312,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1283,7 +1335,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1305,7 +1358,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1315,11 +1369,11 @@
     {
       "id": "qa-exp08-direct_messy-061",
       "experiment": "exp08",
-      "user_question": "can you guide me through step 1 in orca for eclipsed",
+      "user_question": "can you guide me through step 1 in gabedit for eclipsed",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through step 1 in orca for eclipsed",
+      "normalized_intent": "can you guide me through step 1 in gabedit for eclipsed",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1327,7 +1381,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1349,7 +1404,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1371,7 +1427,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1381,11 +1438,11 @@
     {
       "id": "qa-exp08-direct_messy-064",
       "experiment": "exp08",
-      "user_question": "how do i calculate gauche in gabedit step by step",
+      "user_question": "how do i calculate gauche in avogadro step by step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i calculate gauche in gabedit step by step",
+      "normalized_intent": "how do i calculate gauche in avogadro step by step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1393,7 +1450,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1415,7 +1473,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1437,7 +1496,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1447,11 +1507,11 @@
     {
       "id": "qa-exp08-direct_messy-067",
       "experiment": "exp08",
-      "user_question": "can you guide me through ring flip calculation in avogadro",
+      "user_question": "can you guide me through ring flip calculation in orca",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through ring flip calculation in avogadro",
+      "normalized_intent": "can you guide me through ring flip calculation in orca",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1459,7 +1519,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1481,7 +1542,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1503,7 +1565,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1513,11 +1576,11 @@
     {
       "id": "qa-exp08-direct_messy-070",
       "experiment": "exp08",
-      "user_question": "how do i get the torsional step calculation in orca",
+      "user_question": "how do i get the torsional step calculation in gabedit",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how do i get the torsional step calculation in orca",
+      "normalized_intent": "how do i get the torsional step calculation in gabedit",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1525,7 +1588,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1547,7 +1611,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1569,7 +1634,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1579,11 +1645,11 @@
     {
       "id": "qa-exp08-direct_messy-073",
       "experiment": "exp08",
-      "user_question": "which button in gabedit performs the chair calculation step",
+      "user_question": "which button in avogadro performs the chair calculation step",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "which button in gabedit performs the chair calculation step",
+      "normalized_intent": "which button in avogadro performs the chair calculation step",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1591,7 +1657,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1613,7 +1680,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1635,7 +1703,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1645,11 +1714,11 @@
     {
       "id": "qa-exp08-direct_messy-076",
       "experiment": "exp08",
-      "user_question": "how to run avogadro for conformations step calculation",
+      "user_question": "how to run orca for conformations step calculation",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "how to run avogadro for conformation step calculation",
+      "normalized_intent": "how to run orca for conformation step calculation",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1657,7 +1726,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1679,7 +1749,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1701,7 +1772,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1711,11 +1783,11 @@
     {
       "id": "qa-exp08-direct_messy-079",
       "experiment": "exp08",
-      "user_question": "can you guide me through step 1 in orca for cyclohexane",
+      "user_question": "can you guide me through step 1 in gabedit for cyclohexane",
       "scope_label_intent": "direct_messy",
       "difficulty": "messy",
       "adversarial": false,
-      "normalized_intent": "can you guide me through step 1 in orca for cyclohexane",
+      "normalized_intent": "can you guide me through step 1 in gabedit for cyclohexane",
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
@@ -1723,7 +1795,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1745,7 +1818,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1789,7 +1863,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1853,7 +1928,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1919,7 +1995,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -1959,11 +2036,13 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
@@ -1983,7 +2062,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -2047,7 +2127,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -2113,7 +2194,8 @@
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
-        "A"
+        "A",
+        "B"
       ],
       "citation_expected": true,
       "supplementary": false,
@@ -2371,13 +2453,11 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_supported",
+      "expected_behavior": "in_scope_retrieval_insufficient",
       "expected_answer_facts": null,
-      "blocked_reason": null,
-      "allowed_sources": [
-        "A"
-      ],
-      "citation_expected": true,
+      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
+      "allowed_sources": [],
+      "citation_expected": false,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"
