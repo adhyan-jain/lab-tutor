@@ -11,6 +11,7 @@ import {
   type MarksAnalyticsRow,
   type Me,
 } from "@/lib/api";
+import { AppNav } from "./AppNav";
 
 export function MarksWorkspace({ me }: { me: Me }) {
   const router = useRouter();
@@ -142,8 +143,10 @@ export function MarksWorkspace({ me }: { me: Me }) {
   };
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "24px 16px" }}>
-      <h1 style={{ fontSize: "1.3rem", marginBottom: "4px" }}>Pre/Post-Test Marks &amp; Analytics</h1>
+    <>
+    <AppNav me={me} current="/faculty/marks" />
+    <div className="page">
+      <h1 className="page-title">Pre/Post-Test Marks &amp; Analytics</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         Enter each student's pre- and post-test scores for an experiment, export the raw data,
         and see how much they improved.
@@ -198,7 +201,8 @@ export function MarksWorkspace({ me }: { me: Me }) {
         ) : rows.length === 0 ? (
           <p className="muted">No students enrolled in this classroom yet.</p>
         ) : (
-          <table>
+          <div className="table-scroll">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Student</th>
@@ -252,6 +256,7 @@ export function MarksWorkspace({ me }: { me: Me }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -281,5 +286,6 @@ export function MarksWorkspace({ me }: { me: Me }) {
         )}
       </div>
     </div>
+    </>
   );
 }

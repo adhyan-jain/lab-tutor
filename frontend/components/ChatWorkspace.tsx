@@ -55,6 +55,13 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const [renameTitle, setRenameTitle] = useState("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // On narrow screens the sidebar is a drawer; close it once the student
+  // has picked a chat or classroom so they land on the conversation.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [activeThreadId, activeClassroom]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -327,21 +334,21 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
   const isCoFaculty = activeClassroom?.co_faculty || me.role === "faculty" || me.role === "admin";
   const selectedExp = experiments.find((e) => e.id === selectedExpId);
+  // Faculty/admin test traffic is intentionally allowed without a live
+  // session (backend/api/chat_routes.py resolves it as actor_type
+  // FACULTY_TEST/ADMIN_TEST, not tied to a class session) -- only
+  // students are blocked here.
+  const chatBlockedForStudent = me.role === "student" && !sessionInfo.active;
 
   return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div className="app-root">
+      <div
+        className={`app-backdrop ${sidebarOpen ? "open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
       {/* --- Sidebar --- */}
-      <aside
-        style={{
-          width: "280px",
-          backgroundColor: "var(--sidebar-bg)",
-          color: "var(--sidebar-text)",
-          borderRight: "1px solid var(--sidebar-border)",
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-        }}
-      >
+      <aside className={`app-sidebar ${sidebarOpen ? "open" : ""}`}>
         {/* User Header */}
         <div style={{ padding: "16px", borderBottom: "1px solid var(--sidebar-border)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -413,25 +420,56 @@ export function ChatWorkspace({ me }: { me: Me }) {
           <span style={{ display: "block", fontSize: "0.75rem", color: "var(--sidebar-muted)", fontWeight: 600, marginBottom: "6px" }}>
             IACHY102 EXPERIMENT
           </span>
-          <select
-            value={selectedExpId}
-            onChange={(e) => {
-              setSelectedExpId(e.target.value);
-              setError("");
-            }}
-            style={{
-              backgroundColor: "var(--sidebar-surface)",
-              borderColor: "var(--sidebar-border)",
-              color: "var(--sidebar-text)",
-              fontSize: "0.85rem",
-            }}
-          >
-            {[...experiments].sort((a, b) => a.id.localeCompare(b.id)).map((exp) => (
-              <option key={exp.id} value={exp.id}>
-                {exp.id.toUpperCase()}: {exp.title}
-              </option>
-            ))}
-          </select>
+          {me.role === "student" ? (
+            sessionInfo.active && sessionInfo.experiment_id ? (
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  background: "var(--sidebar-surface)",
+                  border: "1px solid var(--sidebar-border)",
+                  color: "var(--sidebar-text)",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {sessionInfo.experiment_id.toUpperCase()}:{" "}
+                {experiments.find((e) => e.id === sessionInfo.experiment_id)?.title || "Experiment"}
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "6px",
+                  background: "var(--sidebar-surface)",
+                  border: "1px solid var(--sidebar-border)",
+                  color: "var(--sidebar-muted)",
+                  fontSize: "0.8rem",
+                }}
+              >
+                No active session. Ask your instructor to start one.
+              </div>
+            )
+          ) : (
+            <select
+              value={selectedExpId}
+              onChange={(e) => {
+                setSelectedExpId(e.target.value);
+                setError("");
+              }}
+              style={{
+                backgroundColor: "var(--sidebar-surface)",
+                borderColor: "var(--sidebar-border)",
+                color: "var(--sidebar-text)",
+                fontSize: "0.85rem",
+              }}
+            >
+              {[...experiments].sort((a, b) => a.id.localeCompare(b.id)).map((exp) => (
+                <option key={exp.id} value={exp.id}>
+                  {exp.id.toUpperCase()}: {exp.title}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Chat Threads Header & New Chat */}
@@ -513,6 +551,24 @@ export function ChatWorkspace({ me }: { me: Me }) {
               <GraduationCapIcon size={14} /> Classroom Management
             </button>
           )}
+          {(me.role === "faculty" || me.role === "admin" || isCoFaculty) && (
+            <>
+              <a
+                className="btn btn-secondary btn-sm"
+                href={`/faculty/activity${activeClassroom ? `?classroom=${activeClassroom.id}` : ""}`}
+                style={{ width: "100%" }}
+              >
+                Activity &amp; Data
+              </a>
+              <a
+                className="btn btn-secondary btn-sm"
+                href={`/faculty/marks${activeClassroom ? `?classroom=${activeClassroom.id}` : ""}`}
+                style={{ width: "100%" }}
+              >
+                Pre/Post Marks
+              </a>
+            </>
+          )}
           {me.role === "admin" && (
             <button
               className="btn btn-secondary btn-sm"
@@ -538,10 +594,17 @@ export function ChatWorkspace({ me }: { me: Me }) {
       </aside>
 
       {/* --- Main Chat Surface --- */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh", maxWidth: "none", padding: 0 }}>
+      <main className="app-main">
         {/* Top Header */}
         <header className="bar">
-          <div>
+          <button
+            className="btn btn-secondary btn-sm menu-btn"
+            aria-label="Open menu"
+            onClick={() => setSidebarOpen(true)}
+          >
+            ☰
+          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <h1 style={{ fontSize: "1.1rem", margin: 0 }}>
                 {selectedExpId.toUpperCase()}: {selectedExp?.title || "Experiment"}
@@ -648,15 +711,17 @@ export function ChatWorkspace({ me }: { me: Me }) {
               placeholder={
                 !activeClassroom
                   ? "Join a classroom to ask questions..."
+                  : chatBlockedForStudent
+                  ? "No active session -- ask your instructor to start one before you can chat."
                   : "Ask about theory, procedure, calculation, or enter readings..."
               }
-              disabled={!activeClassroom || sending}
+              disabled={!activeClassroom || chatBlockedForStudent || sending}
               style={{ flex: 1, resize: "none" }}
             />
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={!input.trim() || !activeClassroom || sending}
+              disabled={!input.trim() || !activeClassroom || chatBlockedForStudent || sending}
               style={{ height: "48px", padding: "0 20px" }}
             >
               {sending ? "Thinking…" : "Send"}

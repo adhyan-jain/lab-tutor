@@ -356,3 +356,51 @@ export interface MarksAnalyticsRow {
   percent_improved: number | null;
   std_gain: number | null;
 }
+
+// --- faculty/admin Activity & Data ------------------------------------------
+
+export interface ActivityStudent {
+  student_id: string;
+  name: string;
+  email: string;
+  reg_no: string | null;
+  logins: number;
+  last_login_at: string | null;
+  last_seen_at: string | null;
+  active_seconds: number;
+  prompts_total: number;
+  prompts_by_kind: Record<string, number>;
+  experiments: string[];
+  avg_llm_latency_ms: number | null;
+  avg_response_ms: number | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+}
+
+export interface ActivitySession {
+  student_id: string;
+  name: string;
+  email: string;
+  reg_no: string | null;
+  login_at: string;
+  logout_at: string | null;
+  last_seen_at: string | null;
+  duration_seconds: number;
+  end_reason: string;
+}
+
+export interface ActivityResponse {
+  classroom: { id: string; name: string };
+  totals: {
+    students: number;
+    students_with_activity: number;
+    logins: number;
+    prompts: number;
+    active_seconds: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    avg_llm_latency_ms: number | null;
+  };
+  students: ActivityStudent[];
+  sessions: ActivitySession[];
+}
