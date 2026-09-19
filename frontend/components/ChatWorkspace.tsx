@@ -522,12 +522,18 @@ export function ChatWorkspace({ me }: { me: Me }) {
               <BoltIcon size={14} /> Platform Admin
             </button>
           )}
-          <a
-            href="/api/auth/logout"
-            style={{ fontSize: "0.775rem", color: "var(--sidebar-muted)", textAlign: "center", textDecoration: "none", marginTop: "4px" }}
+          <button
+            onClick={async () => {
+              try {
+                await api.post("/api/auth/logout");
+              } finally {
+                window.location.href = "/";
+              }
+            }}
+            style={{ fontSize: "0.775rem", color: "var(--sidebar-muted)", textAlign: "center", background: "none", border: "none", padding: 0, marginTop: "4px", cursor: "pointer" }}
           >
             Sign out
-          </a>
+          </button>
         </div>
       </aside>
 
