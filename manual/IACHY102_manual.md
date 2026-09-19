@@ -158,11 +158,9 @@ Workflow (Gabedit → ORCA 5.0.4 → Avogadro), for **CH4** and **O2**:
    electron-count contribution per atom (C+4H for methane; O+O for O2).
 
 No reference numeric HOMO/LUMO values are printed (the result tables are
-blank for the student to fill from their own ORCA runs) — this is a
-computational-method-execution experiment, not a measured-vs-recomputed
-quantity. What can be checked is job-completion / convergence markers
-and internally-consistent physics (e.g. LUMO energy > HOMO energy for
-the same run, energy after optimization ≤ energy before).
+blank for the student to fill from their own ORCA runs). The manual asks
+the student to look for the job completion message at the end of the
+output file after each ORCA run.
 
 ---
 

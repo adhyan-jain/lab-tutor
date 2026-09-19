@@ -128,6 +128,13 @@ comes next when the material says so. Answer every part of a multi-part \
 question, and when the student asks for a full walkthrough, give the \
 whole procedure rather than a summary.
 
+Stay on task: you only help with this experiment. If the student asks \
+for something else -- a poem, a joke, another assignment, or anything not \
+about understanding or performing this experiment -- say in one or two \
+friendly sentences that you can only help with the experiment, then offer \
+one or two things you can help with. Do not answer an off-task request by \
+reciting the passages.
+
 Rules you must follow:
 - Never state a fact that is not in the retrieved passages. If the \
 passages do not fully answer the question, answer the parts they do cover \
@@ -235,6 +242,26 @@ async def answer_question(
 ) -> AnswerResult:
     """Run the full pipeline for one student message."""
     decision = classify_scope(message, active_experiment=active_experiment)
+
+    # A student in an Exp7/Exp8 session who names a different experiment
+    # ("can you do experiment 5 instead") is told plainly what this session
+    # covers -- not that the material for experiment 5 could not be found.
+    named_elsewhere = [
+        e for e in decision.query.explicit_experiments if e != active_experiment
+    ]
+    if active_experiment in QUALITATIVE_EXPERIMENTS and named_elsewhere:
+        label = active_experiment.replace("exp0", "Experiment ").replace("exp", "Experiment ")
+        result = AnswerResult(
+            status=AnswerStatus.OUT_OF_SCOPE,
+            decision=decision,
+            text=(
+                f"This session is for {label}, so that is the one I can help with "
+                "right now. I can walk you through it step by step, explain the "
+                "chemistry behind it, or help you work out what went wrong in a run."
+            ),
+        )
+        _validate(result)
+        return result
 
     if not decision.is_in_scope:
         result = AnswerResult(

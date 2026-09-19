@@ -26,6 +26,17 @@ also why the optimized file, not the drawn one, is used for the second
 calculation. Optimization normally lowers the energy compared with the
 starting structure; if it does not, something is wrong with the run.
 
+## Simple sanity checks on a finished run
+
+Two quick physical checks help catch a bad run, and neither needs a
+reference value. First, for one and the same run the LUMO energy must
+lie above the HOMO energy, because the LUMO is by definition the next
+orbital up. Second, after a geometry optimization the final energy
+should be equal to or lower than the energy of the starting structure,
+since the optimizer only accepts steps that do not raise the energy. A
+run that fails either check, or that shows no job completion message,
+should be repeated or reported rather than written up.
+
 ## What "orbital contribution" tells you
 
 A molecular orbital is built from atomic orbitals. The orbital
