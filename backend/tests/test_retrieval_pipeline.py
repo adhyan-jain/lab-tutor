@@ -127,7 +127,11 @@ async def test_adjacent_question_uses_supplementary_material_and_labels_it(fixtu
     assert "supplementary" in result.text.lower()
 
 
-async def test_adjacent_question_without_supplementary_support_is_unsupported():
+async def test_adjacent_exp07_question_without_background_is_still_answered_from_the_procedure():
+    """Exp7 policy: no 'I do not have a source I trust' refusal for an
+    in-experiment question. Without background material the answer is
+    built from the experiment's own procedure, and the model is still
+    bound to say what that material does not cover."""
     index = HybridIndex([c for c in FIXTURE_CHUNKS if c.tier is not SourceTier.CURATED_ADJACENT])
     result = await answer_question(
         "why does basis set choice affect convergence physically",
@@ -135,9 +139,9 @@ async def test_adjacent_question_without_supplementary_support_is_unsupported():
         index=index,
         use_llm=False,
     )
-    assert result.status is AnswerStatus.ADJACENT_UNSUPPORTED
-    assert not result.citations
-
+    assert result.status is AnswerStatus.IN_SCOPE_SUPPORTED
+    assert result.citations
+    assert all(c.tier is not SourceTier.CURATED_ADJACENT for c in result.citations)
 
 async def test_experiment_filtering_prevents_cross_contamination(fixture_index):
     """A question routed to experiment 7 must not be answered from

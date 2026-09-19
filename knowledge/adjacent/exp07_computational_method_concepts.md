@@ -12,6 +12,23 @@ manual does not. It gives no menu paths, no input-file syntax and no
 numerical results; those come only from the student's own runs and the
 manual.
 
+## What Gabedit, ORCA and Avogadro are
+
+The three programs do different jobs. Gabedit is a graphical interface
+for computational chemistry: it is used to draw molecules, save them,
+and prepare and launch input files for calculation programs such as
+ORCA. ORCA is a quantum chemistry program package. It reads an input
+file describing the molecule, the method and the basis set, then
+performs the calculation (for example a geometry optimization or a
+single-point energy) using methods that include density functional
+theory, and writes the results to an output file. It does the heavy
+numerical work but has no drawing interface of its own, which is why
+Gabedit prepares its input. Avogadro is a molecular editor and
+visualizer: it reads the finished output and displays the molecule and
+its molecular orbitals, so the HOMO and LUMO can be looked at as well
+as listed as numbers. In short, Gabedit builds and sets up, ORCA
+calculates, and Avogadro shows the result.
+
 ## Why the geometry is optimized before the orbital calculation
 
 Orbital energies depend strongly on the positions of the nuclei. A

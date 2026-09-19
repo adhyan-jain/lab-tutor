@@ -2075,7 +2075,7 @@
       "language": "english",
       "routed_experiment": "exp08",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [

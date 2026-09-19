@@ -317,15 +317,19 @@ export function ChatWorkspace({ me }: { me: Me }) {
         setThreads((prev) =>
           prev.map((t) => (t.id === res.thread_id ? { ...t, title: res.thread_title } : t))
         );
+        // Give the settled student message a permanent id: a `temp-` id
+        // would be swept away by the next send's cleanup, making every
+        // earlier prompt vanish from the thread.
+        const settledUserMsg = { ...tempUserMsg, id: `local-${res.message.id}` };
         setMessages((prev) => [
-          ...prev.filter((m) => !m.id.startsWith("temp-")),
-          tempUserMsg,
+          ...prev.filter((m) => m.id !== tempUserMsg.id),
+          settledUserMsg,
           res.message,
         ]);
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
-      setMessages((prev) => prev.filter((m) => !m.id.startsWith("temp-")));
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
       setInput(text);
     } finally {
       setSending(false);
@@ -684,7 +688,20 @@ export function ChatWorkspace({ me }: { me: Me }) {
               </div>
             </div>
           ) : (
-            messages.map((m) => <MessageBubble key={m.id} message={m} />)
+            messages.map((m, i) => {
+              // The step header is only worth showing when the step
+              // changes; repeating the same prompt above every reply is noise.
+              let prevStep: number | undefined;
+              for (let j = i - 1; j >= 0; j--) {
+                const pm = messages[j];
+                if (pm.author === "tutor" && pm.metadata?.type === "socratic" && pm.metadata?.prompt) {
+                  prevStep = pm.metadata.current_step;
+                  break;
+                }
+              }
+              const showStepHeader = prevStep === undefined || prevStep !== m.metadata?.current_step;
+              return <MessageBubble key={m.id} message={m} showStepHeader={showStepHeader} />;
+            })
           )}
           <div ref={scrollRef} />
         </div>

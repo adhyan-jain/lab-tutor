@@ -625,12 +625,22 @@ async def _handle_socratic_chat_turn(
             },
         )
 
+    # Exp7/8 can never advance through the step machine (docs/ARCHITECTURE.md
+    # Sec 2.1.1), so "Step 1 of 2: ..." above every reply would be a
+    # permanent, repeating banner that means nothing to the student.
+    step_meta = (
+        {}
+        if session.experiment_id in QUALITATIVE_EXPERIMENTS
+        else {
+            "prompt": step.prompt,
+            "current_step": session.current_step,
+            "total_steps": len(steps),
+            "complete": session.all_steps_complete,
+        }
+    )
     return reply.text, ChatMessageKind.SOCRATIC, {
         "type": "socratic",
-        "prompt": step.prompt,
-        "current_step": session.current_step,
-        "total_steps": len(steps),
-        "complete": session.all_steps_complete,
+        **step_meta,
         "answer_source": reply.source,
         "citations": [
             {"text": c.text, "page": c.page, "tier": c.tier.value} for c in reply.citations

@@ -114,12 +114,15 @@ Language: reply in the language AND script the student wrote in. If they \
 write English, reply in English; if they write Hindi mixed with English \
 in Roman letters (Hinglish), reply in the same Roman-letter Hinglish, \
 not Devanagari; only use Devanagari if they did. Keep software names, \
-menu labels and chemistry terms in English. Do not open with filler such \
+menu labels and chemistry terms in English. Write basis-set names, keywords \
+and file names in code formatting, e.g. `6-31G*`, so asterisks never \
+collide with bold. Do not open with filler such \
 as "Great!" or "Okay!" and do not add bracketed reference numbers like \
 [1] or [3].
 
 Voice: you are the lab tutor speaking directly to the student. Never \
-refer to "the passages", "the provided text", "the information provided", \
+refer to "the passages", "the provided text", "the provided materials", \
+"the lab materials", "the material", "the information provided", \
 "the context" or "the source" -- the student cannot see them. Write as \
 "the manual" only when you need to attribute a step, e.g. "the manual \
 has you...". Lead with the answer; give steps as a numbered list in the \
@@ -143,6 +146,12 @@ out (for example an exact dialog field or a numeric result the student \
 must obtain from their own run) -- do not fill the gap from general \
 knowledge, and never invent a menu path, button name or number.
 - Never invent a page number, section, or procedure step.
+- If the material does not say where an option or button is in a \
+program's interface (for example where the ORCA input generator is), say \
+so once, plainly: the manual points to screenshot instructions for that, \
+and the demonstrator can show the exact spot. Do not guess where it \
+"typically" is, do not describe what such an option "usually looks like", \
+and never invent a menu location.
 - Each passage is tagged with where it comes from. Procedures, menu \
 paths, settings and required values come ONLY from passages tagged "lab \
 manual" or "official course material". Passages tagged "background \
@@ -328,7 +337,14 @@ async def answer_question(
     # let its "answer only what they cover, say what they don't" rules do
     # the work, rather than replacing a real question with a canned line.
     if (
-        status is AnswerStatus.IN_SCOPE_RETRIEVAL_INSUFFICIENT
+        status
+        in (
+            AnswerStatus.IN_SCOPE_RETRIEVAL_INSUFFICIENT,
+            # "explain what ORCA is in detail" reads as an adjacent question;
+            # refusing it while the short-definition phrasing of the very
+            # same question is answered made replies feel random.
+            AnswerStatus.ADJACENT_UNSUPPORTED,
+        )
         and decision.experiment_id in QUALITATIVE_EXPERIMENTS
         and any(
             c.experiment_id == decision.experiment_id
@@ -556,16 +572,25 @@ async def _phrase_with_llm(
 
 
 def _extractive_answer(passages: list[ScoredChunk], *, supplementary: bool) -> str:
-    top = passages[0].chunk
-    excerpt = top.text.strip().replace("\n", " ")
-    if len(excerpt) > MAX_EXTRACT_CHARS:
-        excerpt = excerpt[:MAX_EXTRACT_CHARS].rsplit(" ", 1)[0] + "…"
-    prefix = (
-        "This is supplementary material, not the manual itself: "
-        if supplementary
-        else ""
+    """Grounded degraded-mode answer, used only when no model reply could be
+    produced (e.g. the model quota is exhausted). Shows the most relevant
+    passages (best score first, each as its own paragraph) under an honest
+    lead-in, never a raw dump of whichever chunk happens to come first."""
+    ranked = sorted(passages, key=lambda item: item.score, reverse=True)[:2]
+    blocks = []
+    for item in ranked:
+        excerpt = item.chunk.text.strip()
+        if len(excerpt) > MAX_EXTRACT_CHARS:
+            excerpt = excerpt[:MAX_EXTRACT_CHARS].rsplit(" ", 1)[0] + "…"
+        blocks.append(excerpt)
+    lead = (
+        "I couldn't put together a full explanation just now, so here is the most "
+        "relevant part of the lab material. Please ask again in a moment for a "
+        "fuller answer."
     )
-    return f"{prefix}{excerpt}"
+    if supplementary:
+        lead += " (This is supplementary material, not the manual itself.)"
+    return lead + "\n\n" + "\n\n".join(blocks)
 
 
 def _validate(result: AnswerResult) -> None:

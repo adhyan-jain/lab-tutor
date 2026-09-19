@@ -1,80 +1,57 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { UnifiedChatMessage } from "@/lib/api";
 import { BookIcon, CheckIcon, WarningIcon } from "@/components/Icons";
 
+const markdownComponents = {
+  p: (props: React.ComponentProps<"p">) => <p style={{ margin: "0 0 0.75em" }} {...props} />,
+  ul: (props: React.ComponentProps<"ul">) => <ul style={{ margin: "0 0 0.75em", paddingLeft: "1.3em" }} {...props} />,
+  ol: (props: React.ComponentProps<"ol">) => <ol style={{ margin: "0 0 0.75em", paddingLeft: "1.5em" }} {...props} />,
+  li: (props: React.ComponentProps<"li">) => <li style={{ margin: "3px 0" }} {...props} />,
+  h1: (props: React.ComponentProps<"h1">) => <h3 style={{ margin: "0.9em 0 0.4em", fontSize: "1.05rem" }} {...props} />,
+  h2: (props: React.ComponentProps<"h2">) => <h3 style={{ margin: "0.9em 0 0.4em", fontSize: "1.05rem" }} {...props} />,
+  h3: (props: React.ComponentProps<"h3">) => <h4 style={{ margin: "0.8em 0 0.3em", fontSize: "0.98rem" }} {...props} />,
+  code: (props: React.ComponentProps<"code">) => (
+    <code
+      style={{
+        backgroundColor: "rgba(128, 128, 128, 0.15)",
+        padding: "2px 5px",
+        borderRadius: "4px",
+        fontFamily: "monospace",
+        fontSize: "0.9em",
+      }}
+      {...props}
+    />
+  ),
+  pre: (props: React.ComponentProps<"pre">) => (
+    <pre style={{ margin: "0 0 0.75em", overflowX: "auto", padding: "8px 10px", borderRadius: "6px", backgroundColor: "rgba(128, 128, 128, 0.15)" }} {...props} />
+  ),
+  a: (props: React.ComponentProps<"a">) => <a target="_blank" rel="noopener noreferrer" {...props} />,
+};
+
 function renderFormattedContent(content: string) {
   if (!content) return null;
-  const lines = content.split("\n");
-  return lines.map((line, lineIdx) => {
-    const isBullet = /^\s*[-*•]\s+(.*)/.exec(line);
-    const isNumbered = /^\s*(\d+)\.\s+(.*)/.exec(line);
-
-    const parseInline = (text: string) => {
-      const parts: (string | React.ReactNode)[] = [];
-      const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
-      let lastIndex = 0;
-      let match;
-      let key = 0;
-      while ((match = regex.exec(text)) !== null) {
-        if (match.index > lastIndex) {
-          parts.push(text.substring(lastIndex, match.index));
-        }
-        const m = match[0];
-        if (m.startsWith("**") && m.endsWith("**")) {
-          parts.push(<strong key={key++}>{m.slice(2, -2)}</strong>);
-        } else if (m.startsWith("`") && m.endsWith("`")) {
-          parts.push(
-            <code
-              key={key++}
-              style={{
-                backgroundColor: "rgba(128, 128, 128, 0.15)",
-                padding: "2px 5px",
-                borderRadius: "4px",
-                fontFamily: "monospace",
-                fontSize: "0.9em",
-              }}
-            >
-              {m.slice(1, -1)}
-            </code>
-          );
-        } else if (m.startsWith("*") && m.endsWith("*")) {
-          parts.push(<em key={key++}>{m.slice(1, -1)}</em>);
-        }
-        lastIndex = regex.lastIndex;
-      }
-      if (lastIndex < text.length) {
-        parts.push(text.substring(lastIndex));
-      }
-      return parts.length > 0 ? parts : text;
-    };
-
-    if (isBullet) {
-      return (
-        <div key={lineIdx} style={{ display: "flex", gap: "8px", marginLeft: "6px", margin: "3px 0" }}>
-          <span style={{ color: "var(--accent)" }}>•</span>
-          <div>{parseInline(isBullet[1])}</div>
-        </div>
-      );
-    }
-    if (isNumbered) {
-      return (
-        <div key={lineIdx} style={{ display: "flex", gap: "8px", marginLeft: "6px", margin: "3px 0" }}>
-          <span style={{ fontWeight: 600, color: "var(--accent)" }}>{isNumbered[1]}.</span>
-          <div>{parseInline(isNumbered[2])}</div>
-        </div>
-      );
-    }
-    return (
-      <div key={lineIdx} style={{ minHeight: line.trim() ? "auto" : "0.5em" }}>
-        {parseInline(line)}
-      </div>
-    );
-  });
+  // react-markdown does not render raw HTML by default, so model output
+  // cannot inject markup.
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      {content}
+    </ReactMarkdown>
+  );
 }
 
-export function MessageBubble({ message }: { message: UnifiedChatMessage }) {
+export function MessageBubble({
+  message,
+  showStepHeader = true,
+}: {
+  message: UnifiedChatMessage;
+  /** Show "Step N of M: <prompt>" as the first paragraph. The caller turns it off
+   * when the previous tutor reply was already on the same step. */
+  showStepHeader?: boolean;
+}) {
 
   const isStudent = message.author === "student";
   const meta = message.metadata || {};
@@ -154,35 +131,13 @@ export function MessageBubble({ message }: { message: UnifiedChatMessage }) {
           </div>
         )}
 
-        {/* Socratic Step Metadata Card */}
-        {meta.type === "socratic" && meta.prompt && (
-          <div
-            style={{
-              padding: "8px 12px",
-              marginBottom: "10px",
-              borderRadius: "8px",
-              fontSize: "0.85rem",
-              backgroundColor: "var(--accent-weak)",
-              border: "1px solid var(--accent-border)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-              <span className="pill pill-pass">
-                Step {meta.current_step !== undefined ? meta.current_step + 1 : 1} of {meta.total_steps || "?"}
-              </span>
-              {meta.complete && (
-                <span className="pill pill-pass">All steps complete</span>
-              )}
-            </div>
-            <p style={{ margin: "4px 0 0", fontSize: "0.85rem", fontWeight: 500 }}>
-              {meta.prompt}
-            </p>
-          </div>
-        )}
-
         {/* Message Content */}
         <div style={{ wordBreak: "break-word", lineHeight: 1.55 }}>
-          {renderFormattedContent(message.content)}
+          {renderFormattedContent(
+            showStepHeader && meta.type === "socratic" && meta.prompt
+              ? `**Step ${meta.current_step !== undefined ? meta.current_step + 1 : 1} of ${meta.total_steps || "?"}:** ${meta.prompt}\n\n${message.content}`
+              : message.content
+          )}
         </div>
 
 

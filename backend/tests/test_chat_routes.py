@@ -289,9 +289,11 @@ class TestChatThreads:
         assert data_qa["message"]["kind"] in ("qa", "socratic")
         meta_qa = data_qa["message"]["metadata"]
         assert meta_qa["type"] == "socratic"
-        assert meta_qa["current_step"] is not None
-        assert meta_qa["total_steps"] == 2
-        assert meta_qa["prompt"] is not None
+        # Exp7/8 can never advance through steps, so no "Step N of M" banner
+        # metadata is sent (it would repeat above every reply).
+        assert "current_step" not in meta_qa
+        assert "total_steps" not in meta_qa
+        assert "prompt" not in meta_qa
 
         # 2. Diagnostic flow
         resp_diag = await client.post(
@@ -331,9 +333,11 @@ class TestChatThreads:
         assert data_qa["message"]["kind"] in ("qa", "socratic")
         meta_qa = data_qa["message"]["metadata"]
         assert meta_qa["type"] == "socratic"
-        assert meta_qa["current_step"] is not None
-        assert meta_qa["total_steps"] == 4
-        assert meta_qa["prompt"] is not None
+        # Exp7/8 can never advance through steps, so no "Step N of M" banner
+        # metadata is sent (it would repeat above every reply).
+        assert "current_step" not in meta_qa
+        assert "total_steps" not in meta_qa
+        assert "prompt" not in meta_qa
 
         # 2. Diagnostic flow
         resp_diag = await client.post(

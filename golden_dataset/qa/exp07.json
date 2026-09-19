@@ -20,10 +20,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -67,10 +68,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -90,10 +92,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -161,10 +164,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -184,10 +188,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -207,10 +212,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -278,10 +284,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -349,10 +356,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -540,10 +548,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -659,10 +668,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -706,10 +716,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -729,10 +740,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -920,10 +932,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1086,10 +1099,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1229,10 +1243,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1276,10 +1291,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1299,10 +1315,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1418,10 +1435,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1465,10 +1483,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1488,10 +1507,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1511,10 +1531,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1534,10 +1555,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1581,10 +1603,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1604,10 +1627,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1651,10 +1675,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1746,10 +1771,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1841,10 +1867,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1864,10 +1891,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1887,10 +1915,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1910,10 +1939,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1933,10 +1963,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -1956,10 +1987,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2027,10 +2059,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2098,10 +2131,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2121,10 +2155,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2168,10 +2203,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2311,10 +2347,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2382,10 +2419,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2405,10 +2443,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2452,10 +2491,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2475,10 +2515,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2522,10 +2563,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2545,10 +2587,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2592,10 +2635,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2615,10 +2659,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2638,10 +2683,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2685,10 +2731,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2732,10 +2779,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2918,12 +2966,16 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_unsupported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "adjacent-knowledge corpus has no passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
-      "supplementary": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B",
+        "C"
+      ],
+      "citation_expected": true,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },
@@ -3130,7 +3182,7 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
