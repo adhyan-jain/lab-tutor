@@ -205,16 +205,51 @@ class TestProfileCompletion:
         assert resp.json()["profile_complete"] is True
         assert resp.json()["reg_no"] is None
 
-    async def test_student_reg_no_is_optional_not_required(self, client, make_user):
-        _, token = await make_user("optional.regno@vitstudent.ac.in")
+    async def test_student_reg_no_is_mandatory(self, client, make_user):
+        _, token = await make_user("mandatory.regno@vitstudent.ac.in")
+        for blank in (None, "", "   "):
+            resp = await client.post(
+                "/api/auth/complete-profile",
+                json={"name": "No Reg No Student", "reg_no": blank},
+                headers=auth(token),
+            )
+            assert resp.status_code == 422, blank
+        me = await client.get("/api/auth/me", headers=auth(token))
+        assert me.json()["profile_complete"] is False
+
+    async def test_student_reg_no_must_look_like_one(self, client, make_user):
+        _, token = await make_user("badformat.regno@vitstudent.ac.in")
+        for bad in ("abc", "21 BCE 1234", "21BCE-1234", "x" * 30):
+            resp = await client.post(
+                "/api/auth/complete-profile",
+                json={"name": "Some Student", "reg_no": bad},
+                headers=auth(token),
+            )
+            assert resp.status_code == 422, bad
+
+    async def test_student_reg_no_is_stored_uppercase_and_trimmed(self, client, make_user):
+        _, token = await make_user("upper.regno@vitstudent.ac.in")
         resp = await client.post(
             "/api/auth/complete-profile",
-            json={"name": "No Reg No Student", "reg_no": None},
+            json={"name": "Some Student", "reg_no": "  21bce1234 "},
             headers=auth(token),
         )
         assert resp.status_code == 200
+        assert resp.json()["reg_no"] == "21BCE1234"
         assert resp.json()["profile_complete"] is True
-        assert resp.json()["reg_no"] is None
+
+    async def test_student_onboarded_before_the_rule_is_asked_again(self, client, make_user, db):
+        from sqlalchemy import select
+
+        from backend.models import User
+
+        user, token = await make_user("legacy.regno@vitstudent.ac.in")
+        row = (await db.scalars(select(User).where(User.id == user.id))).first()
+        row.onboarded = True  # signed up while reg no was optional
+        row.reg_no = None
+        await db.commit()
+        me = await client.get("/api/auth/me", headers=auth(token))
+        assert me.json()["profile_complete"] is False
 
     async def test_name_persists_across_a_second_login_instead_of_being_overwritten(
         self, client, make_user, db

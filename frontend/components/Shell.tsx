@@ -162,8 +162,8 @@ function ProfileCompletionForm({
   const [regNo, setRegNo] = useState(me.reg_no ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  // Optional for students, never asked of faculty/admin -- it's stored
-  // if given, but never blocks onboarding.
+  // Required for students (enforced server-side too), never asked of
+  // faculty/admin.
   const showRegNo = me.role === "student";
 
   return (
@@ -178,13 +178,20 @@ function ProfileCompletionForm({
       </label>
       {showRegNo && (
         <label>
-          <span>Registration number (optional)</span>
-          <input value={regNo} onChange={(e) => setRegNo(e.target.value)} className="mono" />
+          <span>Registration number</span>
+          <input
+            value={regNo}
+            onChange={(e) => setRegNo(e.target.value)}
+            className="mono"
+            placeholder="e.g. 21BCE1234"
+            autoCapitalize="characters"
+            required
+          />
         </label>
       )}
       <button
         className="btn btn-primary"
-        disabled={saving || !name.trim()}
+        disabled={saving || !name.trim() || (showRegNo && !regNo.trim())}
         onClick={async () => {
           setSaving(true);
           setError("");

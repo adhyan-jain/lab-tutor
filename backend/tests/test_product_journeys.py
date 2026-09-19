@@ -42,12 +42,12 @@ async def test_full_student_product_journey(client, make_user, registered_experi
 
     onboarded = await client.post(
         "/api/auth/complete-profile",
-        json={"name": "Journey Student", "reg_no": None},  # reg_no optional
+        json={"name": "Journey Student", "reg_no": "21BCE4321"},  # mandatory for students
         headers=auth(student),
     )
     assert onboarded.status_code == 200
     assert onboarded.json()["profile_complete"] is True
-    assert onboarded.json()["reg_no"] is None
+    assert onboarded.json()["reg_no"] == "21BCE4321"
 
     # --- classroom: faculty creates + starts a session -----------------
     _, prof = await make_user("journey.prof@vit.ac.in")

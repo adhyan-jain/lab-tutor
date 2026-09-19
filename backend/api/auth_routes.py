@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -19,7 +20,7 @@ from backend.auth import oauth, session as session_cookie
 from backend.auth.roles import DomainNotPermitted
 from backend.config import get_settings
 from backend.db import get_session
-from backend.models import LoginSession, User
+from backend.models import LoginSession, Role, User
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -37,8 +38,14 @@ def _me_payload(user: User, principal: Principal) -> dict:
         "name": user.name,
         "role": principal.role.value,
         "reg_no": user.reg_no,
-        "profile_complete": user.onboarded,
+        # A student is not onboarded until they have a registration number,
+        # including students who signed up back when it was optional.
+        "profile_complete": bool(user.onboarded)
+        and (principal.role != Role.STUDENT or bool(user.reg_no)),
     }
+
+
+_REG_NO_RE = re.compile(r"^[A-Za-z0-9]{5,20}$")
 
 
 @router.get("/login")
@@ -206,9 +213,22 @@ async def complete_profile(
     user = (await db.scalars(select(User).where(User.id == principal.id))).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is no longer valid")
+    reg_no = (body.reg_no or "").strip().upper()
+    if principal.role == Role.STUDENT:
+        if not reg_no:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Your registration number is required.",
+            )
+        if not _REG_NO_RE.match(reg_no):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Enter your registration number using letters and digits only (e.g. 21BCE1234).",
+            )
+        user.reg_no = reg_no
+    else:
+        user.reg_no = reg_no or None
     user.name = body.name.strip()
-    reg_no = (body.reg_no or "").strip()
-    user.reg_no = reg_no or None
     user.onboarded = True
     await audit.record(db, audit.PROFILE_COMPLETED, user_id=user.id, detail={"role": principal.role.value})
     await db.commit()
