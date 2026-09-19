@@ -153,3 +153,30 @@ async def test_other_experiments_do_not_use_followup_carry_over(backend):
     await answer_question("and more?", active_experiment="exp01", conversation_history=HISTORY)
     if backend.calls:
         assert "<<<PREVIOUS" not in backend.calls[-1]["user"]
+
+
+# --- answer length policy -----------------------------------------------------
+
+
+def test_default_answer_length_is_medium_with_one_closing_offer():
+    from backend.retrieval.pipeline import SYSTEM_PROMPT
+
+    assert "120 to 180 words" in SYSTEM_PROMPT
+    assert "ONE short offer" in SYSTEM_PROMPT
+    # a definition must never collapse to a one-line non-answer
+    assert "Never a one-line non-answer" in SYSTEM_PROMPT
+
+
+def test_longer_answers_are_reserved_for_explicit_requests_for_detail():
+    from backend.retrieval.pipeline import SYSTEM_PROMPT
+
+    for trigger in ("in detail", "in depth", "walk me through"):
+        assert trigger in SYSTEM_PROMPT
+    # procedures are not shortened by the length default
+    assert "still gets the whole procedure" in SYSTEM_PROMPT
+
+
+def test_background_label_is_said_once_not_after_every_point():
+    from backend.retrieval.pipeline import SYSTEM_PROMPT
+
+    assert "once, in a short phrase" in SYSTEM_PROMPT
