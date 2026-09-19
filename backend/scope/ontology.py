@@ -126,6 +126,8 @@ _add(
             "orbital contributions", "orbital energy", "molecular orbital",
             "isosurface", "methane", "ch4", "o2", "dioxygen",
             "orbital coefficient", "mo diagram",
+            "dft", "hartree-fock", "hartree fock", "ab initio",
+            "hybrid functional", "b3lyp", "b3p",
         ),
         weak_terms=_t(
             "basis", "basis set", "functional", "method", "optimisation",
@@ -133,6 +135,7 @@ _add(
             "final energy", "single point", "converged", "convergence",
             "job", "calculation", "visualise", "visualisation",
             "molecule", "oxygen", "contribution", "table",
+            "semi-empirical", "semiempirical", "multiplicity", "triplet",
         ),
         software=_t("gabedit", "orca", "avogadro"),
         provenance=_BRIEF,

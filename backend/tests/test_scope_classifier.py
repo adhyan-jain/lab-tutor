@@ -348,3 +348,22 @@ def test_coverage_report_shows_full_coverage():
     assert report["experiments_routable"] == 10
     assert report["pending_manual_ids"] == []
     assert report["blocked_by"] is None
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "why use DFT instead of Hartree-Fock",
+        "what is a hybrid functional",
+        "why is O2 a triplet",
+        "what does the multiplicity setting do in the ORCA input",
+    ],
+)
+def test_exp07_method_choice_vocabulary_routes_to_exp07(question):
+    """Conceptual method-choice questions must reach exp07's evidence
+    instead of scoring no experiment at all -- previously none of DFT,
+    Hartree-Fock, hybrid functional, multiplicity, or triplet were
+    registered anywhere in the ontology, so these legitimate questions
+    would silently fail to find exp07's manual chunk."""
+    decision = classify_scope(question, active_experiment=None)
+    assert decision.experiment_id == "exp07"
