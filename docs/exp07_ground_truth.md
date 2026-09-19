@@ -1,71 +1,85 @@
 # Experiment 7 ground truth — Build atoms/molecules; orbital visualization; orbital contributions
 
-Reference for checking every gauntlet answer in this sprint against.
-Sources: `manual/IACHY102_manual.md` (tier A, p.39-42) and
-`sources/tier_b/exp07_exp08_supplementary.md` (tier B, the genuinely-new
-detail confirmed present in the fuller course PDF/DOCX but absent from
-the markdown transcription). Nothing here is invented.
+Reference for checking every gauntlet answer. Verified line-by-line
+against the text extracted from the course PDF
+(`IACHY102-2026-27-manual_2_260830_133124.pdf`, Exp 7 = pp.39-42).
+The retrievable form of this material is `sources/tier_b/exp07_exp08_supplementary.md`
+(tier B, cited as official supplementary material) plus the shorter
+summary in `manual/IACHY102_manual.md` (tier A). General-chemistry
+"why" answers come from `knowledge/adjacent/exp07_*.md` (tier C,
+labelled background, never the manual).
 
-## The 5-step workflow (tier A)
+A correction to an earlier version of this file: the manual's Exp7
+section is NOT thin. The markdown transcription is a summary; the PDF
+spells out every step below.
 
-Workflow: **Gabedit → ORCA 5.0.4 → Avogadro**, for **CH4** and **O2**.
+## The procedure (PDF pp.39-41)
 
-1. Build structure in Gabedit (Geometry → Draw).
-2. Generate ORCA input, optimize geometry, run ORCA, confirm a "job
-   completion" message in the output file, read the final energy.
-3. Re-open the *optimized* geometry (not the originally-drawn one),
-   generate a new ORCA input for a single-point/orbital calculation, run
-   it.
-4. Read orbital energies from the output; visualize HOMO/LUMO and the
-   optimized structure in Avogadro.
-5. Repeat steps 3-4 across method/basis-set combinations: **B3LYP** and
-   **B3P**, each with **6-31G / 6-31G* / 6-31G**** (Tables 1-2, p.41-42)
-   — 6 runs per molecule, recording HOMO/LUMO orbital energy (eV) and the
-   s/p/d/f electron-count contribution per atom (C+4H for methane; O+O
-   for O2).
+Software: **Gabedit** (2.5.1 per the DOCX) builds molecules and input
+files; **ORCA 5.0.4** optimizes and predicts energies; **Avogadro**
+visualizes the optimized molecule and the orbitals from the output.
+Molecules: methane (CH4) and oxygen (O2).
 
-## What's checkable without reference numbers (tier A)
+**Methane**
+1. Open Gabedit; menus at the top include File, Edit, Tools, Geometry.
+2. Model methane: **Geometry → Draw** (opens the structure modelling
+   window); at the bottom click **Hydrocarbon**, select the **methane**
+   molecule; click in the window to place it; **right-click → Save as**,
+   save as a Gabedit file; close the modelling window.
+3. Optimize first, then calculate the orbital contribution. Open Gabedit,
+   open the saved file; click the **ORCA input generator** → change the
+   job type, type of calculation method, DFT method, basis set → **OK**.
+   **Run → "Run a computational chemistry program"** → click **orca** →
+   change the file name used to save data → **OK** (starts the run).
+   When done, open the output in the same folder; at the end look for the
+   **job completion message** (absent = ended with an error). Read the
+   **final energy**.
+4. Single point / orbitals: open the **geometry-optimized file** — it is
+   the initial geometry; do NOT use the drawn structure. Change the
+   calculation type as desired; ORCA input generation → change settings →
+   OK; Run → Run a computational chemistry program → orca → file name → OK.
+5. Output: go to the input folder, open the output file; orbital energies
+   are there.
+6. Avogadro: open Avogadro → **open** → open the output file → the
+   methane structure and orbital energies are visualized; selecting
+   **HOMO** or **LUMO** shows that orbital.
 
-No reference numeric HOMO/LUMO values exist anywhere — the result tables
-are blank for the student to fill in from their own ORCA runs. This is a
-computational-method-execution experiment, not a measured-vs-recomputed
-quantity. What the system CAN check deterministically (see
-`backend/tier1_compute/experiments/exp07.py`'s `ComputationSanityPlugin`):
-job-completion/convergence markers, LUMO energy > HOMO energy for the
-same run, and energy after optimization ≤ energy before.
+**Oxygen (O2)** — same calculations/procedure; only the modelling
+differs: click the **red-coloured item** → periodic table → select
+**oxygen (O)**; click in the window and **pull down** to get O2;
+visualize; right-click → Save As (Gabedit file). Steps 3-6 as methane.
 
-## The genuinely-new detail (tier B, confirmed present in the fuller PDF/DOCX)
+**Repeat for Tables 1 and 2** (both molecules, steps 3-6): open the input
+in Gabedit → ORCA input generator → **Types of method → hybrid
+functional (orca)**; **Method** → per table; **Basis** → per table.
+After each run read the orbital contributions from the output (fill
+Table 1); **HOMO and LUMO values are taken from Avogadro**.
 
-**Building O2 in Gabedit** is a *different* sequence than drawing
-methane (which uses the Hydrocarbon menu): click the element marked in
-red to open the periodic table, select the Oxygen atom (O), then click
-and pull down in the drawing window to produce the O2 molecule.
+**Table 1 (CH4) / Table 2 (O2):** six rows each — B3LYP and B3P, each
+with 6-31G, 6-31G*, 6-31G**. Columns: HOMO/LUMO orbital energy (eV) and
+the number of electrons in the s, p, d, f orbitals (C and 4H for CH4;
+O and O for O2). **Results** section: HOMO/LUMO for B3LYP/6-31G, both
+molecules. **Marks:** building 2 + completion of calculation 3 +
+report 5 = 10.
 
-**Gabedit version**: 2.5.1, named explicitly in the source material.
+## Genuinely not available in any supplied material (say so, never invent)
 
-## Genuinely not available anywhere (say so honestly, do not invent)
+- The exact **field names/labels inside the ORCA input dialog** (the
+  text says only "job type, calculation method, DFT method, basis sets");
+  the dialog is shown only as screenshots. The manual also refers to a
+  link with screenshot instructions that is not part of the material.
+- **Numeric HOMO/LUMO and s/p/d/f values** — the tables are blank in the
+  source by design (students fill them from their own runs).
+- Any **menu path inside Avogadro beyond "open → output file → select
+  HOMO or LUMO"**, and any **troubleshooting procedure** (Gabedit won't
+  open a file, Avogadro crashes, runtimes) — the manual has none.
+- The **multiplicity value to enter for O2** and any ORCA keyword syntax
+  for Exp7 (the only sample input string in the material is Exp8's,
+  p.45, a screenshot).
+- The command-line form `orca 1.inp >1.out` appears only in Exp8's
+  steps, not Exp7's (Exp7 uses Gabedit's Run dialog).
 
-Confirmed absent from the manual transcription, the fuller PDF, the
-BTech DOCX, and the two supplied Jupyter notebooks/ML docx (which are an
-unrelated course's material and contain nothing about Exp7 at all):
-
-- **Exact ORCA input-generator dialog field names/labels.** The manual
-  and fuller documents describe this only generically ("change into the
-  job type, types of calculation method, DFT method, and basis sets"),
-  with the actual dialog only shown as an unindexed screenshot image in
-  every source seen. No machine-readable field name exists to cite.
-- **Table 1/2 numeric HOMO/LUMO and s/p/d/f values.** Blank in the source
-  PDF itself for every method/basis-set row — this is intentional
-  (students fill them from their own runs), not a transcription gap.
-- **A sample ORCA input string for Exp7 specifically** (Exp8's manual
-  section cites one, `! BP RI SP def2-SVP def2/J`, p.45 — that citation
-  could not be re-verified against the fuller PDF/DOCX text extraction
-  either, since p.45 is a screenshot image in every source seen; it is
-  not contradicted, just unconfirmable by this pass).
-- Any further Avogadro menu granularity beyond "Open the Avogadro
-  software → Open the output file → select HOMO or LUMO."
-
-A correct exp07 answer to a question touching one of these points states
-the workflow/concept it can support, then says plainly that the specific
-detail asked for isn't in the available material — it does not invent a
-menu path, a field name, or a number to fill the gap.
+A correct answer touching these states what the material does say, then
+plainly says the specific detail isn't in it. Consistency checks such as
+"LUMO above HOMO" or "energy shouldn't rise after optimization" are
+general chemistry (background explainer), NOT statements of the manual.

@@ -212,7 +212,7 @@ export function MessageBubble({ message }: { message: UnifiedChatMessage }) {
                 gap: "4px",
               }}
             >
-              {showCitations ? "▼ Hide course manual citations" : `▶ View ${meta.citations.length} manual citation(s)`}
+              {showCitations ? "▼ Hide sources" : `▶ View ${meta.citations.length} source${meta.citations.length === 1 ? "" : "s"}`}
             </button>
             {showCitations && (
               <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -229,7 +229,9 @@ export function MessageBubble({ message }: { message: UnifiedChatMessage }) {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text)", marginBottom: "2px" }}>
                       <span>Page {c.page}</span>
-                      <span className="pill" style={{ fontSize: "0.7rem" }}>{c.tier}</span>
+                      <span className="pill" style={{ fontSize: "0.7rem" }}>
+                        {c.tier === "A" ? "Manual" : c.tier === "B" ? "Course material" : c.tier === "C" ? "Background" : c.tier}
+                      </span>
                     </div>
                     <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>
                       "{c.text}"
