@@ -12,7 +12,7 @@ from typing import Literal
 
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -141,6 +141,21 @@ class Settings(BaseSettings):
     llm_price_completion_per_million_usd: float | None = Field(
         None, alias="LABTUTOR_LLM_PRICE_COMPLETION_PER_MILLION_USD"
     )
+    # --- OpenAI provider switch ---
+    #: A full provider switch, independent of LABTUTOR_LLM_BACKEND: true
+    #: sends every normal generation to OpenAI instead of whatever
+    #: LABTUTOR_LLM_BACKEND says. False (default) leaves that path exactly
+    #: as it was. See backend/llm/client.py OpenAIBackend/build_backend.
+    gpt: bool = Field(False, alias="GPT")
+    openai_model: str = Field("gpt-5.6-luna", alias="OPENAI_MODEL")
+    #: A secret, same discipline as `llm_api_key` above: no code path in
+    #: this repo logs a `Settings` value or this field directly. Required
+    #: only when `gpt` is true.
+    openai_api_key: str = Field("", alias="OPENAI_API_KEY")
+    #: Passed to the API only when set; omitted otherwise (not every model
+    #: accepts it).
+    openai_reasoning_effort: str = Field("", alias="OPENAI_REASONING_EFFORT")
+
     ollama_base_url: str = Field("http://localhost:11434", alias="LABTUTOR_OLLAMA_BASE_URL")
     ollama_model: str = Field("qwen2.5:7b", alias="LABTUTOR_OLLAMA_MODEL")
     #: Some local models (e.g. qwen3) default to an internal "thinking"
@@ -212,6 +227,15 @@ class Settings(BaseSettings):
     def _norm_admin_emails(cls, v):
         raw = v.split(",") if isinstance(v, str) else list(v)
         return [p.strip().lower() for p in raw if p and p.strip()]
+
+    @model_validator(mode="after")
+    def _require_openai_key_when_gpt_is_on(self) -> "Settings":
+        if self.gpt and not self.openai_api_key:
+            raise ValueError(
+                "GPT=true requires OPENAI_API_KEY to be set (OPENAI_MODEL defaults to "
+                f"{self.openai_model!r} if you don't override it)"
+            )
+        return self
 
     @property
     def database_url(self) -> str:

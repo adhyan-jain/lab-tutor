@@ -476,6 +476,170 @@ class VertexBackend(LLMBackend):
             return False
 
 
+def _is_retryable_openai_error(exc: BaseException) -> bool:
+    """429 (except a quota exhaustion, which will not resolve itself),
+    408/5xx, and network-level timeouts/connection failures are worth a
+    retry; auth, permission, bad-request and not-found will just fail
+    again immediately."""
+    from openai import APIConnectionError, APIStatusError
+
+    if isinstance(exc, APIConnectionError):
+        return True
+    if isinstance(exc, APIStatusError):
+        if exc.code == "insufficient_quota":
+            return False
+        return exc.status_code in (408, 429, 500, 502, 503, 504)
+    return False
+
+
+class OpenAIBackend(LLMBackend):
+    """OpenAI Chat Completions -- selected when `GPT=true`.
+
+    Uses the official `openai` SDK for transport only (`max_retries=0`):
+    this class is the single retry owner for its own calls, the same
+    discipline `VertexBackend._generate` uses, so one message can never
+    multiply requests beyond `llm_max_attempts` regardless of which
+    provider is wired in. The selected provider stays selected -- a
+    failure here raises `LLMUnavailable`, which the caller's existing
+    extractive fallback handles; this never silently calls Vertex, and
+    `build_backend` never gives it an Ollama secondary, for the same
+    reason (see that function's docstring).
+
+    Chat Completions, not Responses: the same shape as the Vertex path
+    (one system string, one user string in, one text reply out), so the
+    prompt this backend receives is byte-identical to what Vertex would
+    get -- prompt parity by construction, nothing OpenAI-specific in the
+    content itself. `max_completion_tokens` replaces `max_tokens` and
+    `temperature` is left at the API default (reasoning-family models
+    reject a non-default value); `reasoning_effort` is passed only if
+    configured.
+    """
+
+    name = "openai"
+    supports_context_cache = False
+
+    def __init__(self, settings: Settings) -> None:
+        from openai import AsyncOpenAI
+
+        self._model = settings.openai_model
+        self._timeout = settings.llm_timeout_seconds
+        self._default_max_tokens = settings.llm_max_tokens
+        self._reasoning_effort = settings.openai_reasoning_effort
+        self._client = AsyncOpenAI(
+            api_key=settings.openai_api_key or None, max_retries=0, timeout=self._timeout
+        )
+
+    def _configured(self) -> bool:
+        return bool(self._client.api_key) and bool(self._model)
+
+    async def _generate(self, *, system: str, user: str, max_tokens: int):
+        """The ONE place an OpenAI generation is retried -- mirrors
+        `VertexBackend._generate`'s attempt/backoff/budget discipline."""
+        settings = get_settings()
+        started = time.monotonic()
+        attempt = 0
+        kwargs: dict = {}
+        if self._reasoning_effort:
+            kwargs["reasoning_effort"] = self._reasoning_effort
+        while True:
+            attempt += 1
+            telemetry.record_attempt(retry=attempt > 1)
+            try:
+                async with _slot():
+                    return await self._client.chat.completions.create(
+                        model=self._model,
+                        messages=[
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        max_completion_tokens=max_tokens,
+                        **kwargs,
+                    )
+            except Exception as exc:
+                if not _is_retryable_openai_error(exc) or attempt >= settings.llm_max_attempts:
+                    raise
+                delay = _backoff_seconds(
+                    attempt, settings.llm_retry_initial_seconds, settings.llm_retry_max_seconds
+                )
+                if (time.monotonic() - started) + delay > settings.llm_retry_budget_seconds:
+                    raise
+                log.info("OpenAI %s; retry %d in %.1fs", type(exc).__name__, attempt, delay)
+                await asyncio.sleep(delay)
+
+    async def complete(
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        cache: CacheRequest | None = None,
+    ) -> LLMReply:
+        if not self._configured():
+            raise LLMUnavailable("OpenAI backend is not configured (OPENAI_API_KEY is required)")
+        started = time.monotonic()
+        telemetry.record_call()
+        try:
+            response = await self._generate(
+                system=system, user=user, max_tokens=max_tokens or self._default_max_tokens
+            )
+        except Exception as exc:
+            telemetry.record_result(
+                backend=self.name, model=self._model, ok=False,
+                latency_ms=(time.monotonic() - started) * 1000, error=_error_label(exc),
+            )
+            raise LLMUnavailable(f"OpenAI request failed: {exc}") from exc
+        latency_ms = (time.monotonic() - started) * 1000
+        choice = response.choices[0]
+        text = (choice.message.content or "").strip()
+        if choice.finish_reason == "length" and not text:
+            # Truncated before producing any visible text -- the extractive
+            # fallback is more useful than an empty reply.
+            telemetry.record_result(
+                backend=self.name, model=self._model, ok=False,
+                latency_ms=latency_ms, error="openai_truncated",
+            )
+            raise LLMUnavailable("OpenAI reply was truncated with no visible text")
+        usage = response.usage
+        prompt_tokens = getattr(usage, "prompt_tokens", None) if usage else None
+        completion_tokens = getattr(usage, "completion_tokens", None) if usage else None
+        prompt_details = getattr(usage, "prompt_tokens_details", None) if usage else None
+        completion_details = getattr(usage, "completion_tokens_details", None) if usage else None
+        cached_tokens = getattr(prompt_details, "cached_tokens", None) if prompt_details else None
+        thinking_tokens = (
+            getattr(completion_details, "reasoning_tokens", None) if completion_details else None
+        )
+        telemetry.record_result(
+            backend=self.name, model=self._model, ok=True, latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+            cached_tokens=cached_tokens, thinking_tokens=thinking_tokens,
+        )
+        return LLMReply(
+            text=_strip_markdown_emphasis(text),
+            backend=self.name,
+            model=self._model,
+            latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+
+    async def health(self) -> bool:
+        if not self._configured():
+            return False
+        try:
+            await asyncio.wait_for(
+                self._client.chat.completions.create(
+                    model=self._model,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_completion_tokens=1,
+                ),
+                timeout=5.0,
+            )
+            return True
+        except Exception:
+            return False
+
+
 class FallbackBackend(LLMBackend):
     """Tries the primary backend, then the secondary.
 
@@ -527,6 +691,14 @@ _cached: LLMBackend | None = None
 
 
 def build_backend(settings: Settings) -> LLMBackend:
+    # GPT=true is a full provider switch, decided before -- and independently
+    # of -- LABTUTOR_LLM_BACKEND: whichever provider is selected stays
+    # selected. No Ollama secondary here on purpose (see OpenAIBackend's
+    # docstring) -- a provider outage reaches the caller's own extractive
+    # fallback instead of silently answering from a different model.
+    if settings.gpt:
+        return OpenAIBackend(settings)
+
     primary: LLMBackend
     secondary: LLMBackend
     if settings.llm_backend == "ollama":

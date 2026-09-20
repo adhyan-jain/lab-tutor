@@ -51,9 +51,12 @@ async def lifespan(app: FastAPI):
 
     total = len(all_plugins())
     ready = len(ready_plugins())
+    from backend.llm.client import get_backend
+
+    active_backend = get_backend().name
     log.info(
         "LabTutor starting: %d experiments registered, %d ready, LLM backend=%s",
-        total, ready, settings.llm_backend,
+        total, ready, active_backend,
     )
     if ready < total:
         log.warning(

@@ -56,7 +56,9 @@ async def health_llm(response: Response) -> dict:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {
         "status": "ok" if ok else "unreachable",
-        "configured_backend": settings.llm_backend,
+        # The provider actually in use -- "openai" when GPT=true, whatever
+        # LABTUTOR_LLM_BACKEND (or its fallback wrapper) says otherwise.
+        "configured_backend": backend.name,
         "auto_fallback": settings.llm_auto_fallback,
         "degraded_behaviour": (
             "Diagnoses and hints are still produced from deterministic "

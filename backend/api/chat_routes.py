@@ -83,14 +83,23 @@ def _llm_meta(
     never invents a number for a backend that didn't report one."""
     if latency_ms is None and prompt_tokens is None and completion_tokens is None:
         return {}
-    from backend.config import get_settings
+    # Which provider and model actually served this turn -- read from the
+    # per-request telemetry that `record_result` fills in, not guessed from
+    # settings, so this stays correct through a fallback (secondary backend
+    # answered) or the GPT=true / GPT=false provider switch alike.
+    stats = llm_telemetry.current()
+    backend_name = stats.backend if stats and stats.backend else None
+    model = stats.model if stats and stats.model else None
+    if backend_name is None or model is None:
+        from backend.config import get_settings
 
-    settings = get_settings()
-    model = {"vertex": settings.vertex_model, "ollama": settings.ollama_model}.get(
-        settings.llm_backend, settings.llm_model
-    )
+        settings = get_settings()
+        backend_name = backend_name or settings.llm_backend
+        model = model or {"vertex": settings.vertex_model, "ollama": settings.ollama_model}.get(
+            settings.llm_backend, settings.llm_model
+        )
     return {
-        "llm_backend": settings.llm_backend,
+        "llm_backend": backend_name,
         "llm_model": model,
         "llm_latency_ms": round(latency_ms, 1) if latency_ms is not None else None,
         "prompt_tokens": prompt_tokens,
