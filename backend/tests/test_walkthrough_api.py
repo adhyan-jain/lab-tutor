@@ -185,3 +185,47 @@ async def test_kill_switch_returns_exp07_to_plain_qa(client, make_user, monkeypa
     assert out["message"]["metadata"]["type"] != "walkthrough"
     monkeypatch.delenv("LABTUTOR_WALKTHROUGH", raising=False)
     reload_settings()
+
+
+async def test_a_checkpoint_quiz_actually_finishes_instead_of_looping(client, make_user, db, counting_llm):
+    """Regression test for a real bug found live: WalkState.from_dict did
+    not deep-copy nested dicts/lists loaded from the DB, so mutating
+    state.quiz in place aliased the object SQLAlchemy already held as the
+    column's committed value -- the write compared equal and was silently
+    dropped, so answering question 2 of a checkpoint re-asked question 1
+    forever instead of ever finishing."""
+    from backend.socratic_engine.walkthrough.controller import _find_item
+
+    classroom_id, code, _ = await _classroom(client, make_user, "l")
+    user, token = await _student(client, make_user, code, "s1.l@vitstudent.ac.in")
+    await _send(client, token, classroom_id, "guide me")
+    await _send(client, token, classroom_id, "a guess")           # hook
+    await _send(client, token, classroom_id, "geometry")          # step 1 evidence
+    await _send(client, token, classroom_id, "M")                 # step 2 evidence
+    await _send(client, token, classroom_id, "5")                 # step 3 evidence
+    await _send(client, token, classroom_id, "a")                 # step 3 cross-question
+    out = await _send(client, token, classroom_id, ".gab")        # step 4 evidence -> checkpoint
+    content = out["message"]["content"]
+    assert "Checkpoint" in content and "1. Recall" in content and "2. Preview" in content
+
+    row = (await db.scalars(select(WalkthroughProgress).where(WalkthroughProgress.student_id == user.id))).one()
+    items = row.state["quiz"]["items"]
+    key1 = _find_item(items[0]["id"]).correct
+    key2 = _find_item(items[1]["id"]).correct
+
+    # Answer the two questions in separate turns, as the UI's option
+    # buttons do (one click per question, not both at once).
+    mid = await _send(client, token, classroom_id, f"1{key1}", out["thread_id"])
+    assert mid["message"]["metadata"]["walkthrough"]["verdict"] == "quiz_partial"
+    assert "2. Preview" in mid["message"]["content"] and "1. Recall" not in mid["message"]["content"]
+
+    done = await _send(client, token, classroom_id, f"2{key2}", out["thread_id"])
+    assert done["message"]["metadata"]["walkthrough"]["verdict"] == "quiz_done"
+    # It must have actually moved on, not re-asked either quiz question.
+    assert "Checkpoint" not in done["message"]["content"]
+    assert done["message"]["metadata"]["ui"]["kind"] != "quiz"
+
+    # A follow-up turn must not fall back into the same checkpoint either
+    # (the bug's symptom was an infinite loop between the two questions).
+    again = await _send(client, token, classroom_id, "a guess", out["thread_id"])
+    assert "Checkpoint" not in again["message"]["content"]

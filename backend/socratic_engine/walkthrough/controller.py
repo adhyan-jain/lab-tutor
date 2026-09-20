@@ -15,6 +15,7 @@ curiosity question.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import re
 from dataclasses import asdict, dataclass, field
@@ -66,10 +67,18 @@ class WalkState:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "WalkState":
+        """Deep-copies every field: `data` is typically `row.state` fresh
+        out of the DB session, and this state's own dicts/lists (quiz,
+        tries, facts, needs_help, ...) get mutated in place turn by turn.
+        Without a copy here, that mutation silently changes the same
+        object SQLAlchemy still holds as the column's loaded value, so a
+        later `row.state = state.to_dict()` compares equal to it and the
+        write is dropped -- found live: a checkpoint quiz answer that
+        never actually saved, looping the same question forever."""
         base = cls()
         for key, value in (data or {}).items():
             if hasattr(base, key):
-                setattr(base, key, value)
+                setattr(base, key, copy.deepcopy(value) if isinstance(value, (dict, list)) else value)
         if base.step_id not in SCRIPT.by_id:
             base.step_id = LINEAR_STEP_IDS[0]
         return base
