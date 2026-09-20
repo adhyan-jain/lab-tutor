@@ -72,3 +72,29 @@ async def test_the_pipeline_returns_normalised_text(monkeypatch):
     assert "`6-31G*`" in result.text
     assert "`*** OPTIMIZATION RUN DONE ***`" in result.text
     assert "**6-31G" not in result.text
+
+
+def test_extractive_fallback_never_shows_a_source_files_header_comment():
+    from backend.retrieval.chunks import Chunk
+    from backend.retrieval.index import ScoredChunk
+    from backend.retrieval.pipeline import _extractive_answer
+    from backend.sources.tiers import SourceTier
+
+    def chunk(cid, text):
+        return ScoredChunk(
+            chunk=Chunk(
+                chunk_id=cid, text=text, document_id="d", document_title="D",
+                tier=SourceTier.CURATED_ADJACENT, source_version="v1", page=1, experiment_id="exp07",
+            ),
+            score=1.0 if cid == "a" else 0.5,
+        )
+
+    text = _extractive_answer(
+        [
+            chunk("a", "<!--\ntier: C (curated adjacent -- NOT the manual)\nexperiments: exp07\n-->"),
+            chunk("b", "The HOMO is the highest occupied molecular orbital."),
+        ],
+        supplementary=True,
+    )
+    assert "<!--" not in text and "tier: C" not in text
+    assert "The HOMO is the highest occupied molecular orbital." in text

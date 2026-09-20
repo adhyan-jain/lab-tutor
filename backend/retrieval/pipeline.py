@@ -866,10 +866,16 @@ def _extractive_answer(passages: list[ScoredChunk], *, supplementary: bool) -> s
     produced (e.g. the model quota is exhausted). Shows the most relevant
     passages (best score first, each as its own paragraph) under an honest
     lead-in, never a raw dump of whichever chunk happens to come first."""
-    ranked = sorted(passages, key=lambda item: item.score, reverse=True)[:2]
+    ranked = sorted(passages, key=lambda item: item.score, reverse=True)
     blocks = []
     for item in ranked:
-        excerpt = item.chunk.text.strip()
+        # A source file's leading HTML comment (its tier/topic header) is
+        # metadata, not something to show a student.
+        excerpt = re.sub(r"<!--.*?-->", "", item.chunk.text, flags=re.DOTALL).strip()
+        if not excerpt:
+            continue
+        if len(blocks) == 2:
+            break
         if len(excerpt) > MAX_EXTRACT_CHARS:
             excerpt = excerpt[:MAX_EXTRACT_CHARS].rsplit(" ", 1)[0] + "…"
         blocks.append(excerpt)
