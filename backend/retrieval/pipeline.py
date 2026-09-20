@@ -88,6 +88,63 @@ def _strip_passage_refs(text: str) -> str:
     return "".join(out).strip()
 
 
+#: A Pople-style basis-set name with its polarization stars (6-31G, 6-31G*,
+#: 6-31G**, 6-311++G**). The stars collide with markdown bold markers, so the
+#: model's `**6-31G***` (bold plus one star) or `**6-31G**\*\*` renders as raw
+#: asterisks in the chat. Whatever the model wraps around such a name is
+#: rebuilt as plain inline code instead of trusting it to comply with the
+#: prompt.
+_BASIS_RE = re.compile(r"(\*\*)?(\d-\d{2,3}\+{0,2}G)((?:\\?\*)*)")
+_CODE_SPAN_RE = re.compile(r"(`[^`\n]*`)")
+_DONE_BANNER_RE = re.compile(r"\*{3}\s*OPTIMI[SZ]ATION RUN DONE\s*\*{3}")
+
+
+def _basis_code(name: str, stars: int) -> str:
+    return f"`{name}{'*' * min(stars, 2)}`"
+
+
+def _code_basis_sets_in_line(line: str) -> str:
+    out: list[str] = []
+    pos = 0
+    bold_open = False
+    for match in _BASIS_RE.finditer(line):
+        before = line[pos : match.start()]
+        out.append(before)
+        if before.count("**") % 2:
+            bold_open = not bold_open
+        lead, name, trail = match.groups()
+        stars = trail.replace("\\", "").count("*")
+        if lead:
+            if stars >= 2:  # the run holds the closing "**": drop the bold
+                out.append(_basis_code(name, stars - 2))
+                bold_open = False
+            else:  # bold continues past the name: keep it, close it later
+                out.append("**" + _basis_code(name, stars))
+                bold_open = True
+        elif bold_open:
+            if stars >= 2:  # closes a bold that opened earlier in the line
+                out.append(_basis_code(name, stars - 2) + "**")
+                bold_open = False
+            else:
+                out.append(_basis_code(name, stars))
+        else:
+            out.append(_basis_code(name, stars))
+        pos = match.end()
+    out.append(line[pos:])
+    return "".join(out)
+
+
+def _normalise_markdown(text: str) -> str:
+    """Make model output render cleanly: basis-set names and the ORCA
+    completion banner become inline code so their asterisks are never read
+    as bold/italic markers. Existing code spans are left untouched."""
+    parts = _CODE_SPAN_RE.split(text)
+    for i in range(0, len(parts), 2):  # even parts are outside code spans
+        part = _DONE_BANNER_RE.sub("`*** OPTIMIZATION RUN DONE ***`", parts[i])
+        parts[i] = "\n".join(_code_basis_sets_in_line(line) for line in part.split("\n"))
+    return "".join(parts)
+
+
 _TIER_TAGS = TIER_TAGS
 
 MAX_PASSAGES_RETRIEVED = 10
@@ -686,7 +743,7 @@ async def _phrase_with_llm(
             system=SYSTEM_PROMPT, user="\n".join(parts), max_tokens=max_tokens
         )
 
-    cleaned = _strip_passage_refs(reply.text or "")
+    cleaned = _normalise_markdown(_strip_passage_refs(reply.text or ""))
     if cleaned != (reply.text or ""):
         reply = dataclasses.replace(reply, text=cleaned)
     return reply
