@@ -145,3 +145,45 @@ async def test_export_has_a_staff_sheet_and_keeps_staff_out_of_student_sheets(cl
     assert prompt_emails == {"real.student@vitstudent.ac.in"}
     roster_emails = {row[1] for row in list(book["Roster"].iter_rows(values_only=True))[1:]}
     assert roster_emails == {"real.student@vitstudent.ac.in"}
+
+
+async def test_a_sign_in_is_attributed_to_the_first_classroom_chatted_in(client, make_user, db, llm):
+    from sqlalchemy import select
+
+    from backend.models import LoginSession
+
+    prof_user, prof = await make_user("attrib.prof@vit.ac.in", "Attrib Prof")
+    # `make_user` issues a cookie directly and skips the real OAuth callback
+    # (auth_routes.py) that normally creates this row on sign-in.
+    db.add(LoginSession(user_id=prof_user.id))
+    await db.commit()
+    first = await client.post("/api/classrooms", json={"name": "First"}, headers=auth(prof))
+    first_id = first.json()["id"]
+    await client.post(
+        f"/api/classrooms/{first_id}/sessions/start", json={"experiment_id": "exp07"}, headers=auth(prof)
+    )
+    second = await client.post("/api/classrooms", json={"name": "Second"}, headers=auth(prof))
+    second_id = second.json()["id"]
+    await client.post(
+        f"/api/classrooms/{second_id}/sessions/start", json={"experiment_id": "exp07"}, headers=auth(prof)
+    )
+
+    open_row = select(LoginSession).where(
+        LoginSession.user_id == prof_user.id, LoginSession.logout_at.is_(None)
+    )
+    row = (await db.scalars(open_row)).one()
+    assert row.classroom_id is None
+
+    await _chat(client, prof, first_id)
+    # `db` is a long-lived session (expire_on_commit=False), so its identity
+    # map would otherwise keep returning the object as loaded above instead
+    # of the row the app's own request session just committed.
+    db.expire_all()
+    row = (await db.scalars(open_row)).one()
+    assert row.classroom_id == first_id
+
+    # A later chat in a second classroom does not move the same sign-in.
+    await _chat(client, prof, second_id)
+    db.expire_all()
+    row = (await db.scalars(open_row)).one()
+    assert row.classroom_id == first_id

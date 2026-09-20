@@ -129,6 +129,25 @@ async def _touch_login_session(db: AsyncSession, user_id: str) -> None:
         await db.commit()
 
 
+async def attribute_login_session_to_classroom(
+    db: AsyncSession, user_id: str, classroom_id: str
+) -> None:
+    """First-write-wins attribution of the open login session to a
+    classroom, so a staff sign-in shows up against the class they actually
+    used, without ever moving an already-attributed session to a second
+    one in the same login."""
+    open_session = (
+        await db.scalars(
+            select(LoginSession)
+            .where(LoginSession.user_id == user_id, LoginSession.logout_at.is_(None))
+            .order_by(LoginSession.login_at.desc())
+        )
+    ).first()
+    if open_session is not None and open_session.classroom_id is None:
+        open_session.classroom_id = classroom_id
+        await db.commit()
+
+
 async def require_student(
     principal: Principal = Depends(current_user),
     db: AsyncSession = Depends(get_session),

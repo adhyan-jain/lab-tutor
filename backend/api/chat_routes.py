@@ -34,6 +34,7 @@ from backend import audit, ratelimit
 from backend import classrooms as classroom_service
 from backend.answer_gate import PrematureRevealError
 from backend.auth import Principal, current_user
+from backend.auth.dependencies import attribute_login_session_to_classroom
 from backend.data_access import FacultyScope, StudentScope
 from backend.db import get_session
 from backend.extraction import extract_submission
@@ -761,6 +762,9 @@ async def send_message(
     class_session_id, experiment_id = await _resolve_session_and_experiment(
         db, principal, actor_type, body.classroom_id, body.experiment_id
     )
+    # First-write-wins: a staff sign-in (no classroom yet at login) is
+    # attributed to whichever classroom they actually chat in.
+    await attribute_login_session_to_classroom(db, principal.id, body.classroom_id)
 
     limit = ratelimit.check_qa_turn(principal.id)
     if not limit.allowed:
