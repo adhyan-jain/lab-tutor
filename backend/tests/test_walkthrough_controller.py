@@ -30,6 +30,9 @@ SHORT_ANSWERS = {
     "o3_e": "charge 0, multiplicity 1", "o4_e": "B3LYP and 6-31G", "o5_e": "! B3LYP 6-31G Opt",
     "r2_e": "ORCA TERMINATED NORMALLY", "p2_e": "Single Point Energy", "v1_e": "yes it is showing",
     "t1_e": "B3LYP with 6-31G", "t2_e": "ORCA TERMINATED NORMALLY",
+    "b3_c": "it's a tetrahedron because the atoms spread apart in 3D",
+    "p1_c": "the energies depend on the geometry, and the optimised shape is the one at rest",
+    "x4_c": "3, it's a triplet because of the two unpaired electrons",
 }
 REPORT_ANSWERS = {
     "r3_e": "-10.0 and -12.0", "p5_e": "-8.0 and 2.0", "v2_e": "-8.0 and 2.0",
@@ -244,9 +247,9 @@ def test_correct_evidence_leads_to_a_why_question_then_the_next_step():
     state = at_step("b3_methane")
     result = ctl.take_turn(state, "5")
     assert "why-question" in result.reply and state.pending == "check"
-    assert result.ui["options"]
-    done = ctl.take_turn(state, "a")
-    assert "**Yes.**" in done.reply and state.step_id == "b4_save"
+    assert "options" not in result.ui  # now a short own-words check, not MCQ
+    done = ctl.take_turn(state, "it's a tetrahedron, the atoms spread apart in 3D")
+    assert done.events["verdict"] == "correct" and state.step_id == "b4_save"
 
 
 def test_mcq_wrong_choice_shows_options_again_with_a_hint():
@@ -358,8 +361,8 @@ def test_oxygen_electron_count_catches_the_methane_file_still_loaded():
 def test_oxygen_spin_check_uses_two_unpaired_electrons_then_multiplicity_three():
     state = at_step("x4_spin")
     assert ctl.take_turn(state, "2").events["verdict"] == "correct"
-    result = ctl.take_turn(state, "c")
-    assert "**Yes.**" in result.reply
+    result = ctl.take_turn(state, "3, a triplet, because of the two unpaired electrons")
+    assert result.events["verdict"] == "correct"
 
 
 # ----------------------------------------------------------------- checkpoint

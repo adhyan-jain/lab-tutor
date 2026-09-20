@@ -56,7 +56,7 @@ async def handle_turn(
     seed_key = f"{user_id}:{classroom_id}:{experiment_id}"
 
     if row is None:
-        if not grader.is_start_request(message):
+        if not (grader.is_start_request(message) or grader.is_affirmative_start(message)):
             return None
         state = ctl.new_state(seed_key)
         result = ctl.start(state)

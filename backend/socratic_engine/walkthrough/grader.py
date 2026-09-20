@@ -156,6 +156,21 @@ def is_resume_phrase(text: str) -> bool:
     return bool(_RESUME_PHRASES_RE.search(text or "")) and len(_tokens(text)) <= 6
 
 
+_AFFIRMATIVE_START_RE = re.compile(
+    r"^\s*(yes|yeah|yep|yup|sure|ok|okay|okk|haan|ha|let.?s (start|begin|go)|start|begin|"
+    r"lets do (it|this)|go ahead|why not)\s*[.!]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def is_affirmative_start(text: str) -> bool:
+    """A short, plain "yes" (or "let's start") -- the natural reply to
+    `chat_routes.EXP07_WALKTHROUGH_INVITE`. Used only when no walkthrough
+    row exists yet, so this never fires mid-walkthrough where a bare "yes"
+    is instead a (rejected) attempt at answering the current question."""
+    return bool(_AFFIRMATIVE_START_RE.match(text or ""))
+
+
 def is_start_request(text: str) -> bool:
     """A how-to or guidance prompt: the walkthrough opens with a curiosity
     question instead of a wall of procedure."""

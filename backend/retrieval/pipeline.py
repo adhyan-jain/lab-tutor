@@ -759,7 +759,23 @@ async def _phrase_with_llm(
         parts: list[str] = []
         if focus:
             parts += [focus, ""]
-        if experiment_id in QUALITATIVE_EXPERIMENTS:
+        if experiment_id == "exp07":
+            # Exp7 has its own deterministic, verified walkthrough engine
+            # now (backend/socratic_engine/walkthrough/); this override
+            # stops the model from running its own free-text numbered
+            # stepper (the general "One step at a time" policy above still
+            # applies to exp08, which has no walkthrough replacement yet)
+            # or offering to start one itself -- chat_routes.py appends
+            # the one fixed, code-written invitation to start the real
+            # walkthrough instead.
+            parts += [
+                "EXP07 OVERRIDE: this experiment has a separate guided walkthrough tool. "
+                "Do not teach a numbered step-by-step procedure yourself and do not offer "
+                "to start one -- answer the question in prose as you would for any other "
+                "experiment, even if it describes a multi-step procedure.",
+                "",
+            ]
+        elif experiment_id in QUALITATIVE_EXPERIMENTS:
             if guided:
                 parts += [
                     f"GUIDED: your last guided step was Step {last_step} (your last message "

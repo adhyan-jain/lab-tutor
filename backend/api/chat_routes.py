@@ -107,6 +107,27 @@ def _llm_meta(
     }
 
 
+#: Fixed, code-written invitation -- never model-generated -- so the
+#: phrase the broadened walkthrough start-trigger (grader.is_affirmative_start)
+#: recognises is always exactly this, not whatever the model happened to say.
+EXP07_WALKTHROUGH_INVITE = 'Want to work through this step by step? Just say "let\'s start" (or ask me anything else).'
+
+
+async def _exp07_invite_suffix(
+    db: AsyncSession, user_id: str, classroom_id: str, experiment_id: str, actor_type: ActorType
+) -> str:
+    """Appended to a plain grounded-Q&A reply for exp07 so there is always
+    a predictable way into the guided walkthrough -- once a walkthrough
+    row exists (active, paused or done) the student already knows how to
+    get back to it, so this stays silent from then on."""
+    if experiment_id != "exp07" or not get_settings().walkthrough_enabled:
+        return ""
+    row = await walkthrough_service.get_progress(db, user_id, classroom_id, experiment_id, actor_type)
+    if row is not None:
+        return ""
+    return f"\n\n{EXP07_WALKTHROUGH_INVITE}"
+
+
 def derive_title(text: str) -> str:
     cleaned = re.sub(r"\s+", " ", text.strip())
     if not cleaned:
@@ -1028,7 +1049,9 @@ async def send_message(
                     result = await answer_question(
                         body.message, active_experiment=experiment_id, conversation_history=history_text
                     )
-                    reply_text = result.text
+                    reply_text = result.text + await _exp07_invite_suffix(
+                        db, principal.id, body.classroom_id, experiment_id, actor_type
+                    )
                     msg_kind = ChatMessageKind.QA
                     meta = {
                         "type": "qa",

@@ -203,7 +203,7 @@ async def test_a_checkpoint_quiz_actually_finishes_instead_of_looping(client, ma
     await _send(client, token, classroom_id, "geometry")          # step 1 evidence
     await _send(client, token, classroom_id, "yes I see it")      # step 2 evidence
     await _send(client, token, classroom_id, "5")                 # step 3 evidence
-    await _send(client, token, classroom_id, "a")                 # step 3 cross-question
+    await _send(client, token, classroom_id, "it's a tetrahedron, spread apart in 3D")  # step 3 cross-question
     out = await _send(client, token, classroom_id, ".gab")        # step 4 evidence -> checkpoint
     content = out["message"]["content"]
     assert "Checkpoint" in content and "1. Recall" in content and "2. Preview" in content
@@ -229,3 +229,33 @@ async def test_a_checkpoint_quiz_actually_finishes_instead_of_looping(client, ma
     # (the bug's symptom was an infinite loop between the two questions).
     again = await _send(client, token, classroom_id, "a guess", out["thread_id"])
     assert "Checkpoint" not in again["message"]["content"]
+
+
+async def test_a_plain_question_gets_the_fixed_invite_and_a_bare_yes_starts_the_walkthrough(
+    client, make_user, counting_llm
+):
+    """Regression test for the exact gap a live transcript exposed: a
+    student who answers "yes" to the tutor's own invitation to start never
+    reached the deterministic walkthrough, because "yes" alone matched no
+    start-request pattern and fell through to plain Q&A every time."""
+    classroom_id, code, _ = await _classroom(client, make_user, "m")
+    _, token = await _student(client, make_user, code, "s1.m@vitstudent.ac.in")
+
+    first = await _send(client, token, classroom_id, "What is the principle and formula for this experiment?")
+    assert first["message"]["metadata"]["type"] == "qa"
+    assert "let's start" in first["message"]["content"].lower()
+    assert "GUIDED" not in first["message"]["content"]
+
+    reply = await _send(client, token, classroom_id, "yes", first["thread_id"])
+    assert reply["message"]["metadata"]["type"] == "walkthrough"
+    assert "quick guess" in reply["message"]["content"].lower()
+    assert reply["message"]["metadata"]["ui"]["kind"] == "hook"
+
+
+async def test_the_invite_disappears_once_a_walkthrough_row_exists(client, make_user, counting_llm):
+    classroom_id, code, _ = await _classroom(client, make_user, "n")
+    _, token = await _student(client, make_user, code, "s1.n@vitstudent.ac.in")
+    await _send(client, token, classroom_id, "guide me")
+    await _send(client, token, classroom_id, "a guess")
+    later = await _send(client, token, classroom_id, "what is a basis set?")
+    assert "let's start" not in later["message"]["content"].lower()
