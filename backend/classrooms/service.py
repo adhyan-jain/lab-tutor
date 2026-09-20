@@ -143,12 +143,17 @@ async def join_classroom(
         # An archived class is indistinguishable from a wrong code.
         raise ClassroomError("No classroom matches that code")
 
+    # The role an admin set (if any) wins over the stored/domain-derived one,
+    # the same order every request's authorisation uses.
+    from backend.auth.roles import role_for_email
+
+    effective_role = user.role_override if user.role_override is not None else role_for_email(user.email)
     if code == classroom.student_join_code:
-        if user.role != Role.STUDENT:
+        if effective_role != Role.STUDENT:
             raise WrongCodeRole("This is a student join code")
         member_role = ClassroomRole.STUDENT
     else:
-        if user.role != Role.FACULTY:
+        if effective_role != Role.FACULTY:
             raise WrongCodeRole("This is a faculty join code")
         member_role = ClassroomRole.FACULTY
 
@@ -398,6 +403,32 @@ async def demote_class_faculty_to_student(
             )
         )
     await db.flush()
+
+
+async def demote_all_class_faculty(db: AsyncSession, user_id: str) -> list[str]:
+    """Turn every active FACULTY membership this user holds into a STUDENT
+    membership, returning the classroom ids changed.
+
+    For when an admin sets the user's platform role to student: their old
+    faculty memberships would otherwise stay, keeping them out of the student
+    roster and tagging their prompts as faculty test traffic. The caller must
+    already have saved the new role, since `demote_class_faculty_to_student`
+    checks it.
+    """
+    classroom_ids = list(
+        (
+            await db.scalars(
+                select(ClassroomMembership.classroom_id).where(
+                    ClassroomMembership.user_id == user_id,
+                    ClassroomMembership.role == ClassroomRole.FACULTY,
+                    ClassroomMembership.active.is_(True),
+                )
+            )
+        ).all()
+    )
+    for classroom_id in classroom_ids:
+        await demote_class_faculty_to_student(db, classroom_id, target_user_id=user_id)
+    return classroom_ids
 
 
 # --- class session lifecycle ------------------------------------------------

@@ -15,6 +15,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import audit
+from backend import classrooms as classroom_service
 from backend.auth import Principal, require_admin
 from backend.auth.roles import role_for_email
 from backend.db import get_session
@@ -75,6 +76,21 @@ async def set_user_role(
 
     old_role = _effective_role(user)
     user.role_override = body.role
+    await db.flush()
+    demoted_in: list[str] = []
+    if body.role == Role.STUDENT:
+        # A student must count as a student everywhere: any class where they
+        # still held a faculty membership would keep them out of the student
+        # roster and tag their prompts as faculty test traffic.
+        demoted_in = await classroom_service.demote_all_class_faculty(db, user.id)
+        for classroom_id in demoted_in:
+            await audit.record(
+                db,
+                audit.CLASS_FACULTY_DEMOTED,
+                user_id=principal.id,
+                classroom_id=classroom_id,
+                detail={"target_user_id": user_id, "reason": "platform role set to student"},
+            )
     await audit.record(
         db,
         audit.ROLE_CHANGED,
@@ -88,6 +104,7 @@ async def set_user_role(
         "name": user.name,
         "role": body.role.value,
         "role_override": body.role.value,
+        "moved_to_student_in": demoted_in,
     }
 
 

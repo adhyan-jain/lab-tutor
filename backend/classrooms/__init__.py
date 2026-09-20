@@ -13,6 +13,7 @@ from backend.classrooms.service import (
     archive_classroom,
     can_act_as_faculty,
     create_classroom,
+    demote_all_class_faculty,
     demote_class_faculty_to_student,
     end_session,
     faculty_roster_with_users,
