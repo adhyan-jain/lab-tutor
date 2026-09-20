@@ -13,7 +13,7 @@ Two rules, both enforced in code and covered by tests:
 assistant message's `metadata_json` and in one log line per message:
 
     chat_message llm_calls=1 attempts=1 retries=0 vertex_ok=True fallback=False
-    cache_hit=True cached_tokens=6500 model=gemini-2.5-flash student=... classroom=... exp=exp07
+    cache_hit=True cached_tokens=9800 model=gemini-2.5-flash student=... classroom=... exp=exp07
 
 A value above 1 also logs `llm_calls_exceeded` at WARNING.
 
@@ -54,9 +54,15 @@ message metadata.
 
 What is cached: the system prompt plus the experiment's complete source
 material (official procedure in document order, then the labelled background
-explainer). About 6.5k tokens for Exp7. What is never cached: the question,
-conversation history, session/Socratic/diagnostic state, or anything about a
-student. The per-message dynamic tail is sent uncached.
+explainer). About 9-10k tokens for Exp7, measured live -- this grew from an
+earlier 6.5k estimate as the Exp7 background file
+(`knowledge/adjacent/exp07_background.md`) gained the screen-control
+glossary and ORCA output guide. What is
+never cached: the question, conversation history, session/Socratic/
+diagnostic/walkthrough state, or anything about a student. The per-message
+dynamic tail is sent uncached; the guided walkthrough's own turns
+(hooks, steps, hints, checkpoints) make no model call at all and never touch
+the cache -- see docs/ARCHITECTURE.md §2.1.2.
 
 Enable with `LABTUTOR_LLM_CONTEXT_CACHE=true` (Vertex backend only);
 `LABTUTOR_LLM_CONTEXT_CACHE_SCOPES` (default `exp07`) picks the experiments,

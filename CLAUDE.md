@@ -71,6 +71,44 @@ extend that exception to a third experiment; if one seems to need it, it
 needs a
 deterministic checker instead.
 
+**Experiment 7 — guided walkthrough (added later in the build).** Exp7 now
+has a second layer on top of `ComputationSanityPlugin`:
+`backend/socratic_engine/walkthrough/` (`exp07_script.py`, `grader.py`,
+`controller.py`, `service.py`) steps a student through Gabedit → ORCA →
+Avogadro one instruction at a time, verifying each step with a question
+only someone who actually did it can answer. This does **not** weaken the
+hard rule above — it tightens the same boundary one layer earlier:
+
+- Every question, its correct answer (or answer key/regex), every hint,
+  every multiple-choice option's rationale, and every quiz item is
+  **authored in `exp07_script.py` by a person**, not generated at runtime.
+- `grader.py` matches a student's message against that authored key with
+  regex/exact comparison only. It imports no LLM client, no `google.genai`,
+  no retrieval module — checked by a repo test
+  (`test_walkthrough_modules_import_no_model_or_retrieval_code`).
+- `controller.py` (`take_turn`) is a pure function from (state, message) to
+  the next state and reply. It decides whether to advance, hint, reveal, or
+  probe again — the model is never asked "is this right?" or "what should
+  happen next?".
+- Numeric "report" answers (energies, HOMO/LUMO, electron counts) are
+  checked by the **same** `ComputationSanityPlugin._sanity_violations`
+  Tier 1 already uses (energy not up after optimisation, LUMO above HOMO),
+  reused rather than re-implemented, plus one walkthrough-local check
+  (shell-electron totals against the molecule's own electron count).
+- The LLM is used for exactly one thing here, and only after the
+  walkthrough has explicitly stepped aside: a genuine free-form side
+  question mid-walkthrough, answered by the ordinary grounded Q&A path with
+  a step-context line, then a code-appended "Back to Step N" line. Hooks,
+  acknowledgements, hints, reveals and quiz feedback are all authored text
+  chosen by code — zero model calls.
+
+If you find yourself wanting to ask a model to write a new quiz item, grade
+a free-text answer beyond regex matching, or decide when a step is "close
+enough" — stop, that is the same bug this file already warns about, just
+one level deeper into a specific experiment. Do not extend the walkthrough
+pattern to a third experiment without the same authored-content, code-
+decides discipline.
+
 ## Coding conventions
 
 - **Language/framework**: FastAPI + Postgres + Next.js. Confirmed by the

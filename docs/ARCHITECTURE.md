@@ -275,6 +275,73 @@ around here with a fake PASS.
 See `manual/IACHY102_manual.md` and `docs/final_audit.md` for the full
 per-experiment mapping against the real manual.
 
+### 2.1.2 The Exp7 guided walkthrough (added later in the build)
+
+The `/attempt` limitation above (Exp7 chat works, but numeric step
+advancement does not) is superseded for Exp7 by a purpose-built engine that
+does not reuse `SocraticSession`/`SocraticAttempt` at all:
+`backend/socratic_engine/walkthrough/` (`exp07_script.py`, `types.py`,
+`grader.py`, `controller.py`, `service.py`), state in the
+`walkthrough_progress` table (migration `c5d6e7f8a9b0`), hooked into
+`backend/api/chat_routes.py:send_message`.
+
+- **Trigger.** A guidance-shaped message ("how do I do calculations in
+  ORCA", "guide me") on `exp07` with no `walkthrough_progress` row starts
+  one; an existing, active row engages on every following message except a
+  pasted `key=value` diagnostic record (that still goes straight to Tier 1,
+  matching the original branch-4 semantics) and anything Safety Triage
+  short-circuits.
+- **Shape.** 27 linear steps (build methane, save/open, the ORCA dialog,
+  run and confirm, read the output, Avogadro orbitals, the oxygen deltas)
+  grouped into chapters, then a 12-run loop (`COMBOS`, one per
+  method×basis×molecule combination) for Tables 1 and 2. Each chapter opens
+  with one ungraded curiosity "hook" question; each step asks an
+  "evidence" question only someone who did it can answer, sometimes
+  followed by a cross-question on the *why*; the end of a chapter (or every
+  6 steps in the long loop) asks a two-item checkpoint quiz — one recall
+  item (weighted toward a concept the student needed a hint on) and one
+  preview item teasing the next chapter, deterministically selected per
+  student (seeded on student+classroom+experiment) so neighbours do not get
+  identical items and no item repeats within a run.
+- **Grading.** `grader.py` is regex/exact-match only over authored keys in
+  `exp07_script.py` (MCQ option key, short-answer pattern groups, or a
+  reported number). A bare "done"/"ok"/"done done" is recognised
+  (`is_bare_confirmation`) and never advances a step with an unanswered
+  evidence question — it re-asks, with an escalating nudge, and after the
+  third bare confirmation offers "just tell me" explicitly rather than
+  looping forever. Wrong answers get one hint, then a reveal that still
+  advances the step (soft gate), flagged in `needs_help` for analytics. A
+  reported value (final energy, HOMO/LUMO, s/p/d/f totals) is checked with
+  `ComputationSanityPlugin._sanity_violations` (reused, not duplicated) plus
+  one walkthrough-local shell-electron-total check; a violation is probed
+  once more before being accepted with a caveat and flagged.
+- **Side questions and safety.** A genuine free-form question
+  (`grader.is_side_question`, distinguished from a short answer that merely
+  ends in "?") is handed to the ordinary grounded `answer_question` path
+  with a one-line, student-text-free step-context string appended to
+  history, and the reply gets a code-appended "Back to Step N" line — the
+  only place this feature calls a model. "Pause"/"resume" let a student
+  step out of the walkthrough to ask freely and back in without losing
+  their place; this collided with an existing off-scope triage pattern for
+  job "resume" text, fixed by narrowing that pattern
+  (`backend/socratic_engine/triage.py`) rather than special-casing the
+  walkthrough.
+- **Cost.** Every move above (hook, step instruction, hint, reveal,
+  cross-question, checkpoint, probe, back/skip/pause/resume) is authored
+  text selected by `controller.take_turn`, a pure function with zero model
+  calls; only the side-question branch calls a model, once, same as any
+  other Q&A turn.
+- **Kill switch.** `LABTUTOR_WALKTHROUGH=false` returns Exp7 to plain
+  grounded Q&A with no code changes.
+
+Tests: `backend/tests/test_walkthrough_controller.py` (script integrity,
+grader, the full turn-by-turn state machine, whole-experiment run,
+checkpoint selection, no-LLM-import architecture test) and
+`backend/tests/test_walkthrough_api.py` (through the real
+`/api/chat/messages` endpoint: one-call-per-side-question, per-student
+isolation, pause/resume, prompt-injection containment, safety triage
+priority, the kill switch).
+
 ## 3. Data flow diagram
 
 ```
