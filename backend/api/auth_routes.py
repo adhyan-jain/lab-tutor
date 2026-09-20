@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 import datetime as dt
 
 from backend import audit
+from backend import classrooms as classroom_service
 from backend.auth import Principal, current_user
 from backend.auth import oauth, session as session_cookie
 from backend.auth.roles import DomainNotPermitted
@@ -26,7 +27,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-def _me_payload(user: User, principal: Principal) -> dict:
+def _me_payload(user: User, principal: Principal, *, staff_membership: bool = False) -> dict:
     # `user.name`/`user.reg_no`, not `principal.name` -- the Principal is
     # built once when the `current_user` dependency resolves, before this
     # request's own handler (e.g. complete_profile) may have just mutated
@@ -42,6 +43,13 @@ def _me_payload(user: User, principal: Principal) -> dict:
         # including students who signed up back when it was optional.
         "profile_complete": bool(user.onboarded)
         and (principal.role != Role.STUDENT or bool(user.reg_no)),
+        # What the UI may offer. Presentation only: every staff route still
+        # re-checks access on the server. `settings` covers platform faculty,
+        # admin, and a student promoted to co-faculty in some class.
+        "capabilities": {
+            "settings": principal.role in (Role.FACULTY, Role.ADMIN) or staff_membership,
+            "admin": principal.role == Role.ADMIN,
+        },
     }
 
 
@@ -193,7 +201,9 @@ async def me(
     user = (await db.scalars(select(User).where(User.id == principal.id))).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is no longer valid")
-    return _me_payload(user, principal)
+    return _me_payload(
+        user, principal, staff_membership=await classroom_service.has_any_faculty_membership(db, user.id)
+    )
 
 
 class CompleteProfileRequest(BaseModel):
@@ -232,4 +242,6 @@ async def complete_profile(
     user.onboarded = True
     await audit.record(db, audit.PROFILE_COMPLETED, user_id=user.id, detail={"role": principal.role.value})
     await db.commit()
-    return _me_payload(user, principal)
+    return _me_payload(
+        user, principal, staff_membership=await classroom_service.has_any_faculty_membership(db, user.id)
+    )

@@ -5,7 +5,7 @@ import { ChatWorkspace } from "@/components/ChatWorkspace";
 
 export default function HomePage() {
   return (
-    <Shell>
+    <Shell chrome={false}>
       {(me) => <ChatWorkspace me={me} />}
     </Shell>
   );

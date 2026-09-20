@@ -1,39 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   api,
   ApiError,
   type Classroom,
-  type ClassSessionInfo,
   type DashboardSubmission,
   type Escalation,
   type Experiment,
   type RosterFaculty,
   type RosterStudent,
-  type StudentSummary,
 } from "@/lib/api";
-import { CloseIcon } from "@/components/Icons";
 
-export function FacultyModal({
+export function ClassroomPanel({
   classroom,
   experiments,
-  onClose,
   onClassroomUpdated,
+  onArchived,
 }: {
   classroom: Classroom;
   experiments: Experiment[];
-  onClose: () => void;
   onClassroomUpdated: () => void;
+  /** Called after the class is archived ("deleted") so the caller can leave it. */
+  onArchived: () => void;
 }) {
-  const router = useRouter();
-  const [tab, setTab] = useState<"roster" | "session" | "settings" | "activity" | "summaries">("roster");
+  const [tab, setTab] = useState<"roster" | "session" | "settings" | "review">("roster");
   const [students, setStudents] = useState<RosterStudent[]>([]);
   const [faculty, setFaculty] = useState<RosterFaculty[]>([]);
-  const [summaries, setSummaries] = useState<StudentSummary[]>([]);
-  const [sessions, setSessions] = useState<ClassSessionInfo[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [submissions, setSubmissions] = useState<DashboardSubmission[]>([]);
   const [escalations, setEscalations] = useState<Escalation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,40 +48,6 @@ export function FacultyModal({
       ]);
       setStudents(sRes.students);
       setFaculty(fRes.faculty);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadSessionSummaries = async (sessionId: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api.get<{ summaries: StudentSummary[] }>(
-        `/api/dashboard/classrooms/${classroom.id}/sessions/${sessionId}/summaries`
-      );
-      setSummaries(res.summaries);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadSummaries = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api.get<{ sessions: ClassSessionInfo[] }>(
-        `/api/dashboard/classrooms/${classroom.id}/sessions`
-      );
-      setSessions(res.sessions);
-      const defaultId = classroom.active_session_id || res.sessions[0]?.id || null;
-      setSelectedSessionId(defaultId);
-      if (defaultId) await loadSessionSummaries(defaultId);
-      else setSummaries([]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     } finally {
@@ -129,8 +88,7 @@ export function FacultyModal({
 
   useEffect(() => {
     if (tab === "roster") loadRoster();
-    if (tab === "summaries") loadSummaries();
-    if (tab === "activity") loadActivity();
+    if (tab === "review") loadActivity();
   }, [tab]);
 
   const handlePromote = async (studentId: string) => {
@@ -214,7 +172,7 @@ export function FacultyModal({
     try {
       await api.del(`/api/classrooms/${classroom.id}`);
       onClassroomUpdated();
-      onClose();
+      onArchived();
     } catch (e) {
       setConfirmArchive(false);
       setError(e instanceof ApiError ? e.message : String(e));
@@ -233,47 +191,29 @@ export function FacultyModal({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Classroom Management</h2>
-            <p className="muted" style={{ margin: 0 }}>{classroom.name}</p>
-          </div>
-          <div className="modal-actions">
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => router.push(`/faculty/sessions?classroom=${classroom.id}`)}
-            >
-              Session reports
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => router.push(`/faculty/marks?classroom=${classroom.id}`)}
-            >
-              Marks &amp; Analytics
-            </button>
-            <button className="btn btn-secondary btn-sm" onClick={onClose} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <CloseIcon size={14} /> Close
-            </button>
-          </div>
-        </div>
-
+    <div className="classroom-panel">
         <div className="modal-tabs" role="tablist">
-          {(["roster", "session", "settings", "activity", "summaries"] as const).map((t) => (
+          {(
+            [
+              ["roster", "Roster"],
+              ["session", "Session"],
+              ["settings", "Class settings"],
+              ["review", "Review queue"],
+            ] as const
+          ).map(([key, label]) => (
             <button
-              key={t}
+              key={key}
               role="tab"
-              aria-selected={tab === t}
-              className={`modal-tab ${tab === t ? "active" : ""}`}
-              onClick={() => setTab(t)}
+              aria-selected={tab === key}
+              className={`modal-tab ${tab === key ? "active" : ""}`}
+              onClick={() => setTab(key)}
             >
-              {t}
+              {label}
             </button>
           ))}
         </div>
 
-        <div className="modal-body">
+        <div className="panel-body">
           {error && <div className="error">{error}</div>}
           {msg && <div className="notice" style={{ background: "var(--success-weak)", color: "var(--success)" }}>{msg}</div>}
 
@@ -485,7 +425,7 @@ export function FacultyModal({
           )}
 
           {/* Activity Tab: submissions + escalations */}
-          {tab === "activity" && (
+          {tab === "review" && (
             <div>
               <h3 style={{ fontSize: "0.95rem", margin: "0 0 8px" }}>
                 Review queue {escalations.filter((e) => !e.resolved).length > 0 && (
@@ -555,50 +495,7 @@ export function FacultyModal({
             </div>
           )}
 
-          {/* Summaries Tab */}
-          {tab === "summaries" && (
-            <div>
-              <h3 style={{ fontSize: "0.95rem", margin: "0 0 8px" }}>Post-Session Student Activity Summaries</h3>
-              {sessions.length > 0 && (
-                <div style={{ marginBottom: "12px" }}>
-                  <label className="muted" style={{ fontSize: "0.8rem", display: "block", marginBottom: "4px" }}>
-                    Class session
-                  </label>
-                  <select
-                    value={selectedSessionId ?? ""}
-                    onChange={(e) => {
-                      setSelectedSessionId(e.target.value);
-                      loadSessionSummaries(e.target.value);
-                    }}
-                  >
-                    {sessions.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.experiment_id} · {new Date(s.started_at).toLocaleString()}
-                        {s.status === "active" ? " (active)" : " (ended)"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {summaries.length === 0 ? (
-                <p className="muted">No summaries generated yet for this session.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {summaries.map((s, idx) => (
-                    <div key={idx} className="card" style={{ padding: "12px", margin: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <strong>{s.student_email}</strong>
-                        {s.flagged && <span className="pill pill-warn">FLAGGED ({s.flag_reason})</span>}
-                      </div>
-                      <p style={{ margin: 0, fontSize: "0.85rem", whiteSpace: "pre-wrap" }}>{s.text}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
-      </div>
     </div>
   );
 }

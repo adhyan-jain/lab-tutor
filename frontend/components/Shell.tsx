@@ -13,9 +13,16 @@ import { ThemeToggle } from "./ThemeToggle";
  */
 export function Shell({
   requireRole,
+  requireCapability,
+  chrome = true,
   children,
 }: {
   requireRole?: Me["role"] | Me["role"][];
+  /** Allow by capability instead of role (e.g. a student promoted to
+   * co-faculty may use Settings). When set it replaces `requireRole`. */
+  requireCapability?: "settings" | "admin";
+  /** Render the top bar. Pages that supply their own header pass false. */
+  chrome?: boolean;
   children: (me: Me) => React.ReactNode;
 }) {
   const allowedRoles = requireRole
@@ -75,15 +82,18 @@ export function Shell({
     );
   }
 
-  if (allowedRoles && !allowedRoles.includes(me.role)) {
+  const permitted = requireCapability
+    ? Boolean(me.capabilities?.[requireCapability])
+    : !allowedRoles || allowedRoles.includes(me.role);
+  if (!permitted) {
     return (
       <AuthCard>
         <p className="auth-wordmark">LabTutor</p>
         <p className="auth-tagline">This page isn't available to you</p>
         <hr className="auth-divider" />
         <p className="auth-body">
-          This page is for {allowedRoles.join(" or ")}. You're signed in as{" "}
-          {me.email} ({me.role}).
+          This page is for {requireCapability ? "staff" : (allowedRoles ?? []).join(" or ")}.
+          You're signed in as {me.email} ({me.role}).
         </p>
         <a className="btn btn-secondary" href="/">
           Go back
@@ -105,15 +115,17 @@ export function Shell({
 
   return (
     <>
-      <header className="bar">
-        <strong>LabTutor</strong>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span className="muted">
-            {me.email} · {me.role}
-          </span>
-          <ThemeToggle />
-        </div>
-      </header>
+      {chrome && (
+        <header className="bar">
+          <strong>LabTutor</strong>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span className="muted">
+              {me.email} · {me.role}
+            </span>
+            <ThemeToggle />
+          </div>
+        </header>
+      )}
       <main>{children(me)}</main>
     </>
   );

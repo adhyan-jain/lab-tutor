@@ -14,7 +14,6 @@ import {
   type SessionReportStudent,
   type TranscriptMessage,
 } from "@/lib/api";
-import { AppNav } from "./AppNav";
 
 function fmtTime(iso: string | null): string {
   if (!iso) return "—";
@@ -155,7 +154,6 @@ export function SessionsWorkspace({ me }: { me: Me }) {
 
   return (
     <>
-      <AppNav me={me} current="/faculty/sessions" />
       <div className="page">
         <h1 className="page-title">Session reports</h1>
         <p className="muted" style={{ marginTop: 0 }}>

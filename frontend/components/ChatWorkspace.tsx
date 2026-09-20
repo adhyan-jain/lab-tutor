@@ -13,17 +13,8 @@ import {
   type UnifiedChatMessage,
 } from "@/lib/api";
 import { MessageBubble } from "./MessageBubble";
-import { FacultyModal } from "./FacultyModal";
-import { AdminModal } from "./AdminModal";
-import {
-  BoltIcon,
-  ChatIcon,
-  CloseIcon,
-  EditIcon,
-  GraduationCapIcon,
-  LightbulbIcon,
-  TrashIcon,
-} from "./Icons";
+import { ChatIcon, CloseIcon, EditIcon, LightbulbIcon, TrashIcon } from "./Icons";
+import { ThemeToggle } from "./ThemeToggle";
 
 const STORAGE_KEY_CLASSROOM = "labtutor:active-classroom-id";
 const STORAGE_KEY_EXP = "labtutor:active-experiment-id";
@@ -46,8 +37,6 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const [error, setError] = useState("");
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showFacultyModal, setShowFacultyModal] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
 
   const [joinCode, setJoinCode] = useState("");
   const [newClassroomName, setNewClassroomName] = useState("");
@@ -336,7 +325,12 @@ export function ChatWorkspace({ me }: { me: Me }) {
     }
   };
 
-  const isCoFaculty = activeClassroom?.co_faculty || me.role === "faculty" || me.role === "admin";
+  // One Settings entry replaces the four staff buttons. Presentation only:
+  // every staff route re-checks access on the server.
+  const canOpenSettings = Boolean(me.capabilities?.settings) || Boolean(activeClassroom?.co_faculty);
+  const settingsHref = activeClassroom
+    ? `/settings/classroom?classroom=${encodeURIComponent(activeClassroom.id)}`
+    : "/settings/classroom";
   const selectedExp = experiments.find((e) => e.id === selectedExpId);
   // Faculty/admin test traffic is intentionally allowed without a live
   // session (backend/api/chat_routes.py resolves it as actor_type
@@ -546,41 +540,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
         {/* Footer Admin/Faculty Buttons */}
         <div style={{ padding: "12px", borderTop: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", gap: "6px" }}>
-          {isCoFaculty && activeClassroom && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setShowFacultyModal(true)}
-              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-            >
-              <GraduationCapIcon size={14} /> Classroom Management
-            </button>
-          )}
-          {(me.role === "faculty" || me.role === "admin" || isCoFaculty) && (
-            <>
-              <a
-                className="btn btn-secondary btn-sm"
-                href={`/faculty/activity${activeClassroom ? `?classroom=${activeClassroom.id}` : ""}`}
-                style={{ width: "100%" }}
-              >
-                Activity &amp; Data
-              </a>
-              <a
-                className="btn btn-secondary btn-sm"
-                href={`/faculty/marks${activeClassroom ? `?classroom=${activeClassroom.id}` : ""}`}
-                style={{ width: "100%" }}
-              >
-                Pre/Post Marks
-              </a>
-            </>
-          )}
-          {me.role === "admin" && (
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={() => setShowAdminModal(true)}
-              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-            >
-              <BoltIcon size={14} /> Platform Admin
-            </button>
+          {canOpenSettings && (
+            <a className="btn btn-secondary btn-sm settings-link-drawer" href={settingsHref}>
+              Settings
+            </a>
           )}
           <button
             onClick={async () => {
@@ -632,11 +595,12 @@ export function ChatWorkspace({ me }: { me: Me }) {
               <span className="pill pill-p1">○ No Session Active</span>
             )}
 
-            {isCoFaculty && activeClassroom && (
-              <button className="btn btn-sm btn-secondary" onClick={() => setShowFacultyModal(true)}>
-                Faculty Tools
-              </button>
+            {canOpenSettings && (
+              <a className="btn btn-sm btn-secondary settings-link-top" href={settingsHref}>
+                Settings
+              </a>
             )}
+            <ThemeToggle />
           </div>
         </header>
 
@@ -829,23 +793,6 @@ export function ChatWorkspace({ me }: { me: Me }) {
         </div>
       )}
 
-      {/* Faculty Modal */}
-      {showFacultyModal && activeClassroom && (
-        <FacultyModal
-          classroom={activeClassroom}
-          experiments={experiments}
-          onClose={() => setShowFacultyModal(false)}
-          onClassroomUpdated={() => {
-            loadClassrooms();
-            if (activeClassroom) checkSessionStatus(activeClassroom.id);
-          }}
-        />
-      )}
-
-      {/* Admin Modal */}
-      {showAdminModal && (
-        <AdminModal onClose={() => setShowAdminModal(false)} />
-      )}
     </div>
   );
 }

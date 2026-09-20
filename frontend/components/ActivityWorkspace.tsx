@@ -9,7 +9,6 @@ import {
   type Classroom,
   type Me,
 } from "@/lib/api";
-import { AppNav } from "./AppNav";
 
 function fmtDuration(seconds: number): string {
   if (!seconds) return "0m";
@@ -104,7 +103,6 @@ export function ActivityWorkspace({ me }: { me: Me }) {
 
   return (
     <>
-      <AppNav me={me} current="/faculty/activity" />
       <div className="page">
         <h1 className="page-title">Student activity &amp; collected data</h1>
         <p className="muted" style={{ marginTop: 0 }}>

@@ -101,6 +101,8 @@ export interface Me {
   role: "student" | "faculty" | "admin";
   reg_no: string | null;
   profile_complete: boolean;
+  /** What the UI may offer; every staff route still re-checks on the server. */
+  capabilities?: { settings: boolean; admin: boolean };
 }
 
 export interface Classroom {

@@ -537,3 +537,51 @@ header.bar {
   .auth-card { max-width: 100%; }
   input, textarea, select { font-size: 16px; } /* stops iOS zoom-on-focus */
 }
+
+/* --- Settings (one frame for Classroom, Activity, Sessions, Marks, Admin) --- */
+
+.settings-frame { min-height: 100vh; min-height: 100dvh; }
+.settings-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.settings-back { color: var(--muted); text-decoration: none; font-size: 0.875rem; }
+.settings-back:hover { color: var(--text); }
+.settings-title { font-size: 1.1rem; margin: 0; }
+.settings-user { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.settings-who { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.settings-tab {
+  padding: 11px 14px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.settings-tab:hover { color: var(--text); }
+.settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.settings-body { padding-bottom: 40px; }
+.classroom-panel .panel-body { padding-top: 16px; }
+.settings-link-drawer { display: none; width: 100%; }
+
+@media (max-width: 768px) {
+  .settings-link-top { display: none; }
+  .settings-link-drawer { display: inline-flex; }
+  .settings-header { padding: 10px 12px; }
+  .settings-tabs { padding: 0 12px; }
+  .settings-who { display: none; }
+}

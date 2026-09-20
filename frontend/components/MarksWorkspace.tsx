@@ -11,7 +11,6 @@ import {
   type MarksAnalyticsRow,
   type Me,
 } from "@/lib/api";
-import { AppNav } from "./AppNav";
 
 export function MarksWorkspace({ me }: { me: Me }) {
   const router = useRouter();
@@ -144,7 +143,6 @@ export function MarksWorkspace({ me }: { me: Me }) {
 
   return (
     <>
-    <AppNav me={me} current="/faculty/marks" />
     <div className="page">
       <h1 className="page-title">Pre/Post-Test Marks &amp; Analytics</h1>
       <p className="muted" style={{ marginTop: 0 }}>

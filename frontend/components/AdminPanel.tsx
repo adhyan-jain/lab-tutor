@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError, type AdminUser } from "@/lib/api";
-import { CloseIcon } from "@/components/Icons";
 
-export function AdminModal({ onClose }: { onClose: () => void }) {
+export function AdminPanel() {
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,8 +32,16 @@ export function AdminModal({ onClose }: { onClose: () => void }) {
     setError("");
     setMsg("");
     try {
-      await api.patch(`/api/admin/users/${userId}/role`, { role });
-      setMsg("User platform role updated successfully.");
+      const res = await api.patch<{ moved_to_student_in?: string[] }>(
+        `/api/admin/users/${userId}/role`,
+        { role },
+      );
+      const moved = res.moved_to_student_in?.length ?? 0;
+      setMsg(
+        moved > 0
+          ? `Role updated. Their faculty access in ${moved} class${moved === 1 ? "" : "es"} was changed to student.`
+          : "Role updated.",
+      );
       searchUsers(query);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -54,19 +61,13 @@ export function AdminModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Platform Administration</h2>
-            <p className="muted" style={{ margin: 0 }}>Global Role & User Management</p>
-          </div>
-          <button className="btn btn-secondary btn-sm" onClick={onClose} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <CloseIcon size={14} /> Close
-          </button>
-        </div>
-
-        <div className="modal-body">
+    <div className="page">
+      <h2 className="page-title">Platform admin</h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Change anyone's platform role. Setting a role to student also moves any classes where they
+        were faculty to student.
+      </p>
+        <div>
           {error && <div className="error">{error}</div>}
           {msg && <div className="notice" style={{ background: "var(--success-weak)", color: "var(--success)" }}>{msg}</div>}
 
@@ -162,7 +163,6 @@ export function AdminModal({ onClose }: { onClose: () => void }) {
             </table>
           )}
         </div>
-      </div>
     </div>
   );
 }
