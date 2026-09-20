@@ -56,15 +56,21 @@ function renderFormattedContent(content: string) {
 export function MessageBubble({
   message,
   showStepHeader = true,
+  onQuickReply,
 }: {
   message: UnifiedChatMessage;
   /** Show "Step N of M: <prompt>" as the first paragraph. The caller turns it off
    * when the previous tutor reply was already on the same step. */
   showStepHeader?: boolean;
+  /** Send text as though the student typed it -- wired to option buttons,
+   * quick-reply chips and quiz answers on a walkthrough turn. Only passed
+   * for the most recent message, so old option buttons render inert. */
+  onQuickReply?: (text: string) => void;
 }) {
 
   const isStudent = message.author === "student";
   const meta = message.metadata || {};
+  const ui = meta.ui;
   const [copied, setCopied] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
 
@@ -141,6 +147,31 @@ export function MessageBubble({
           </div>
         )}
 
+        {/* Walkthrough progress rail */}
+        {meta.type === "walkthrough" && ui?.progress && (
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px",
+              fontSize: "0.75rem", color: "var(--muted)",
+            }}
+          >
+            <div
+              aria-hidden
+              style={{
+                flex: 1, height: "4px", borderRadius: "2px", background: "var(--border)", position: "relative", overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute", inset: 0, width: `${Math.min(100, (ui.progress.index / Math.max(1, ui.progress.total)) * 100)}%`,
+                  background: "var(--accent)", borderRadius: "2px",
+                }}
+              />
+            </div>
+            <span>{ui.progress.label}</span>
+          </div>
+        )}
+
         {/* Message Content */}
         <div style={{ wordBreak: "break-word", lineHeight: 1.55 }}>
           {renderFormattedContent(
@@ -149,6 +180,64 @@ export function MessageBubble({
               : message.content
           )}
         </div>
+
+        {/* Walkthrough option buttons (MCQ / checkpoint) */}
+        {meta.type === "walkthrough" && ui?.options && ui.options.length > 0 && (
+          <div role="group" aria-label="Answer options" style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
+            {ui.options.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={!onQuickReply}
+                onClick={() => onQuickReply?.(`${opt.key.toUpperCase()}. ${opt.text}`)}
+                style={{ textAlign: "left", justifyContent: "flex-start", whiteSpace: "normal" }}
+              >
+                <strong style={{ marginRight: "6px" }}>{opt.key.toUpperCase()}.</strong> {opt.text}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Checkpoint quiz: two questions, each with its own option group */}
+        {meta.type === "walkthrough" && ui?.quiz && ui.quiz.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+            {ui.quiz.map((item) => (
+              <div key={item.n} role="group" aria-label={`Question ${item.n}`} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {item.options.map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={!onQuickReply}
+                    onClick={() => onQuickReply?.(`${item.n}${opt.key}`)}
+                    style={{ textAlign: "left", justifyContent: "flex-start", whiteSpace: "normal" }}
+                  >
+                    <strong style={{ marginRight: "6px" }}>{item.n}{opt.key}.</strong> {opt.text}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Quick-reply chips (Give me a hint, Why do this step?, ...) */}
+        {meta.type === "walkthrough" && ui?.chips && ui.chips.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+            {ui.chips.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={!onQuickReply}
+                onClick={() => onQuickReply?.(chip)}
+                style={{ borderRadius: "999px", fontSize: "0.75rem", padding: "4px 12px" }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
 
 
         {/* Diagnostic Citation */}

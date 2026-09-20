@@ -260,8 +260,8 @@ export function ChatWorkspace({ me }: { me: Me }) {
   };
 
   // Send Message handler
-  const handleSend = async () => {
-    const text = input.trim();
+  const handleSend = async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || !activeClassroom || sending) return;
 
     setError("");
@@ -664,7 +664,15 @@ export function ChatWorkspace({ me }: { me: Me }) {
                 }
               }
               const showStepHeader = prevStep === undefined || prevStep !== m.metadata?.current_step;
-              return <MessageBubble key={m.id} message={m} showStepHeader={showStepHeader} />;
+              const isLast = i === messages.length - 1;
+              return (
+                <MessageBubble
+                  key={m.id}
+                  message={m}
+                  showStepHeader={showStepHeader}
+                  onQuickReply={isLast && !sending ? (text) => handleSend(text) : undefined}
+                />
+              );
             })
           )}
           <div ref={scrollRef} />

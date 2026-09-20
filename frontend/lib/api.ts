@@ -312,8 +312,32 @@ export interface ChatThread {
   updated_at: string;
 }
 
+export interface WalkthroughOption {
+  key: string;
+  text: string;
+}
+
+export interface WalkthroughQuizItem {
+  n: number;
+  kind: "recall" | "preview";
+  stem: string;
+  options: WalkthroughOption[];
+}
+
+export interface WalkthroughUi {
+  kind: "hook" | "step" | "quiz" | "paused" | "done";
+  progress?: { label: string; index: number; total: number; chapter: string };
+  phase?: string;
+  step_id?: string;
+  title?: string;
+  question_id?: string | null;
+  options?: WalkthroughOption[];
+  quiz?: WalkthroughQuizItem[];
+  chips?: string[];
+}
+
 export interface ChatMessageMetadata {
-  type?: "qa" | "socratic" | "diagnostic" | "triage";
+  type?: "qa" | "socratic" | "diagnostic" | "triage" | "walkthrough";
   status?: string;
   tier?: number;
   action?: string;
@@ -327,6 +351,10 @@ export interface ChatMessageMetadata {
   total_steps?: number;
   complete?: boolean;
   prompt?: string;
+  /** Guided-walkthrough turn: rendering hints and the raw controller event,
+   * for the step card, options/chips and (elsewhere) analytics. */
+  ui?: WalkthroughUi;
+  walkthrough?: Record<string, unknown>;
 }
 
 
