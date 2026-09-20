@@ -49,7 +49,10 @@ from backend.models import (
     SocraticSession,
     Submission,
 )
+from backend.config import get_settings
 from backend.pipeline import run_diagnosis
+from backend.socratic_engine.walkthrough import controller as walkthrough_controller
+from backend.socratic_engine.walkthrough import service as walkthrough_service
 from backend.retrieval.pipeline import QUALITATIVE_EXPERIMENTS, answer_question
 from backend.llm import telemetry as llm_telemetry
 from backend.router import RouterMode, route_message
@@ -818,6 +821,29 @@ async def send_message(
     # --- Intelligence Routing ---
     # 1. Safety Triage
     intent = triage.classify(body.message)
+
+    # Guided walkthrough (Exp7): deterministic verification of each step,
+    # zero model calls for most turns. Safety triage above always wins, and
+    # so does a pasted key=value diagnostic record (e.g. a student who
+    # skips guidance and submits a finished run directly) -- that always
+    # goes to the Tier 1 final-diagnostic path below, walkthrough or not.
+    wt_turn = None
+    if (
+        not triage.short_circuits(intent)
+        and not _extract_numbers_dict(body.message)
+        and get_settings().walkthrough_enabled
+        and experiment_id in walkthrough_service.SUPPORTED_EXPERIMENTS
+    ):
+        wt_turn = await walkthrough_service.handle_turn(
+            db,
+            user_id=principal.id,
+            classroom_id=body.classroom_id,
+            class_session_id=class_session_id,
+            experiment_id=experiment_id,
+            actor_type=actor_type,
+            message=body.message,
+        )
+
     if triage.short_circuits(intent):
         reply_text = triage.fixed_response(intent) or ""
         msg_kind = ChatMessageKind.QA
@@ -829,6 +855,30 @@ async def send_message(
                 classroom_id=body.classroom_id,
                 detail={"intent": intent.value, "message": body.message[:500]},
             )
+    elif wt_turn is not None and wt_turn.reply is not None:
+        reply_text = wt_turn.reply
+        msg_kind = ChatMessageKind.SOCRATIC
+        meta = {"type": "walkthrough", "walkthrough": wt_turn.events, "ui": wt_turn.ui}
+    elif wt_turn is not None:
+        # A genuine side question mid-walkthrough: the normal grounded
+        # answer, then a code-written line that brings the student back.
+        side_history = f"{history_text}\n[{walkthrough_controller.step_context(wt_turn.state)}]".strip()
+        result = await answer_question(
+            body.message, active_experiment=experiment_id, conversation_history=side_history
+        )
+        reply_text = result.text + wt_turn.resume_line
+        msg_kind = ChatMessageKind.QA
+        meta = {
+            "type": "qa",
+            "status": result.status.value,
+            "citations": [
+                {"text": c.text, "page": c.page, "tier": c.tier.value} for c in result.citations
+            ],
+            "answer_source": result.answer_source,
+            "intent": intent.value,
+            "walkthrough": wt_turn.events,
+            **_llm_meta(result.latency_ms, result.prompt_tokens, result.completion_tokens),
+        }
     else:
         # 2. Resolve the Tier 1 plugin (if any) and any numeric data the
         # student typed, in plain text -- "ecell=1.1, temperature_k=298"

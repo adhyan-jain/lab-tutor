@@ -128,6 +128,9 @@ class Settings(BaseSettings):
     llm_context_cache_scopes: str = Field("exp07", alias="LABTUTOR_LLM_CONTEXT_CACHE_SCOPES")
     #: Long enough to cover a class session (renewed on use), never indefinite.
     llm_context_cache_ttl_seconds: int = Field(10800, alias="LABTUTOR_LLM_CONTEXT_CACHE_TTL_SECONDS")
+    #: Guided, verified step-by-step walkthrough for Exp7 (no model call for
+    #: most turns). Off returns Exp7 to plain grounded Q&A.
+    walkthrough_enabled: bool = Field(True, alias="LABTUTOR_WALKTHROUGH")
     ollama_base_url: str = Field("http://localhost:11434", alias="LABTUTOR_OLLAMA_BASE_URL")
     ollama_model: str = Field("qwen2.5:7b", alias="LABTUTOR_OLLAMA_MODEL")
     #: Some local models (e.g. qwen3) default to an internal "thinking"

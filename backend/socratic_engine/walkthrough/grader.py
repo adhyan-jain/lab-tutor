@@ -63,10 +63,10 @@ _QUESTION_START_RE = re.compile(
     re.IGNORECASE,
 )
 _START_RE = re.compile(
-    r"\b(how (do|can|should|would|to) (i|we|you)?|how to|steps? (to|for)|procedure|"
-    r"walk me|guide me|guidance|help me|where do i start|how do i start|let.?s start|"
-    r"start the (experiment|lab)|begin|explain the (experiment|procedure)|"
-    r"what do i (do|need to do)|what should i do)\b",
+    r"\b(how (do|can|should|would) (i|we)\b|how to\b|steps? (to|for)|procedure|"
+    r"walk me|guide me|guidance|help me|where do i start|let.?s (start|begin)|"
+    r"start the (experiment|lab)|explain the (experiment|procedure)|"
+    r"what do i (do|need to do)|what should i do)",
     re.IGNORECASE,
 )
 
@@ -145,7 +145,7 @@ def is_side_question(text: str) -> bool:
 
 _RESUME_PHRASES_RE = re.compile(
     r"\b(next step|what now|what next|where was i|where do i start|guide me|what should i do|"
-    r"what do i do( now| next)?|continue)\b",
+    r"what do i do( now| next)?|how do i (start|begin|proceed|do this)|continue)\b",
     re.IGNORECASE,
 )
 

@@ -119,7 +119,8 @@ _OFF_SCOPE_PATTERNS: tuple[str, ...] = (
     r"\bsummar(?:ise|ize)\s+chapter\b",
     r"\bfor\s+lunch\b",
     r"\bquantum\s+entanglement\b",
-    r"\b(?:my\s+)?resume\b|\bcv\b",
+    # Job-application "resume", not the walkthrough's own "resume" command.
+    r"\bmy\s+resume\b|\bresume\s+(?:writing|template|format)\b|\bcv\b",
     r"\bwhen\s+is\s+the\s+(?:exam|test|quiz)\b",
 )
 

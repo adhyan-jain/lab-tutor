@@ -286,16 +286,16 @@ class TestChatThreads:
         )
         assert resp_qa.status_code == 200
         data_qa = resp_qa.json()
-        assert data_qa["message"]["kind"] in ("qa", "socratic")
+        # Exp7 now runs the guided walkthrough engine (backend/socratic_engine/
+        # walkthrough), which replaces the old prompt-only Socratic mode for
+        # this experiment: a "guide me" style message opens a curiosity hook,
+        # not the legacy stepwise-prompt reply.
+        assert data_qa["message"]["kind"] == "socratic"
         meta_qa = data_qa["message"]["metadata"]
-        assert meta_qa["type"] == "socratic"
-        # Exp7/8 can never advance through steps, so no "Step N of M" banner
-        # metadata is sent (it would repeat above every reply).
-        assert "current_step" not in meta_qa
-        assert "total_steps" not in meta_qa
-        assert "prompt" not in meta_qa
+        assert meta_qa["type"] == "walkthrough"
 
-        # 2. Diagnostic flow
+        # 2. Diagnostic flow -- unaffected by the walkthrough, which only
+        # engages for guidance-shaped messages, not a pasted data record.
         resp_diag = await client.post(
             "/api/chat/messages",
             json={

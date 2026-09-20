@@ -327,6 +327,40 @@ class SocraticSession(Base):
     )
 
 
+class WalkthroughProgress(Base):
+    """Where a student is in a guided walkthrough (Exp7 today).
+
+    One row per student, classroom, experiment and actor type; the state is
+    the controller's JSON (step, tries, facts the student reported,
+    predictions, quiz history). Per-turn events are also written to
+    ChatMessage.metadata_json so analytics need no second store.
+    """
+
+    __tablename__ = "walkthrough_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id", "classroom_id", "experiment_id", "actor_type", name="uq_walkthrough_scope"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    student_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    classroom_id: Mapped[str] = mapped_column(ForeignKey("classrooms.id"), index=True)
+    class_session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("class_sessions.id"), nullable=True, index=True
+    )
+    experiment_id: Mapped[str] = mapped_column(String(64), index=True)
+    actor_type: Mapped[ActorType] = mapped_column(
+        Enum(ActorType), default=ActorType.STUDENT, index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    state: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now
+    )
+
+
 class SocraticAttempt(Base):
     __tablename__ = "socratic_attempts"
 
