@@ -1116,10 +1116,11 @@ async def send_message(
     }
     log.info(
         "chat_message llm_calls=%d attempts=%d retries=%d vertex_ok=%s fallback=%s "
-        "cache_hit=%s cached_tokens=%s model=%s student=%s classroom=%s exp=%s",
+        "cache_hit=%s cache_ref=%s cached_tokens=%s model=%s student=%s classroom=%s exp=%s",
         llm_stats.calls, llm_stats.attempts, llm_stats.retry_count,
         llm_stats.vertex_succeeded, llm_stats.fallback_used, llm_stats.cache_hit,
-        llm_stats.cached_tokens, llm_stats.model, principal.id, body.classroom_id, experiment_id,
+        llm_stats.cache_ref, llm_stats.cached_tokens, llm_stats.model, principal.id,
+        body.classroom_id, experiment_id,
     )
     assistant_msg = ChatMessage(
         thread_id=thread.id,

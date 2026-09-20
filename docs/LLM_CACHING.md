@@ -92,6 +92,16 @@ image or the environment.
     python -m backend.llm.context_cache --list
     python -m backend.llm.context_cache --refresh [--delete-stale]
 
+or, equivalently: `make list-llm-cache`, `make refresh-llm-cache`.
+
+**Observability.** `cache_hit`, `cache_ref` (fingerprint, first 8 hex
+characters -- a version id, not a secret) and `cached_tokens` are in every
+tutor message's metadata (`llm_stats.as_meta()`) and in the `chat_message`
+log line. `context_cache.py` additionally logs one INFO line per lifecycle
+event: `created` vs `reused` on `ensure()`, `expired` and `miss` (creation
+started) in `resolve()`, and a line if renewal fails. None of these ever
+include student text or a secret.
+
 ## If I edit `manual/IACHY102_manual.md`, what happens?
 
 Redeploy (or restart) the backend so the retrieval index is rebuilt. The Exp7

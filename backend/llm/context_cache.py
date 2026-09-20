@@ -125,8 +125,10 @@ class ContextCacheManager:
                     asyncio.create_task(self._renew(fp, entry))
                 return entry.name
             self._entries.pop(fp, None)
+            log.info("Context cache expired scope=%s ref=%s; will recreate", req.scope, fp[:8])
 
         if fp not in self._inflight and now >= self._failed_until.get(fp, 0.0):
+            log.info("Context cache miss scope=%s ref=%s; creating in the background", req.scope, fp[:8])
             self._inflight[fp] = asyncio.create_task(self._create_guarded(req, fp))
         return None
 
@@ -159,6 +161,7 @@ class ContextCacheManager:
         fp = self.fingerprint(req)
         display = cache_display_name(req.scope, fp)
         found = await self._find(display)
+        was_created = found is None
         if found is None:
             created = await self.client.aio.caches.create(  # type: ignore[attr-defined]
                 model=self.model,
@@ -183,7 +186,10 @@ class ContextCacheManager:
         self._entries[fp] = _Entry(
             name=found.name, expire_at=_expire_epoch(found, self.ttl_seconds)
         )
-        log.info("Context cache ready scope=%s ref=%s", req.scope, fp[:8])
+        log.info(
+            "Context cache ready scope=%s ref=%s event=%s",
+            req.scope, fp[:8], "created" if was_created else "reused",
+        )
         return found.name
 
     async def _find(self, display_name: str):
