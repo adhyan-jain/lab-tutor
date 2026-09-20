@@ -52,9 +52,9 @@ async def _classroom_or_404(
 class MarksEntry(BaseModel):
     student_id: str
     pre_test_marks: float | None = None
-    pre_test_max: float = Field(default=20.0, gt=0)
+    pre_test_max: float = Field(default=10.0, gt=0)
     post_test_marks: float | None = None
-    post_test_max: float = Field(default=20.0, gt=0)
+    post_test_max: float = Field(default=10.0, gt=0)
 
 
 class SubmitMarksRequest(BaseModel):
@@ -99,9 +99,9 @@ async def get_marks(
                 "student_name": user.name,
                 "student_email": user.email,
                 "pre_test_marks": row.pre_test_marks if row else None,
-                "pre_test_max": row.pre_test_max if row else 20.0,
+                "pre_test_max": row.pre_test_max if row else 10.0,
                 "post_test_marks": row.post_test_marks if row else None,
-                "post_test_max": row.post_test_max if row else 20.0,
+                "post_test_max": row.post_test_max if row else 10.0,
             }
         )
     return {"experiment_id": experiment_id, "students": out}
