@@ -1603,11 +1603,10 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B",
-        "C"
+        "B"
       ],
       "citation_expected": true,
-      "supplementary": true,
+      "supplementary": false,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2323,11 +2322,10 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B",
-        "C"
+        "B"
       ],
       "citation_expected": true,
-      "supplementary": true,
+      "supplementary": false,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2731,11 +2729,10 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B",
-        "C"
+        "B"
       ],
       "citation_expected": true,
-      "supplementary": true,
+      "supplementary": false,
       "verified": true,
       "verification_note": "ok"
     },
@@ -2966,7 +2963,7 @@
       "language": "english",
       "routed_experiment": "exp07",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "in_scope_supported",
+      "expected_behavior": "adjacent_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
@@ -3935,10 +3932,11 @@
       "blocked_reason": null,
       "allowed_sources": [
         "A",
-        "B"
+        "B",
+        "C"
       ],
       "citation_expected": true,
-      "supplementary": false,
+      "supplementary": true,
       "verified": true,
       "verification_note": "ok"
     },

@@ -1858,7 +1858,7 @@
       "language": "english",
       "routed_experiment": "exp03",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
@@ -2180,7 +2180,7 @@
       "language": "english",
       "routed_experiment": "exp03",
       "scope_level": "level_2_adjacent",
-      "expected_behavior": "adjacent_supported",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
       "blocked_reason": null,
       "allowed_sources": [
@@ -2203,11 +2203,14 @@
       "language": "english",
       "routed_experiment": "exp03",
       "scope_level": "level_1_direct",
-      "expected_behavior": "in_scope_retrieval_insufficient",
+      "expected_behavior": "in_scope_supported",
       "expected_answer_facts": null,
-      "blocked_reason": "retrieval found no manual passage clearing the grounding bar for this question",
-      "allowed_sources": [],
-      "citation_expected": false,
+      "blocked_reason": null,
+      "allowed_sources": [
+        "A",
+        "B"
+      ],
+      "citation_expected": true,
       "supplementary": false,
       "verified": true,
       "verification_note": "ok"

@@ -9,6 +9,8 @@ follow-up keeps the topic of the previous question.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from backend.llm import telemetry
@@ -90,6 +92,98 @@ def test_no_example_numbers_from_the_screenshots_are_reproduced():
     text = _stable()
     for number in ("-40.474709", "-150.147335", "-14.909", "-9.710"):
         assert number not in text
+
+
+# --- screen guides: glossary, output anatomy, source tags ---------------------
+
+BACKGROUND = Path(__file__).resolve().parents[2] / "knowledge" / "adjacent" / "exp07_background.md"
+
+GUIDE_SECTIONS = (
+    "Gabedit's main window, control by control",
+    "Gabedit's Draw Geometry window, control by control",
+    "The ORCA input dialog, field by field",
+    "Reading an ORCA output file, in file order",
+    "Avogadro's screen, control by control",
+)
+SOURCE_TAGS = ("shown in the manual's screenshot", "documented by", "not documented")
+STABLE_TOKEN_CEILING = 16_000
+
+
+def _sections(text: str) -> dict[str, str]:
+    parts: dict[str, str] = {}
+    current = None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip()
+            parts[current] = ""
+        elif current is not None:
+            parts[current] += line + "\n"
+    return parts
+
+
+def _bullets(section: str) -> list[str]:
+    bullets: list[str] = []
+    for line in section.splitlines():
+        if line.startswith("- "):
+            bullets.append(line[2:])
+        elif bullets and line.startswith("  "):
+            bullets[-1] += " " + line.strip()
+    return bullets
+
+
+def test_guide_sections_reach_the_exp07_stable_context():
+    text = _stable()
+    for heading in GUIDE_SECTIONS:
+        assert heading in text, heading
+    for section in (
+        "Restricted versus unrestricted, and why oxygen needs care",
+        "Where each Table 1 and Table 2 quantity comes from",
+    ):
+        assert section in text, section
+
+
+def test_every_control_line_in_the_guides_names_where_it_comes_from():
+    sections = _sections(BACKGROUND.read_text())
+    for heading in GUIDE_SECTIONS:
+        bullets = _bullets(sections[heading])
+        assert len(bullets) >= 8, f"{heading} is too thin"
+        for bullet in bullets:
+            assert any(tag in bullet for tag in SOURCE_TAGS), f"untagged line in {heading!r}: {bullet[:70]}"
+
+
+def test_controls_no_source_names_are_marked_not_documented_rather_than_guessed():
+    text = BACKGROUND.read_text()
+    assert text.count("not documented") >= 12
+    for control in ("Insert, View and Help menus", "The M button", "coloured circles"):
+        assert control.lower().replace("the ", "") in text.lower().replace("the ", ""), control
+
+
+def test_background_file_keeps_its_policy():
+    text = BACKGROUND.read_text()
+    assert text.startswith("<!--\ntier: C")
+    assert "## Experiment" not in text
+    assert "print [p_mos]" not in text and "! Opt" not in text, "input syntax does not belong here"
+
+
+def test_guide_growth_does_not_leak_screenshot_numbers():
+    text = _stable()
+    for number in (
+        "-303.08",
+        "-25.88",
+        "8.1621",
+        "0.299953",
+        "-11.138332",
+        "-0.951099",
+        "1.961213",
+        "53.36",
+        "-0.987071",
+        "0.772 sec",
+    ):
+        assert number not in text, number
+
+
+def test_exp07_stable_context_stays_under_the_size_guard():
+    assert len(_stable()) / 4 < STABLE_TOKEN_CEILING
 
 
 # --- follow-up topic carry-over ----------------------------------------------

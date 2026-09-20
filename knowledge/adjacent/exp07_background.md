@@ -13,7 +13,9 @@ of a finished run, and what commonly goes wrong. It contains no menu
 paths, no input syntax and no numerical results; the values a student
 reports come only from their own runs. If anything here ever seems to
 disagree with the manual about what a step should look like, the manual
-is the authority.
+is the authority. The screen guides further down say what each control
+or output section is; they are not a procedure, and each line says where
+its information comes from.
 
 ## What Gabedit, ORCA and Avogadro are
 
@@ -299,6 +301,269 @@ completion message. It also writes other files: a binary wavefunction
 file (.gbw), density files, and a short properties text file. Only the
 .out file is meant to be read by eye. Avogadro reads the .out file to show
 the molecule and its orbitals.
+
+## Gabedit's main window, control by control
+
+A student new to Gabedit meets a screen full of unlabelled icons. Each
+line below says what a control is and where that knowledge comes from:
+the manual's own screenshots, a primary manual for the program, or
+nothing (in which case the honest answer is to hover for the tooltip or
+ask the demonstrator). The course uses Gabedit 2.5.1; the only Gabedit
+manual available is for 2.1.0, so a label there can differ slightly.
+
+- **Menu bar: File, Edit, Insert, View, Geometry, Tools, Run, Settings, Help.** These are the
+  menus across the top of the main window. (Source: shown in the manual's screenshot.)
+- **Geometry, then Draw.** Opens the "Draw Geometry" window, where molecules are sketched and
+  examined in three dimensions. (Source: documented by the Gabedit 2.1.0 manual, section on
+  building molecules, and shown in the manual's screenshot.)
+- **Run menu.** Holds "Run a Computation Chemistry program" (which opens the Run dialog) and "View
+  result of calculation". (Source: shown in the manual's screenshot.)
+- **Settings menu.** Its Preferences page holds the default command for each program and the
+  remote-connection protocol. The course's Run dialog already shows the command orca, so nothing
+  there needs changing for a local run. (Source: documented by the Gabedit 2.1.0 manual.)
+- **Tools menu.** A Batch, Remote item lists and can kill jobs on a remote server; irrelevant for
+  a run on the lab PC. (Source: documented by the Gabedit 2.1.0 manual.)
+- **Insert, View and Help menus.** What they contain is not documented in the manual or the
+  screenshots; hover for the tooltip or ask the demonstrator.
+- **The first group of small toolbar icons.** These repeat, in the same order, the program icons
+  beside the names in the Recent Projects list (Demon, Firefly, Gamess, Gaussian, Molcas, Molpro,
+  Mopac, MPQC, NWChem, Psicode, ORCA, Q-Chem). Each opens that program's input generator. The
+  manual's screenshots put a red box round the one labelled ORCA. (Source: shown in the manual's
+  screenshot.)
+- **The remaining toolbar icons** (file open and save, print, cut, copy, paste, search and others).
+  Their individual functions are not documented; hover for the tooltip.
+- **Recent Projects panel on the left.** A list of program names and file-type folders (XYZ, MOL2,
+  PDB, Tinker, Gauss Zmat, Mopac Zmat, Hyperchem, Others). ORCA and Gabedit have expander
+  arrows. What clicking each entry does is not documented.
+- **The file tab above the text area.** It shows the open file's name (for example a methane file
+  ending in .gab) with the structure written as text under a "[Gabedit Format]" line, one row per
+  atom. A second tab is labelled "Unknown"; what it is for is not documented. (Source: shown in
+  the manual's screenshot.)
+- **Location, Output and Error tabs, with the Local and Remote panels at the bottom.** The Local
+  panel lists Host, Login and Directory; the Remote panel lists the same three for a remote
+  server. How the Local Directory relates to the Run dialog's Folder field is not documented.
+  (Source: shown in the manual's screenshot.)
+- **Output-page buttons Update/end, Geom. Conv., Dens. Orb. and Get All files.** Update/end
+  refreshes the output of a job submitted locally, Geom. Conv. shows how the geometry changed over
+  an optimisation, Dens. Orb. opens Gabedit's own orbital and density viewer, and Get All files
+  fetches results from a remote machine. The course reads the .out file and views orbitals in
+  Avogadro instead. (Source: documented by the Gabedit 2.1.0 manual.)
+
+## Gabedit's Draw Geometry window, control by control
+
+- **The toolbar down the left side.** A button marked M at the top, then columns of small icons
+  separated by thin lines. The Gabedit 2.1.0 manual says this toolbar offers: a free selection and a
+  fragment selection (hold Shift to select separate pieces), move and rotate for the selected atoms,
+  a measure tool for atom-atom distance, angle and torsion (pick four atoms for a torsion), delete
+  (click one of the selected atoms), and add or replace an atom. (Source: documented by the Gabedit
+  2.1.0 manual.) Which picture is which tool is not documented, because the manual's icons are
+  unlabelled; hover for the tooltip or ask the demonstrator. The M button is not documented either.
+- **The icon in the red box in the oxygen step.** It is the add-or-replace-atom control: it opens the
+  "Select your atom" periodic table, you pick the element, then click in the drawing area; clicking
+  on an existing atom replaces it. (Source: documented by the Gabedit 2.1.0 manual, and shown in the
+  manual's screenshot, where the box and an arrow on the O tile mark the two clicks.)
+- **The "Select your atom" window.** A coloured periodic table with a tile per element. A tile
+  marked X at the bottom left is not documented. (Source: shown in the manual's screenshot.)
+- **The fragment window (title truncated to "Gabedit : Fragment Sel...").** A list headed Fragments
+  in groups such as Functionals, Rings, Heterocyclic and Hydrocarbon, with a black preview pane
+  below it. Choose an entry, then click in the drawing area to drop it. About a hundred fragments
+  ship with Gabedit and you can save your own. The coloured circles in the preview pane are not
+  documented. (Source: shown in the manual's screenshot, and documented by the Gabedit 2.1.0 manual.)
+- **The hint lines at the bottom of the drawing window.** They begin "Press the Middle mo..." and
+  are cut off in the screenshot, so the full mouse hints are not documented. (Source: shown in the
+  manual's screenshot.)
+- **The right-click menu.** Entries: Read, Edit, Selection, Save as, Add, Build, Crystallography,
+  Operations, Labels, Render, Symmetry, Set, Export, Screen Capture, Tools, Amber potential,
+  (Semi-)empirical, View, Close. (Source: shown in the manual's screenshot.) Read loads a structure
+  from an existing file, Build makes linear, ring and symmetric molecules, polypeptides, nucleic
+  acids and nanotubes, and Add offers the fragment library. (Source: documented by the Gabedit
+  2.1.0 manual.) What the other entries do is not documented.
+- **Save as.** Offers Gabedit file, XYZ, Mol2, Mol, Tinker, pdb, POSCAR (Cartesian and Direct), CIF
+  (with all atoms, or with symmetry operators), Hyperchem, CChemI, Mopac Zmatrix, Gaussian Zmatrix
+  and Other format (using open babel). The course picks Gabedit file, which is the format Gabedit's
+  main window opens next. (Source: shown in the manual's screenshot.)
+- **Molecular Mechanics optimisation.** Gabedit's own force-field clean-up is a different tool from
+  the ORCA optimisation the course runs; it is not part of the course workflow. (Source: documented
+  by the Gabedit 2.1.0 manual; the course version's menu for it is not documented.)
+
+## The ORCA input dialog, field by field
+
+Every field here is a control the student sets before pressing OK. The dialog is titled "Orca input".
+
+- **Charge.** The net charge of the whole molecule. (Source: shown in the manual's screenshot.)
+- **Spin multiplicity.** 2S+1 for the electronic state to calculate. The manual does not say what
+  to enter for oxygen, and its dialog screenshot in the oxygen section still shows the methane
+  setting. (Source: shown in the manual's screenshot; the value for oxygen is not documented, so ask
+  the demonstrator.)
+- **Number of electrons.** A read-only line the dialog fills in from the atoms and the charge. It is
+  the quickest way to check that the charge is sensible: an odd number of electrons cannot be a
+  singlet. (Source: shown in the manual's screenshot.)
+- **Job Type.** The manual's screenshots show "Equilibrium structure search" for the optimisation and
+  "Single Point Energy" for the orbital run. The other entries in the list are not documented.
+  (Source: shown in the manual's screenshot.)
+- **SCF Type.** The screenshots show "restricted". Restricted and unrestricted are explained in the
+  next section. (Source: shown in the manual's screenshot.)
+- **SCF Convergence.** Set to "Default" in the screenshots. ORCA itself offers a ladder of stricter
+  and looser convergence criteria; the entries in the dialog's list are not documented.
+  (Source: documented by the ORCA manual for the ladder; the dialog's list is not documented.)
+- **Type of method.** Chooses the family of method: Hartree-Fock, local and gradient corrected
+  functionals, hybrid functionals, meta-GGA and hybrid meta-GGA, a perturbatively corrected double
+  hybrid, second-order many-body perturbation theory, high-level single-reference methods and
+  semiempirical methods. The course tables use the hybrid family. (Source: shown in the manual's
+  screenshot.)
+- **Method.** The specific functional inside that family, for example B3LYP or B3P. Changing the
+  family changes the list. (Source: shown in the manual's screenshot.)
+- **Excited states.** Set to "Nothing" in the screenshots, meaning only the ground state is
+  calculated. ORCA can compute excited states with time-dependent methods, but the dialog's other
+  entries are not documented. (Source: shown in the manual's screenshot; the time-dependent methods
+  are documented by the ORCA manual.)
+- **Type (basis family).** Set to "Pople Style basis sets". (Source: shown in the manual's
+  screenshot.)
+- **Basis.** The named basis set: the manual's tables use 6-31G, 6-31G* and 6-31G**. A star adds
+  polarisation functions on heavy atoms and two stars add them on hydrogen as well. (Source: shown
+  in the manual's screenshot; the star convention is documented by the ORCA manual.)
+- **Auxiliary basis.** In the screenshots this field reads "AutoAux Automatic construction of a
+  general purpose fitting basis" and is greyed out, so it cannot be edited for those settings. An
+  auxiliary (fitting) basis is a second, helper basis that lets ORCA approximate the two-electron
+  integrals faster; AutoAux means ORCA builds one automatically. The timing table in the manual's
+  screenshots lists a "Split-RI-J" line, the Coulomb approximation that uses the auxiliary basis,
+  and a "Chain of spheres X" line, a companion approximation for the exchange part. (Source: shown in the manual's screenshot; AutoAux and the approximations are
+  documented by the ORCA manual. Why the field is greyed out is not documented.)
+- **Initial Guess.** Set to "Default". The starting orbitals for the SCF iterations. ORCA's own list
+  includes a superposition of atomic densities (its default), a model potential, an extended-Hueckel
+  guess, the bare-nucleus (core Hamiltonian) guess and reading orbitals from an earlier run. The
+  choice affects speed and whether the SCF converges, not what the converged answer is meant to be.
+  (Source: shown in the manual's screenshot for the field; documented by the ORCA manual for the
+  list. The dialog's own list is not documented.)
+- **Cancel and OK.** Cancel closes the dialog; OK writes the input into Gabedit's editor tab and the
+  run itself is started later from the Run menu. (Source: shown in the manual's screenshot.)
+
+## Restricted versus unrestricted, and why oxygen needs care
+
+A restricted calculation puts electrons in pairs into the same spatial orbital, one spin up and one
+spin down. That is the natural description for a molecule where every electron is paired, like
+methane. An unrestricted calculation gives spin-up and spin-down electrons their own orbitals, which
+is needed when there are unpaired electrons, as in oxygen's ground state. Restricted-open-shell is a
+third option that keeps paired electrons together and treats the unpaired ones separately. The ORCA
+manual says that, if you do not say otherwise, a closed-shell singlet is treated as restricted and
+anything else as unrestricted. (Source: documented by the ORCA manual.) The reasoning a student
+should be able to give is this: count the electrons, decide how many are unpaired, and that fixes both
+the multiplicity to enter and whether a restricted setting can describe the molecule at all. The
+manual's own dialog screenshots show "restricted" and do not say what to use for oxygen, so the value
+and setting for oxygen are not documented and are worth asking the demonstrator. When a run is
+unrestricted the output lists spin-up and spin-down orbitals separately, so the HOMO and LUMO must be
+read with that in mind.
+
+## Reading an ORCA output file, in file order
+
+The .out file is long. This is what its parts are, in the order they appear, and what each is for.
+(Source for the general structure: documented by the ORCA manual's output tutorial; the parts the
+manual's screenshots show are noted per line.)
+
+- **The banner and the echo of the input.** The program name and version, then a copy of the input
+  file with numbered lines. If the run did something unexpected, compare the echo to what you meant
+  to send; a wrong method, basis, charge or multiplicity shows up here first. (Source: documented by
+  the ORCA manual.)
+- **The geometry.** The atom positions in Cartesian coordinates. ORCA numbers atoms from zero, so the
+  first atom is 0, the second 1, and so on, and the same numbering appears in the orbital tables.
+  (Source: shown in the manual's screenshot for the numbering; documented by the ORCA manual for the
+  coordinate listing.)
+- **The basis set information.** Printed because PrintBasis was requested; it lists which functions
+  sit on which atom. (Source: documented by the ORCA manual.)
+- **The SCF settings.** A summary of the method as ORCA understood it: charge, multiplicity, number of
+  electrons, functional and convergence thresholds. Use it to confirm the dialog choices arrived
+  intact. (Source: documented by the ORCA manual.)
+- **The SCF iterations.** One line per cycle showing the total energy and how much it and the density
+  changed. The changes should shrink until they fall under the thresholds; a run whose changes stall
+  or grow has not converged. (Source: documented by the ORCA manual.)
+- **The convergence message.** A line saying the SCF converged after a number of cycles. If it is
+  missing or says the SCF did not converge, no number below it can be trusted. (Source: documented by
+  the ORCA manual.)
+- **The energy breakdown.** The total energy split into nuclear repulsion, electronic energy, one- and
+  two-electron parts, and exchange-correlation and virial information. The total is the number a
+  single-point run is asking for. (Source: documented by the ORCA manual.)
+- **ORBITAL ENERGIES.** A table with columns NO (the orbital's number, starting at zero), OCC (its
+  occupancy), E(Eh) (energy in Hartree) and E(eV) (energy in electron volts). In a restricted run
+  occupied orbitals show an occupancy of two and virtual orbitals show zero, so the HOMO is the last
+  row with occupancy two and the LUMO is the very next row. (Source: shown in the manual's screenshot.)
+- **MOLECULAR ORBITALS.** Printed because the input's output block asks ORCA to print the molecular orbitals. It is printed in blocks of six
+  orbitals across the page. Over each column are the orbital's number, its energy in Hartree and its
+  occupancy; each row below is one basis function, labelled with the atom's number, its element and
+  the function (for example a 1s, 2s, three p functions and, where the basis has them, five d
+  functions). The entries are coefficients: how strongly that basis function is mixed into that
+  orbital, with a sign that is the orbital's phase. A coefficient near zero means that function
+  hardly contributes. The number of orbitals in the table equals the number of basis functions, which
+  is why a bigger basis set gives more virtual orbitals. (Source: shown in the manual's screenshot;
+  the print option is documented by the ORCA manual.)
+- **Population analyses and other property blocks.** The ORCA manual describes Mulliken and Loewdin
+  population analyses, which split the electrons among atoms and among s, p and d shells. The course
+  manual does not point to them. (Source: documented by the ORCA manual; the course manual does not
+  mention them, so which block the tables expect is not documented.)
+- **The timing table.** Total time and a breakdown of where it went (Fock matrix formation,
+  diagonalisation, grid generation and so on) and the maximum memory used. It says nothing about the
+  chemistry; it is there to show where a slow run spent its time. (Source: shown in the manual's
+  screenshot.)
+- **FINAL SINGLE POINT ENERGY.** The line the manual asks students to read for the energy, printed
+  between rules. For an optimisation it is followed by "*** OPTIMIZATION RUN DONE ***", which means
+  the geometry search finished. (Source: shown in the manual's screenshot, where both lines are
+  boxed in red.)
+- **The termination line.** A healthy run ends with the message that ORCA terminated normally and a
+  total run time. This is the "job completion message" the manual tells students to look for.
+  Its absence means the run ended with an error. (Source: documented by the ORCA manual; the manual
+  itself calls it the job completion message.)
+
+## Where each Table 1 and Table 2 quantity comes from
+
+The HOMO and LUMO energies for the tables are read from Avogadro's Orbitals panel, as the manual says.
+The same two orbitals can be found in the ORBITAL ENERGIES table of the .out file: the panel and the
+table list the same orbitals in the same units, so they should agree. Checking one against the other
+is a good habit and catches opening the wrong file. The electron counts in the s, p, d and f
+orbitals come from the orbital-contribution data in the output; the manual's screenshot of the
+MOLECULAR ORBITALS table has one column highlighted, and the manual does not say more about which
+block or column to total. That is worth confirming with the demonstrator. A basis set without d
+functions (plain 6-31G) has no d rows at all, and none of these basis sets has f functions, so a
+zero there is a legitimate answer for reasons of the basis, not a mistake. (Source: shown in the
+manual's screenshot for the tables and the highlighted column; the rest is background.)
+
+## Avogadro's screen, control by control
+
+- **Menu bar: File, Edit, View, Build, Select, Extensions, Crystallography, Settings, Help.**
+  (Source: shown in the manual's screenshot.)
+- **Toolbar labels New, Open, Save, Close and Quit.** Open is the one the manual uses, to load the
+  ORCA .out file. (Source: shown in the manual's screenshot.)
+- **The row of small tool icons and the Tool Settings and Display Settings buttons.** The left panel
+  in the screenshots is titled "Navigate Settings" and has a "Display visual cues" checkbox, so the
+  navigate tool is the active one. What each unlabelled icon does is not documented; hover for the
+  tooltip or ask the demonstrator.
+- **The tab "View 1" and the Messages bar under the 3D view.** The 3D view is the black area; the
+  Messages bar is where Avogadro reports problems, so it is worth a look if a file will not load.
+  (Source: shown in the manual's screenshot; what Messages reports is not documented.)
+- **The window title.** Shows the file name, for example the methane .out file with a trailing
+  asterisk; what the asterisk signals is not documented. (Source: shown in the manual's screenshot.)
+- **The Orbitals panel.** A table with the columns Orbital, Energy (eV) and Symmetry. Rows are named
+  relative to the frontier: HOMO-4 up to HOMO, then LUMO up to LUMO+11 for methane in the screenshot.
+  The Symmetry column is empty in the screenshots and a green bar sits at the end of each row; what
+  the bar means is not documented. Clicking the HOMO or LUMO row shows that orbital in the 3D view as
+  a blue lobe and a red lobe. (Source: shown in the manual's screenshot.)
+- **Quality, Render and Configure below the table.** Quality is a dropdown (set to Low in the
+  screenshots), Render draws the selected orbital and Configure opens further settings. The other
+  Quality entries, and what Configure holds, are not documented. (Source: shown in the manual's
+  screenshot.)
+- **What the two colours mean.** The red and blue lobes are the two signs of the orbital wave
+  function, the same sign that the coefficients carry in ORCA's MOLECULAR ORBITALS table. They do not
+  mean positive and negative charge. (Source: shown in the manual's screenshot for the two lobes;
+  the sign convention is general background and is not documented by the manual.)
+- **Why the LUMO energy can be positive.** In the screenshots the lowest unoccupied orbital sits at a
+  positive energy in electron volts. That is not an error. Virtual orbitals are not filled, so their
+  energies are not the energy of a bound electron; with a small basis set that has no diffuse
+  functions they are pushed upward and can be above zero. So a positive LUMO tells you about the
+  basis set and method, not that the molecule cannot accept an electron. The sanity checks that
+  matter are that the HOMO is usually negative and that the LUMO lies above the HOMO. (Source: shown in the manual's
+  screenshot for the positive value; the explanation is general background.)
+- **Avogadro and ORCA list the same orbitals.** In the manual's screenshots the Orbitals panel and the
+  ORBITAL ENERGIES table give the same energies in electron volts, and the panel's lowest row is a deep
+  core orbital. Avogadro lists every orbital in the file, not just a few near the frontier.
+  (Source: shown in the manual's screenshot.)
 
 ## When the job did not converge
 

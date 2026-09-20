@@ -45,7 +45,9 @@ Molecules: methane (CH4) and oxygen (O2).
    **HOMO** or **LUMO** shows that orbital.
 
 **Oxygen (O2)** — same calculations/procedure; only the modelling
-differs: click the **red-coloured item** → periodic table → select
+differs: click the **red-boxed icon** on the drawing window's left toolbar
+(the add-or-replace-atom control; the manual's screenshot boxes it in red
+and does not name it, the Gabedit 2.1.0 manual documents it) → periodic table → select
 **oxygen (O)**; click in the window and **pull down** to get O2;
 visualize; right-click → Save As (Gabedit file). Steps 3-6 as methane.
 
@@ -86,10 +88,23 @@ report 5 = 10.
   source by design (students fill them from their own runs).
 - Any **menu path inside Avogadro beyond "open → output file → select
   HOMO or LUMO"**, and any **troubleshooting procedure** (Gabedit won't
-  open a file, Avogadro crashes, runtimes) — the manual has none.
-- The **multiplicity value to enter for O2** and any ORCA keyword syntax
-  for Exp7 (the only sample input string in the material is Exp8's,
-  p.45, a screenshot).
+  open a file, Avogadro crashes, runtimes) — the manual has none. What the
+  tutor can say about them is general background in
+  `knowledge/adjacent/exp07_background.md`, labelled "not the manual".
+- **What each unlabelled toolbar icon does** (Gabedit's Draw Geometry
+  toolbar, its main toolbar beyond the program icons, Avogadro's tool
+  row), what the Auxiliary basis field's greyed-out state means, the M
+  button, the "Unknown" tab, the asterisk in Avogadro's window title, the
+  green bar on Avogadro's orbital rows, and which ORCA output block gives
+  the s/p/d/f electron counts for the tables. The glossary sections of the
+  tier-C file mark each of these "not documented -- hover for the tooltip
+  or ask the demonstrator" and the tutor must not invent an answer.
+- The **multiplicity value to enter for O2**, and which SCF Type to use
+  for it. (An earlier version of this file also said no Exp7 ORCA keyword
+  syntax was available; that is stale. The Exp7 screenshots show the
+  generated input lines, e.g. an "!" keyword line with RKS and PrintBasis
+  and an %output block asking for the molecular orbitals, and they are
+  described in the tier-B "Where things are on screen" paragraphs.)
 - The command-line form `orca 1.inp >1.out` appears only in Exp8's
   steps, not Exp7's (Exp7 uses Gabedit's Run dialog).
 
