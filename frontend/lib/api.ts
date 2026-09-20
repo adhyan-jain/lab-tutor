@@ -484,6 +484,8 @@ export interface ActivityStudent {
   avg_response_ms: number | null;
   prompt_tokens: number;
   completion_tokens: number;
+  /** null until an admin sets both price env vars -- see .env.example. */
+  estimated_cost_usd: number | null;
 }
 
 export interface ActivitySession {
@@ -517,6 +519,7 @@ export interface ActivityResponse {
     prompt_tokens: number;
     completion_tokens: number;
     avg_llm_latency_ms: number | null;
+    estimated_cost_usd: number | null;
   };
   students: ActivityStudent[];
   sessions: ActivitySession[];

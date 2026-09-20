@@ -131,6 +131,16 @@ class Settings(BaseSettings):
     #: Guided, verified step-by-step walkthrough for Exp7 (no model call for
     #: most turns). Off returns Exp7 to plain grounded Q&A.
     walkthrough_enabled: bool = Field(True, alias="LABTUTOR_WALKTHROUGH")
+    #: USD per million tokens, for the Activity cost-estimate column and
+    #: export. Both unset by default -- an estimate is only ever shown once
+    #: someone has checked current Vertex pricing and set both explicitly;
+    #: this file never guesses a number.
+    llm_price_prompt_per_million_usd: float | None = Field(
+        None, alias="LABTUTOR_LLM_PRICE_PROMPT_PER_MILLION_USD"
+    )
+    llm_price_completion_per_million_usd: float | None = Field(
+        None, alias="LABTUTOR_LLM_PRICE_COMPLETION_PER_MILLION_USD"
+    )
     ollama_base_url: str = Field("http://localhost:11434", alias="LABTUTOR_OLLAMA_BASE_URL")
     ollama_model: str = Field("qwen2.5:7b", alias="LABTUTOR_OLLAMA_MODEL")
     #: Some local models (e.g. qwen3) default to an internal "thinking"

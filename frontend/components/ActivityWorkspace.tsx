@@ -196,6 +196,12 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                 {t.prompt_tokens.toLocaleString()} / {t.completion_tokens.toLocaleString()}
               </strong>
             </div>
+            {t.estimated_cost_usd !== null && (
+              <div className="card stat">
+                <span className="muted">Estimated cost</span>
+                <strong>${t.estimated_cost_usd.toFixed(2)}</strong>
+              </div>
+            )}
           </div>
         )}
 
@@ -247,6 +253,11 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                       <th title="Total tokens sent to / received from the model across all of this student's prompts">
                         Tokens in / out (total)
                       </th>
+                      {t?.estimated_cost_usd !== null && t !== undefined && (
+                        <th title="Estimated USD cost from tokens x the configured per-million-token prices">
+                          Est. cost
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -271,6 +282,9 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                         <td>
                           {s.prompt_tokens.toLocaleString()} / {s.completion_tokens.toLocaleString()}
                         </td>
+                        {t?.estimated_cost_usd !== null && t !== undefined && (
+                          <td>{s.estimated_cost_usd !== null ? `$${s.estimated_cost_usd.toFixed(4)}` : "—"}</td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

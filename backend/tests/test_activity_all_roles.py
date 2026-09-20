@@ -187,3 +187,28 @@ async def test_a_sign_in_is_attributed_to_the_first_classroom_chatted_in(client,
     db.expire_all()
     row = (await db.scalars(open_row)).one()
     assert row.classroom_id == first_id
+
+
+async def test_estimated_cost_is_null_until_both_prices_are_configured(client, make_user, llm, monkeypatch):
+    from backend.config import reload_settings
+
+    prof, _, cid = await _world(client, make_user)
+    payload = await _activity(client, prof, cid, "all")
+    assert payload["totals"]["estimated_cost_usd"] is None
+    assert all(row["estimated_cost_usd"] is None for row in payload["students"])
+
+    monkeypatch.setenv("LABTUTOR_LLM_PRICE_PROMPT_PER_MILLION_USD", "1.0")
+    monkeypatch.setenv("LABTUTOR_LLM_PRICE_COMPLETION_PER_MILLION_USD", "2.0")
+    reload_settings()
+    try:
+        payload = await _activity(client, prof, cid, "all")
+        row = _by_email(payload)["owner.prof@vit.ac.in"]
+        expected = round(
+            row["prompt_tokens"] / 1_000_000 * 1.0 + row["completion_tokens"] / 1_000_000 * 2.0, 4
+        )
+        assert row["estimated_cost_usd"] == expected
+        assert payload["totals"]["estimated_cost_usd"] is not None
+    finally:
+        monkeypatch.delenv("LABTUTOR_LLM_PRICE_PROMPT_PER_MILLION_USD", raising=False)
+        monkeypatch.delenv("LABTUTOR_LLM_PRICE_COMPLETION_PER_MILLION_USD", raising=False)
+        reload_settings()

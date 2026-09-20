@@ -642,11 +642,28 @@ async def classroom_activity(
     def _avg(values: list) -> float | None:
         return round(sum(values) / len(values), 1) if values else None
 
+    from backend.config import get_settings
+
+    settings = get_settings()
+    price_prompt = settings.llm_price_prompt_per_million_usd
+    price_completion = settings.llm_price_completion_per_million_usd
+    prices_configured = price_prompt is not None and price_completion is not None
+
+    def _cost(prompt_tokens: int, completion_tokens: int) -> float | None:
+        if not prices_configured:
+            return None
+        return round(
+            prompt_tokens / 1_000_000 * price_prompt
+            + completion_tokens / 1_000_000 * price_completion,
+            4,
+        )
+
     students_out = []
     for stat in per_student.values():
         stat["avg_llm_latency_ms"] = _avg(stat.pop("_latencies"))
         stat["avg_response_ms"] = _avg(stat.pop("_responses"))
         stat["experiments"] = sorted(stat["experiments"])
+        stat["estimated_cost_usd"] = _cost(stat["prompt_tokens"], stat["completion_tokens"])
         students_out.append(stat)
     students_out.sort(key=lambda s: (-s["prompts_total"], s["name"] or s["email"]))
 
@@ -665,6 +682,10 @@ async def classroom_activity(
         "retries": sum(s["retries"] for s in students_out),
         "fallback_replies": sum(s["fallback_replies"] for s in students_out),
         "avg_llm_latency_ms": _avg(all_lat),
+        "estimated_cost_usd": _cost(
+            sum(s["prompt_tokens"] for s in students_out),
+            sum(s["completion_tokens"] for s in students_out),
+        ),
     }
     by_role: dict[str, dict] = {}
     for s in students_out:
