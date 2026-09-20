@@ -26,9 +26,9 @@ from backend.socratic_engine.walkthrough.exp07_script import (
 PKG = pathlib.Path(ctl.__file__).parent
 
 SHORT_ANSWERS = {
-    "b1_e": "geometry", "b2_e": "M", "b4_e": ".gab", "o1_e": "[Gabedit Format]",
+    "b1_e": "yes it is open", "b2_e": "yes I see it", "b4_e": ".gab", "o1_e": "yes it is loaded",
     "o3_e": "charge 0, multiplicity 1", "o4_e": "B3LYP and 6-31G", "o5_e": "! B3LYP 6-31G Opt",
-    "r2_e": "ORCA TERMINATED NORMALLY", "p2_e": "Single Point Energy", "v1_e": "View 1",
+    "r2_e": "ORCA TERMINATED NORMALLY", "p2_e": "Single Point Energy", "v1_e": "yes it is showing",
     "t1_e": "B3LYP with 6-31G", "t2_e": "ORCA TERMINATED NORMALLY",
 }
 REPORT_ANSWERS = {

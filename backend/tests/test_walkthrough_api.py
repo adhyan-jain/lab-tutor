@@ -201,7 +201,7 @@ async def test_a_checkpoint_quiz_actually_finishes_instead_of_looping(client, ma
     await _send(client, token, classroom_id, "guide me")
     await _send(client, token, classroom_id, "a guess")           # hook
     await _send(client, token, classroom_id, "geometry")          # step 1 evidence
-    await _send(client, token, classroom_id, "M")                 # step 2 evidence
+    await _send(client, token, classroom_id, "yes I see it")      # step 2 evidence
     await _send(client, token, classroom_id, "5")                 # step 3 evidence
     await _send(client, token, classroom_id, "a")                 # step 3 cross-question
     out = await _send(client, token, classroom_id, ".gab")        # step 4 evidence -> checkpoint

@@ -599,6 +599,14 @@ def _handle_answer(state: WalkState, message: str) -> TurnResult:
         text = _with_options(f"**Why this step:** {_fmt(step.why, state)}\n\nWhen you are ready: {_fmt(q.ask, state)}", q)
         return TurnResult(text, state, {**events, "verdict": "why_requested"}, _question_ui(state, q))
 
+    if q.kind == "short" and grader.is_side_question(message):
+        # A free-text answer can only be recognised by its content, so a
+        # real question here is a question, not a wrong (or accidentally
+        # "correct") answer -- checked before grading, because an
+        # open-ended check (e.g. "tell me once it's open") would otherwise
+        # accept a genuine question as a valid free-text reply.
+        return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
+
     verdict = grader.grade(q, message)
 
     if verdict.attempted and q.kind == "report":
@@ -609,11 +617,6 @@ def _handle_answer(state: WalkState, message: str) -> TurnResult:
         state.bare = 0
         reply, ui = _after_question(state, _correct_note(q, verdict))
         return TurnResult(reply, state, {**events, "verdict": "correct", "tries": 0}, ui)
-
-    if verdict.attempted and q.kind == "short" and grader.is_side_question(message):
-        # A free-text answer can only be recognised by its content, so a
-        # real question here is a question, not a wrong answer.
-        return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
 
     if verdict.attempted:
         tries = state.tries.get(q.id, 0) + 1
