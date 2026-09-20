@@ -409,6 +409,18 @@ def _is_topicless(message: str) -> bool:
 #: this long may be a progress report ("done, saved as ch4.gab").
 GUIDED_MAX_WORDS = 30
 LAST_MESSAGE_CHARS = 900
+
+#: Generous on purpose: Gemini counts internal reasoning tokens against this
+#: budget too, and a whole-workflow answer (the qualitative/chunks path,
+#: covering an entire experiment's procedure) can legitimately be long.
+MAX_TOKENS_WORKFLOW = 8192
+#: A single grounded answer over retrieved passages -- one question, not a
+#: procedure -- rarely needs anywhere near the workflow budget, and with
+#: LABTUTOR_LLM_THINKING_BUDGET=0 in production there is no hidden
+#: reasoning cost eating into it either. Lower than the workflow path, but
+#: kept well above a typical medium-length answer's needs so a genuinely
+#: detailed conceptual explanation is never cut off.
+MAX_TOKENS_ANSWER = 3072
 _STEP_MARKER_RE = re.compile(r"\bStep\s+(\d+)\s*:", re.IGNORECASE)
 
 
@@ -766,7 +778,11 @@ async def _phrase_with_llm(
                     "LASTMSG>>>",
                     "",
                 ]
-        if conversation_history:
+        # LASTMSG already carries the one prior turn a guided step or a short
+        # follow-up needs (it's extracted from the tail of conversation_history
+        # in the first place), so sending the full HISTORY block too repeats
+        # that same text -- skip it exactly in that overlapping case.
+        if conversation_history and not show_last:
             # Prior turns in this same chat thread, context only -- helps
             # resolve a follow-up like "what does that mean" without changing
             # what counts as evidence (retrieval and scope classification
@@ -791,10 +807,6 @@ async def _phrase_with_llm(
             "QUESTION>>>",
         ]
         return parts
-
-    # Generous on purpose: Gemini 2.5 counts its internal reasoning tokens
-    # against this budget, and a full-workflow walkthrough is long.
-    max_tokens = 8192
 
     chunks = (
         experiment_chunks(experiment_id, index)
@@ -835,7 +847,7 @@ async def _phrase_with_llm(
             else {}
         )
         reply = await backend.complete(
-            system=SYSTEM_PROMPT, user=request.inline_user, max_tokens=max_tokens, **extra
+            system=SYSTEM_PROMPT, user=request.inline_user, max_tokens=MAX_TOKENS_WORKFLOW, **extra
         )
     else:
         passage_block = "\n---\n".join(
@@ -852,7 +864,7 @@ async def _phrase_with_llm(
             "",
         ] + dynamic_tail(None)
         reply = await backend.complete(
-            system=SYSTEM_PROMPT, user="\n".join(parts), max_tokens=max_tokens
+            system=SYSTEM_PROMPT, user="\n".join(parts), max_tokens=MAX_TOKENS_ANSWER
         )
 
     cleaned = _normalise_markdown(_strip_passage_refs(reply.text or ""))

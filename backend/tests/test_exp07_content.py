@@ -383,3 +383,27 @@ async def test_the_last_message_is_passed_as_delimited_data(backend):
 async def test_other_experiments_get_no_guided_lines(backend):
     await answer_question("What is the Nernst equation?", active_experiment="exp01")
     assert backend.calls and "GUIDED:" not in backend.calls[-1]["user"]
+
+
+@pytest.mark.asyncio
+async def test_lastmsg_and_history_never_both_appear_for_the_same_turn(backend):
+    # LASTMSG is extracted from the tail of conversation_history, so sending
+    # both repeats the same text -- a token-cost duplicate this test pins
+    # against regressing back in.
+    await answer_question("done", active_experiment="exp07", conversation_history=STEP3_HISTORY)
+    user = backend.calls[-1]["user"]
+    assert "<<<LASTMSG" in user
+    assert "<<<HISTORY" not in user
+
+
+@pytest.mark.asyncio
+async def test_history_still_appears_when_there_is_no_lastmsg_to_show(backend):
+    long_q = (
+        "can you explain in some detail how density functional theory differs from hartree fock "
+        "and why that matters for methane and oxygen in this particular experiment and whether "
+        "the choice of functional changes which orbital ends up being the highest occupied one"
+    )
+    await answer_question(long_q, active_experiment="exp07", conversation_history=STEP3_HISTORY)
+    user = backend.calls[-1]["user"]
+    assert "<<<LASTMSG" not in user
+    assert "<<<HISTORY" in user
