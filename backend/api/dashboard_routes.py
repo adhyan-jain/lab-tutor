@@ -21,7 +21,8 @@ from starlette.responses import StreamingResponse
 
 from backend import audit, idempotency
 from backend.auth import Principal, classroom_faculty_scope, current_user
-from backend.classrooms import roster_with_users
+from backend.auth.roles import role_for_email
+from backend.classrooms import faculty_roster_with_users, roster_with_users
 from backend.data_access import FacultyScope
 from backend.db import get_session
 from backend.models import (
@@ -32,6 +33,7 @@ from backend.models import (
     Diagnosis,
     Escalation,
     LoginSession,
+    Role,
     SocraticAttempt,
     SocraticSession,
     StudentSummary,
@@ -466,6 +468,13 @@ async def classroom_coverage(
     return {"students": out}
 
 
+def _staff_label(user: User) -> str:
+    """How a non-student user is labelled in the Activity view: their
+    platform role, or "co-faculty" for a student promoted inside a class."""
+    effective = user.role_override if user.role_override is not None else role_for_email(user.email)
+    return "co-faculty" if effective == Role.STUDENT else effective.value
+
+
 def _aware(value):
     """SQLite hands back naive datetimes for tz-aware columns; Postgres
     doesn't. Normalise so durations can be computed either way."""
@@ -479,17 +488,57 @@ def _aware(value):
 @router.get("/classrooms/{classroom_id}/activity")
 async def classroom_activity(
     classroom_id: str,
+    role: str = Query("student", pattern="^(student|faculty|admin|all)$"),
     principal: Principal = Depends(current_user),
     scope: FacultyScope = Depends(classroom_faculty_scope),
     db: AsyncSession = Depends(get_session),
 ) -> dict:
     """Everything the research export holds, as JSON for the Activity &
-    Data page: per-student rollup (logins, time on system, prompt counts,
-    model latency/tokens) plus the raw login-session rows. Same access
-    rule as the export -- faculty of this classroom, or admin."""
+    Data page: per-user rollup (logins, time on system, prompt counts,
+    model latency/tokens/cache/retries) plus the raw login-session rows.
+    Same access rule as the export -- faculty of this classroom, or admin.
+
+    `role` picks who is listed. `student` (the default, and what every
+    research aggregate uses) is exactly the enrolled students. `faculty`,
+    `admin` and `all` also list staff -- class faculty, promoted co-faculty
+    and any admin who used this class -- each labelled with their platform
+    role, so their usage is visible without mixing into student figures."""
     classroom = await _classroom_or_404(db, principal, scope, classroom_id)
-    roster = await roster_with_users(db, classroom.id)
-    users_by_id = {user.id: user for _membership, user in roster}
+    users_by_id: dict[str, User] = {}
+    roles: dict[str, str] = {}
+    for _membership, user in await roster_with_users(db, classroom.id):
+        users_by_id[user.id] = user
+        roles[user.id] = "student"
+    if role != "student":
+        for _membership, user in await faculty_roster_with_users(db, classroom.id):
+            if user.id not in users_by_id:
+                users_by_id[user.id] = user
+                roles[user.id] = _staff_label(user)
+        chatted = set(
+            (
+                await db.scalars(
+                    select(ChatMessage.student_id)
+                    .where(
+                        ChatMessage.classroom_id == classroom_id,
+                        ChatMessage.actor_type.in_((ActorType.FACULTY_TEST, ActorType.ADMIN_TEST)),
+                    )
+                    .distinct()
+                )
+            ).all()
+        )
+        missing = chatted - users_by_id.keys()
+        if missing:
+            for user in (await db.scalars(select(User).where(User.id.in_(missing)))).all():
+                users_by_id[user.id] = user
+                roles[user.id] = _staff_label(user)
+        wanted = {"faculty": {"faculty", "co-faculty"}, "admin": {"admin"}}.get(role)
+        if wanted is not None:
+            users_by_id = {uid: u for uid, u in users_by_id.items() if roles[uid] in wanted}
+    actor_types = (
+        (ActorType.STUDENT,)
+        if role == "student"
+        else (ActorType.STUDENT, ActorType.FACULTY_TEST, ActorType.ADMIN_TEST)
+    )
 
     login_rows = list(
         (
@@ -504,6 +553,7 @@ async def classroom_activity(
     per_student: dict[str, dict] = {
         uid: {
             "student_id": uid,
+            "role": roles[uid],
             "name": u.name,
             "email": u.email,
             "reg_no": u.reg_no,
@@ -518,6 +568,11 @@ async def classroom_activity(
             "_responses": [],
             "prompt_tokens": 0,
             "completion_tokens": 0,
+            "thinking_tokens": 0,
+            "cached_tokens": 0,
+            "llm_calls": 0,
+            "retries": 0,
+            "fallback_replies": 0,
         }
         for uid, u in users_by_id.items()
     }
@@ -537,6 +592,7 @@ async def classroom_activity(
         sessions_out.append(
             {
                 "student_id": row.user_id,
+                "role": roles[row.user_id],
                 "name": u.name,
                 "email": u.email,
                 "reg_no": u.reg_no,
@@ -548,7 +604,7 @@ async def classroom_activity(
             }
         )
 
-    for count in await FacultyScope(db, principal.id).prompt_counts(classroom_id):
+    for count in await FacultyScope(db, principal.id).prompt_counts(classroom_id, actor_types):
         stat = per_student.get(count.student_id)
         if stat is None:
             continue
@@ -560,7 +616,7 @@ async def classroom_activity(
         await db.scalars(
             select(ChatMessage).where(
                 ChatMessage.classroom_id == classroom_id,
-                ChatMessage.actor_type == ActorType.STUDENT,
+                ChatMessage.actor_type.in_(actor_types),
                 ChatMessage.author == "tutor",
             )
         )
@@ -576,6 +632,12 @@ async def classroom_activity(
             stat["_responses"].append(meta["response_ms"])
         stat["prompt_tokens"] += meta.get("prompt_tokens") or 0
         stat["completion_tokens"] += meta.get("completion_tokens") or 0
+        stat["thinking_tokens"] += meta.get("thinking_tokens") or 0
+        stat["cached_tokens"] += meta.get("cached_tokens") or 0
+        stat["llm_calls"] += meta.get("llm_calls") or 0
+        stat["retries"] += meta.get("retry_count") or 0
+        if meta.get("fallback_used"):
+            stat["fallback_replies"] += 1
 
     def _avg(values: list) -> float | None:
         return round(sum(values) / len(values), 1) if values else None
@@ -597,10 +659,22 @@ async def classroom_activity(
         "active_seconds": sum(s["active_seconds"] for s in students_out),
         "prompt_tokens": sum(s["prompt_tokens"] for s in students_out),
         "completion_tokens": sum(s["completion_tokens"] for s in students_out),
+        "thinking_tokens": sum(s["thinking_tokens"] for s in students_out),
+        "cached_tokens": sum(s["cached_tokens"] for s in students_out),
+        "llm_calls": sum(s["llm_calls"] for s in students_out),
+        "retries": sum(s["retries"] for s in students_out),
+        "fallback_replies": sum(s["fallback_replies"] for s in students_out),
         "avg_llm_latency_ms": _avg(all_lat),
     }
+    by_role: dict[str, dict] = {}
+    for s in students_out:
+        bucket = by_role.setdefault(s["role"], {"users": 0, "prompts": 0})
+        bucket["users"] += 1
+        bucket["prompts"] += s["prompts_total"]
     return {
         "classroom": {"id": classroom.id, "name": classroom.name},
+        "role_filter": role,
+        "by_role": by_role,
         "totals": totals,
         "students": students_out,
         "sessions": sessions_out[:500],
@@ -833,6 +907,32 @@ async def research_export(
                     gain,
                 ]
             )
+
+    # Staff usage (class faculty, co-faculty, admins) lives on its own sheet:
+    # visible, but never mixed into the student sheets above.
+    staff_sheet = workbook.create_sheet("Staff activity")
+    staff_sheet.append(
+        [
+            "Name", "Email", "Platform role", "Sign-ins", "Time on system (s)", "Prompts",
+            "Experiments", "Prompt tokens", "Completion tokens", "Thinking tokens",
+            "Cached tokens", "LLM calls", "Retries", "Fallback replies", "Avg model latency (ms)",
+        ]
+    )
+    activity = await classroom_activity(
+        classroom_id=classroom_id, role="all", principal=principal, scope=scope, db=db
+    )
+    for person in activity["students"]:
+        if person["role"] == "student":
+            continue
+        staff_sheet.append(
+            [
+                person["name"], person["email"], person["role"], person["logins"],
+                person["active_seconds"], person["prompts_total"], ", ".join(person["experiments"]),
+                person["prompt_tokens"], person["completion_tokens"], person["thinking_tokens"],
+                person["cached_tokens"], person["llm_calls"], person["retries"],
+                person["fallback_replies"], person["avg_llm_latency_ms"],
+            ]
+        )
 
     buffer = io.BytesIO()
     workbook.save(buffer)

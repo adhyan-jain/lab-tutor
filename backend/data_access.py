@@ -248,14 +248,20 @@ class FacultyScope:
             )
         )
 
-    async def prompt_counts(self, classroom_id: str) -> list[PromptCount]:
+    async def prompt_counts(
+        self,
+        classroom_id: str,
+        actor_types: tuple[ActorType, ...] = (ActorType.STUDENT,),
+    ) -> list[PromptCount]:
         """Chat-message volume per student/experiment/class-session/kind.
 
         For research-paper "how many prompts did each student send"
-        reporting. Counts only genuine student-authored turns
+        reporting. By default counts only genuine student-authored turns
         (`ActorType.STUDENT`, `author == "student"`) -- excludes faculty/
         admin test traffic and the tutor's own replies, same predicate
-        `backend/summaries/coverage.py`'s `qa_messages` count uses.
+        `backend/summaries/coverage.py`'s `qa_messages` count uses. A
+        caller that wants staff usage too (the Activity page) passes
+        `actor_types` explicitly; research aggregates never do.
 
         Takes a bare `classroom_id`, not filtered through `self.select` --
         same trust boundary as `marks_routes.py`'s `_all_marks_by_experiment`
@@ -274,7 +280,7 @@ class FacultyScope:
             )
             .where(
                 ChatMessage.classroom_id == classroom_id,
-                ChatMessage.actor_type == ActorType.STUDENT,
+                ChatMessage.actor_type.in_(actor_types),
                 ChatMessage.author == "student",
             )
             .group_by(

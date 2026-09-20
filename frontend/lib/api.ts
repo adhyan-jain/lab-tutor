@@ -435,6 +435,13 @@ export interface MarksAnalyticsRow {
 
 export interface ActivityStudent {
   student_id: string;
+  /** student | faculty | co-faculty | admin */
+  role: string;
+  thinking_tokens: number;
+  cached_tokens: number;
+  llm_calls: number;
+  retries: number;
+  fallback_replies: number;
   name: string;
   email: string;
   reg_no: string | null;
@@ -453,6 +460,7 @@ export interface ActivityStudent {
 
 export interface ActivitySession {
   student_id: string;
+  role: string;
   name: string;
   email: string;
   reg_no: string | null;
@@ -465,7 +473,14 @@ export interface ActivitySession {
 
 export interface ActivityResponse {
   classroom: { id: string; name: string };
+  role_filter: string;
+  by_role: Record<string, { users: number; prompts: number }>;
   totals: {
+    thinking_tokens: number;
+    cached_tokens: number;
+    llm_calls: number;
+    retries: number;
+    fallback_replies: number;
     students: number;
     students_with_activity: number;
     logins: number;

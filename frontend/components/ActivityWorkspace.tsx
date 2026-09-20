@@ -41,6 +41,9 @@ export function ActivityWorkspace({ me }: { me: Me }) {
   const [classroomId, setClassroomId] = useState<string>(searchParams.get("classroom") || "");
   const [data, setData] = useState<ActivityResponse | null>(null);
   const [tab, setTab] = useState<"students" | "sessions">("students");
+  // Everyone (students plus staff, labelled) is the default: usage is tracked
+  // for every role. "Students only" is the research view.
+  const [who, setWho] = useState<"all" | "student">("all");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -59,11 +62,13 @@ export function ActivityWorkspace({ me }: { me: Me }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const load = async (id: string) => {
+  const load = async (id: string, who: "all" | "student") => {
     setLoading(true);
     setError("");
     try {
-      setData(await api.get<ActivityResponse>(`/api/dashboard/classrooms/${id}/activity`));
+      setData(
+        await api.get<ActivityResponse>(`/api/dashboard/classrooms/${id}/activity?role=${who}`),
+      );
     } catch (e) {
       setData(null);
       setError(e instanceof ApiError ? e.message : String(e));
@@ -73,8 +78,8 @@ export function ActivityWorkspace({ me }: { me: Me }) {
   };
 
   useEffect(() => {
-    if (classroomId) load(classroomId);
-  }, [classroomId]);
+    if (classroomId) load(classroomId, who);
+  }, [classroomId, who]);
 
   const handleExport = async () => {
     if (!classroomId) return;
@@ -122,6 +127,27 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="field">
+            <label className="muted" id="who-label">Show</label>
+            <div className="segmented" role="group" aria-labelledby="who-label">
+              <button
+                type="button"
+                className={who === "all" ? "active" : ""}
+                aria-pressed={who === "all"}
+                onClick={() => setWho("all")}
+              >
+                Everyone
+              </button>
+              <button
+                type="button"
+                className={who === "student" ? "active" : ""}
+                aria-pressed={who === "student"}
+                onClick={() => setWho("student")}
+              >
+                Students only
+              </button>
+            </div>
           </div>
           <div className="field grow">
             <label className="muted">Search name, email or reg no</label>
@@ -207,7 +233,8 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Student</th>
+                      <th>Person</th>
+                      <th>Role</th>
                       <th>Reg no</th>
                       <th>Sign-ins</th>
                       <th>Last sign-in</th>
@@ -228,6 +255,9 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                         <td>
                           <div>{s.name || "—"}</div>
                           <div className="muted">{s.email}</div>
+                        </td>
+                        <td>
+                          <span className={`role-tag role-${s.role}`}>{s.role.replace("-", " ")}</span>
                         </td>
                         <td className="mono">{s.reg_no || "—"}</td>
                         <td>{s.logins}</td>
@@ -256,7 +286,8 @@ export function ActivityWorkspace({ me }: { me: Me }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Student</th>
+                    <th>Person</th>
+                    <th>Role</th>
                     <th>Reg no</th>
                     <th>Signed in</th>
                     <th>Signed out</th>
@@ -271,6 +302,9 @@ export function ActivityWorkspace({ me }: { me: Me }) {
                       <td>
                         <div>{s.name || "—"}</div>
                         <div className="muted">{s.email}</div>
+                      </td>
+                      <td>
+                        <span className={`role-tag role-${s.role}`}>{s.role.replace("-", " ")}</span>
                       </td>
                       <td className="mono">{s.reg_no || "—"}</td>
                       <td>{fmtTime(s.login_at)}</td>

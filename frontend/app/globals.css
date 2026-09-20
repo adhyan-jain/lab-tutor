@@ -578,6 +578,23 @@ header.bar {
 .classroom-panel .panel-body { padding-top: 16px; }
 .settings-link-drawer { display: none; width: 100%; }
 
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.segmented button {
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button.active { background: var(--accent-weak); color: var(--text); font-weight: 600; }
+.role-tag { font-size: 0.8rem; color: var(--muted); text-transform: capitalize; }
+.role-tag.role-student { color: var(--text); }
+.role-tag.role-admin { color: var(--purple); font-weight: 600; }
+.role-tag.role-faculty, .role-tag.role-co-faculty { color: var(--accent); font-weight: 600; }
+
 @media (max-width: 768px) {
   .settings-link-top { display: none; }
   .settings-link-drawer { display: inline-flex; }

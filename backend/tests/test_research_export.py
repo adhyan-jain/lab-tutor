@@ -74,7 +74,9 @@ async def test_export_includes_sessions_and_prompt_counts(client, make_user, db)
     )
     assert resp.status_code == 200
     workbook = load_workbook(io.BytesIO(resp.content))
-    assert workbook.sheetnames == ["Roster", "Sessions", "Prompt counts", "Trajectory", "Marks"]
+    assert workbook.sheetnames == [
+        "Roster", "Sessions", "Prompt counts", "Trajectory", "Marks", "Staff activity",
+    ]
 
     sessions_sheet = workbook["Sessions"]
     session_row = [cell.value for cell in sessions_sheet[2]]
