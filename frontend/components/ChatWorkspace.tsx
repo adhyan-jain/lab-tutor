@@ -622,34 +622,25 @@ export function ChatWorkspace({ me }: { me: Me }) {
               </button>
             </div>
           ) : messages.length === 0 ? (
+            // A fresh chat always starts here: no workflow, no step, no
+            // history. The student picks a path; the server keeps this
+            // thread in "initial" mode until they do (or ask something).
             <div className="card" style={{ maxWidth: "620px", margin: "40px auto", textAlign: "center" }}>
-              <h2 style={{ marginTop: 0 }}>Grounded AI Chemistry Lab Assistant</h2>
+              <h2 style={{ marginTop: 0 }}>Hi! What would you like to do today?</h2>
               <p className="muted">
-                Ask questions about <strong>{selectedExp?.title}</strong>, work through procedure and theory, get Socratic hints, or paste your numerical data to run a diagnostic check.
+                We&apos;re on <strong>{selectedExp?.title}</strong>. Study the theory behind it, or work through the experiment one step at a time.
               </p>
-              <p className="muted" style={{ fontSize: "0.8rem", marginTop: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-                <LightbulbIcon size={14} /> <em>Example prompts to try:</em>
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setInput("What is the principle and formula for this experiment?")}
-                >
-                  "What is the principle and formula for this experiment?"
+              <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", marginTop: "14px" }}>
+                <button className="btn btn-primary" disabled={sending} onClick={() => handleSend("Theory / Study")}>
+                  Theory / Study
                 </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setInput("Can you guide me through step 1 calculation?")}
-                >
-                  "Can you guide me through step 1 calculation?"
-                </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setInput("Here are my readings: ecell=1.1, reported_value=-212.3")}
-                >
-                  "Here are my readings: ecell=1.1, reported_value=-212.3"
+                <button className="btn btn-secondary" disabled={sending} onClick={() => handleSend("Practical / Experiment")}>
+                  Practical / Experiment
                 </button>
               </div>
+              <p className="muted" style={{ fontSize: "0.8rem", marginTop: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                <LightbulbIcon size={14} /> <em>Or just ask a question, or paste your readings (e.g. ecell=1.1) for a check.</em>
+              </p>
             </div>
           ) : (
             messages.map((m, i) => {
@@ -665,12 +656,14 @@ export function ChatWorkspace({ me }: { me: Me }) {
               }
               const showStepHeader = prevStep === undefined || prevStep !== m.metadata?.current_step;
               const isLast = i === messages.length - 1;
+              const prev = messages[i - 1];
               return (
                 <MessageBubble
                   key={m.id}
                   message={m}
                   showStepHeader={showStepHeader}
                   onQuickReply={isLast && !sending ? (text) => handleSend(text) : undefined}
+                  triggerText={m.author === "tutor" && prev?.author === "student" ? prev.content : undefined}
                 />
               );
             })

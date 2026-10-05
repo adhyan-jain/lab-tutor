@@ -52,7 +52,9 @@ from backend.models import (
 )
 from backend.config import get_settings
 from backend.pipeline import run_diagnosis
+from backend.socratic_engine import conversation
 from backend.socratic_engine.walkthrough import controller as walkthrough_controller
+from backend.socratic_engine.walkthrough import grader
 from backend.socratic_engine.walkthrough import service as walkthrough_service
 from backend.retrieval.pipeline import QUALITATIVE_EXPERIMENTS, answer_question
 from backend.llm import telemetry as llm_telemetry
@@ -113,16 +115,14 @@ def _llm_meta(
 EXP07_WALKTHROUGH_INVITE = 'Want to work through this step by step? Just say "let\'s start" (or ask me anything else).'
 
 
-async def _exp07_invite_suffix(
-    db: AsyncSession, user_id: str, classroom_id: str, experiment_id: str, actor_type: ActorType
-) -> str:
+async def _exp07_invite_suffix(db: AsyncSession, thread_id: str, experiment_id: str) -> str:
     """Appended to a plain grounded-Q&A reply for exp07 so there is always
     a predictable way into the guided walkthrough -- once a walkthrough
     row exists (active, paused or done) the student already knows how to
     get back to it, so this stays silent from then on."""
     if experiment_id != "exp07" or not get_settings().walkthrough_enabled:
         return ""
-    row = await walkthrough_service.get_progress(db, user_id, classroom_id, experiment_id, actor_type)
+    row = await walkthrough_service.get_progress(db, thread_id)
     if row is not None:
         return ""
     return f"\n\n{EXP07_WALKTHROUGH_INVITE}"
@@ -295,6 +295,163 @@ async def list_threads(
     }
 
 
+# ------------------------------------------------------- conversation mode
+
+_DEICTIC_RE = re.compile(r"\b(this|that|it|here)\b", re.IGNORECASE)
+
+
+def _experiment_title(experiment_id: str) -> str:
+    titles = {t.id: t.title for t in ontology.routable_topics()}
+    return titles.get(experiment_id, experiment_id)
+
+
+def _practice_available(plugin, experiment_id: str) -> bool:
+    if get_settings().walkthrough_enabled and experiment_id in walkthrough_service.SUPPORTED_EXPERIMENTS:
+        return True
+    if plugin is None:
+        return False
+    try:
+        steps_for(plugin)
+        return True
+    except ManualNotTranscribedError:
+        return False
+
+
+async def _thread_socratic_session(
+    db: AsyncSession, principal: Principal, state: conversation.ConversationState
+) -> SocraticSession | None:
+    """The legacy Socratic session THIS thread started, if any. Another
+    thread's session is never picked up, so a new chat starts at step one."""
+    if not state.socratic_session_id:
+        return None
+    return (
+        await db.scalars(
+            select(SocraticSession).where(
+                SocraticSession.id == state.socratic_session_id,
+                SocraticSession.student_id == principal.id,
+            )
+        )
+    ).first()
+
+
+def _mode_reply(text: str, state: conversation.ConversationState, chips: list[str], reason: str) -> tuple[str, ChatMessageKind, dict]:
+    labels, ctx = conversation.actions(chips)
+    return text, ChatMessageKind.QA, {
+        "type": "mode",
+        "mode": state.mode,
+        "transition_reason": reason,
+        "ui": {"kind": "mode", "mode": state.mode, "chips": labels, "action_context": ctx},
+    }
+
+
+async def _conversation_turn(
+    db: AsyncSession,
+    principal: Principal,
+    state: conversation.ConversationState,
+    intent: conversation.Intent,
+    *,
+    thread: ChatThread,
+    plugin,
+    experiment_id: str,
+    message: str,
+    history_text: str,
+) -> tuple[tuple[str, ChatMessageKind, dict] | None, bool]:
+    """Decide theory vs practice for this turn, before any workflow sees the
+    message. Returns (a reply that fully handles the turn, or None to carry
+    on) and whether this turn is entering practice. The student's stated
+    intent always outranks the step they are on."""
+    Mode, Intent = conversation.Mode, conversation.Intent
+    wants_practice = intent is Intent.SWITCH_TO_PRACTICE
+    title = _experiment_title(experiment_id)
+
+    if state.mode == Mode.INITIAL.value:
+        if intent is Intent.SWITCH_TO_THEORY:
+            state.switch(Mode.THEORY, "user chose theory")
+            if len(message.split()) > 6:
+                return None, False  # "I want to learn about basis sets": answer it
+            return _mode_reply(
+                f"Great, let's study the theory behind **{title}**. What concept would you like to start with? "
+                "Ask about any idea, term or result from this experiment.",
+                state, ["practice"], "user chose theory",
+            ), False
+        if wants_practice or grader.is_start_request(message) or triage.is_guidance_request(message):
+            if not _practice_available(plugin, experiment_id):
+                state.switch(Mode.THEORY, "practice requested but no guided workflow exists")
+                return _mode_reply(
+                    "This experiment doesn't have a guided practical walkthrough set up yet, so I won't make up "
+                    "steps. I can answer questions about its procedure and theory straight from the manual. "
+                    "What part are you working on?",
+                    state, [], "no guided workflow",
+                ), False
+            state.switch(Mode.PRACTICE, "user chose practice")
+            return None, True
+        if len(grader._tokens(message)) <= 3 and intent is Intent.ANSWER:
+            # "hi", "ok": nothing to act on yet -- greet, but never repeat
+            # the exact same menu twice in a row.
+            state.clarify_count += 1
+            text = (
+                conversation.greeting_text(title)
+                if state.clarify_count == 1
+                else "Tap one of the two options, or tell me in your own words what you need: a concept explained, or help doing the experiment."
+            )
+            return _mode_reply(text, state, ["theory", "practice"], "greeting"), False
+        # A real question in a fresh chat is a study question.
+        state.switch(Mode.THEORY, "question in a new chat")
+        return None, False
+
+    if state.mode == Mode.THEORY.value:
+        last_tutor = history_text.rsplit("TUTOR: ", 1)[-1] if "TUTOR: " in history_text else ""
+        accepted_invite = EXP07_WALKTHROUGH_INVITE in last_tutor and grader.is_affirmative_start(message)
+        if not (wants_practice or accepted_invite):
+            return None, False
+        if not _practice_available(plugin, experiment_id):
+            return _mode_reply(
+                "This experiment doesn't have a guided practical walkthrough set up yet, so I won't make up steps. "
+                "Ask me about any part of the procedure and I'll answer from the manual.",
+                state, [], "no guided workflow",
+            ), False
+        state.switch(Mode.PRACTICE, "user returned to practice")
+        row = await walkthrough_service.get_progress(db, thread.id)
+        if row is not None and row.status == "paused":
+            result = walkthrough_service.resume(row, "Back to the experiment. Here is where you were.")
+            return (result.reply or "", ChatMessageKind.SOCRATIC, {
+                "type": "walkthrough", "walkthrough": result.events, "ui": result.ui,
+                "mode": state.mode, "transition_reason": "theory -> practice",
+            }), False
+        return None, True
+
+    # PRACTICE
+    if intent is not Intent.SWITCH_TO_THEORY:
+        return None, False
+    topic, step_label = None, None
+    row = await walkthrough_service.get_progress(db, thread.id)
+    if row is not None:
+        wstate = walkthrough_service.pause(row)
+        step = walkthrough_controller.SCRIPT.step(wstate.step_id)
+        topic, step_label = step.title, f"{walkthrough_controller._progress(wstate)['label']}: {step.title}"
+        step_id = wstate.step_id
+    else:
+        session = await _thread_socratic_session(db, principal, state)
+        step_id = None
+        if session is not None and plugin is not None:
+            steps = steps_for(plugin)
+            current = steps[min(session.current_step, len(steps) - 1)]
+            topic = current.key.replace("_", " ")
+            step_label = f"Step {session.current_step + 1} of {len(steps)}"
+            step_id = str(session.current_step)
+    state.switch(Mode.THEORY, "user asked for theory during practice", topic=topic, step=step_id)
+    paused = (
+        f" I've paused the experiment at **{step_label}**, so nothing moves on while we're here; "
+        'say "back to the experiment" whenever you want to continue from that same step.'
+        if step_label else ""
+    )
+    about = f" We could start with the ideas behind **{topic}**, or any other concept." if topic else ""
+    return _mode_reply(
+        f"Sure, we can study the theory instead.{paused}\n\nWhat would you like to understand?{about}",
+        state, ["back_to_experiment"], "practice -> theory",
+    ), False
+
+
 @router.post("/threads", status_code=status.HTTP_201_CREATED)
 async def create_thread(
     body: CreateThreadRequest,
@@ -312,11 +469,14 @@ async def create_thread(
         class_session_id=class_session_id,
         experiment_id=exp_id,
         title=(body.title or "New chat").strip(),
+        state=conversation.ConversationState().to_dict(),
     )
     db.add(thread)
     await db.commit()
+    log.info("[CHAT] new conversationId=%s mode=initial", thread.id)
     return {
         "id": thread.id,
+        "mode": conversation.Mode.INITIAL.value,
         "title": thread.title,
         "classroom_id": thread.classroom_id,
         "experiment_id": thread.experiment_id,
@@ -422,30 +582,6 @@ async def delete_thread(
     await db.delete(thread)
     await db.commit()
     return {"deleted": True}
-
-
-async def _get_socratic_session(
-    db: AsyncSession,
-    user_id: str,
-    classroom_id: str,
-    experiment_id: str,
-    actor_type: ActorType,
-) -> SocraticSession | None:
-    """Lookup only, never creates -- same key `POST /api/socratic/session`
-    uses (student, classroom, experiment, actor_type), so progress made
-    through the chat and progress made through the standalone Socratic
-    routes are the same session, never two conflicting ones.
-    """
-    return (
-        await db.scalars(
-            select(SocraticSession).where(
-                SocraticSession.student_id == user_id,
-                SocraticSession.classroom_id == classroom_id,
-                SocraticSession.experiment_id == experiment_id,
-                SocraticSession.actor_type == actor_type,
-            )
-        )
-    ).first()
 
 
 async def _start_socratic_session(
@@ -856,20 +992,51 @@ async def send_message(
     # 1. Safety Triage
     intent = triage.classify(body.message)
 
+    # 2. Conversation mode for THIS thread (initial / theory / practice).
+    # The student's stated intent is resolved here, before any workflow
+    # sees the message, so a step can never outrank "I want the theory".
+    # Safety triage and a pasted diagnostic record still win over it.
+    conv_state = conversation.ConversationState.from_dict(thread.state)
+    conv_intent = conversation.classify(body.message)
+    log.info(
+        "[CHAT] conversationId=%s mode=%s previousMode=%s previousStep=%s",
+        thread.id, conv_state.mode, conv_state.previous_mode, conv_state.previous_step,
+    )
+    log.info("[INTENT] detected=%s previous=%s", conv_intent.value, conv_state.last_intent)
+    try:
+        plugin_for_mode = get_plugin(experiment_id)
+    except UnknownExperimentError:
+        plugin_for_mode = None
+    mode_handled = None
+    entering_practice = False
+    if not triage.short_circuits(intent) and not _extract_numbers_dict(body.message):
+        mode_handled, entering_practice = await _conversation_turn(
+            db, principal, conv_state, conv_intent,
+            thread=thread, plugin=plugin_for_mode, experiment_id=experiment_id,
+            message=body.message, history_text=history_text,
+        )
+    conv_state.last_intent = conv_intent.value
+    theory_mode = conv_state.mode == conversation.Mode.THEORY.value
+
     # Guided walkthrough (Exp7): deterministic verification of each step,
     # zero model calls for most turns. Safety triage above always wins, and
     # so does a pasted key=value diagnostic record (e.g. a student who
     # skips guidance and submits a finished run directly) -- that always
     # goes to the Tier 1 final-diagnostic path below, walkthrough or not.
+    socratic_session: SocraticSession | None = None
     wt_turn = None
     if (
-        not triage.short_circuits(intent)
+        mode_handled is None
+        and not theory_mode
+        and not triage.short_circuits(intent)
         and not _extract_numbers_dict(body.message)
         and get_settings().walkthrough_enabled
         and experiment_id in walkthrough_service.SUPPORTED_EXPERIMENTS
     ):
         wt_turn = await walkthrough_service.handle_turn(
             db,
+            thread_id=thread.id,
+            entering_practice=entering_practice,
             user_id=principal.id,
             classroom_id=body.classroom_id,
             class_session_id=class_session_id,
@@ -889,10 +1056,14 @@ async def send_message(
                 classroom_id=body.classroom_id,
                 detail={"intent": intent.value, "message": body.message[:500]},
             )
+    elif mode_handled is not None:
+        reply_text, msg_kind, meta = mode_handled
     elif wt_turn is not None and wt_turn.reply is not None:
         reply_text = wt_turn.reply
         msg_kind = ChatMessageKind.SOCRATIC
         meta = {"type": "walkthrough", "walkthrough": wt_turn.events, "ui": wt_turn.ui}
+        if conv_state.mode != conversation.Mode.PRACTICE.value:
+            conv_state.switch(conversation.Mode.PRACTICE, "walkthrough engaged")
     elif wt_turn is not None:
         # A genuine side question mid-walkthrough: the normal grounded
         # answer, then a code-written line that brings the student back.
@@ -932,11 +1103,14 @@ async def send_message(
             except ManualNotTranscribedError:
                 pass
 
-        socratic_session: SocraticSession | None = None
-        if plugin is not None and has_socratic_steps:
-            socratic_session = await _get_socratic_session(
-                db, principal.id, body.classroom_id, experiment_id, actor_type
-            )
+        # Theory mode: the step machine is suspended (not deleted) -- no
+        # step is shown, verified or advanced while the student studies.
+        if plugin is not None and has_socratic_steps and not theory_mode:
+            socratic_session = await _thread_socratic_session(db, principal, conv_state)
+        # A bare "explain this" after leaving a step is about that step.
+        qa_message = body.message
+        if theory_mode and conv_state.topic and _DEICTIC_RE.search(qa_message) and len(qa_message.split()) <= 12:
+            qa_message = f"{qa_message} (about: {conv_state.topic})"
 
         socratic_active = (
             plugin is not None
@@ -1022,7 +1196,8 @@ async def send_message(
                     plugin is not None
                     and has_socratic_steps
                     and socratic_session is None
-                    and triage.is_guidance_request(body.message)
+                    and not theory_mode
+                    and (entering_practice or triage.is_guidance_request(body.message))
                 ):
                     # 4b. No data, no guided session yet, but this
                     # experiment has Socratic steps configured AND the
@@ -1047,11 +1222,9 @@ async def send_message(
                     # troubleshooting, software questions, or a
                     # follow-up once guided mode is done.
                     result = await answer_question(
-                        body.message, active_experiment=experiment_id, conversation_history=history_text
+                        qa_message, active_experiment=experiment_id, conversation_history=history_text
                     )
-                    reply_text = result.text + await _exp07_invite_suffix(
-                        db, principal.id, body.classroom_id, experiment_id, actor_type
-                    )
+                    reply_text = result.text + await _exp07_invite_suffix(db, thread.id, experiment_id)
                     msg_kind = ChatMessageKind.QA
                     meta = {
                         "type": "qa",
@@ -1085,6 +1258,11 @@ async def send_message(
                 # Router identified a guidance request; the existing
                 # Socratic state machine and deterministic verifier
                 # remain authoritative for everything past this point.
+                # In theory mode this is the student asking to go back to
+                # practice, so it resumes this thread's own session.
+                if theory_mode:
+                    conv_state.switch(conversation.Mode.PRACTICE, "router: guidance request")
+                    socratic_session = await _thread_socratic_session(db, principal, conv_state)
                 if socratic_session is None:
                     socratic_session = await _start_socratic_session(
                         db, principal.id, body.classroom_id, class_session_id, experiment_id, actor_type
@@ -1119,7 +1297,7 @@ async def send_message(
                 # content-free wording. `body.message` (unedited) is
                 # still what's stored as the student's turn.
                 result = await answer_question(
-                    router_decision.retrieval_query or body.message,
+                    router_decision.retrieval_query or qa_message,
                     active_experiment=router_decision.experiment_id or experiment_id,
                     conversation_history=history_text,
                 )
@@ -1138,11 +1316,28 @@ async def send_message(
                     **_llm_meta(result.latency_ms, result.prompt_tokens, result.completion_tokens),
                 }
 
+    if (
+        conv_state.mode == conversation.Mode.THEORY.value
+        and conv_state.previous_mode == conversation.Mode.PRACTICE.value
+        and meta.get("type") == "qa"
+    ):
+        chips, chip_ctx = conversation.actions(["back_to_experiment"])
+        meta["ui"] = {"kind": "theory", "chips": chips, "action_context": chip_ctx}
+
+    # Persist this thread's conversation state (one JSON column, one owner).
+    if socratic_session is not None:
+        conv_state.socratic_session_id = socratic_session.id
+        if conv_state.mode != conversation.Mode.PRACTICE.value:
+            conv_state.switch(conversation.Mode.PRACTICE, "guided session engaged")
+    thread.state = conv_state.to_dict()
+
     # Record Assistant Message. `response_ms` is end-to-end handling time
     # (routing + retrieval + every model call), distinct from the single
     # `llm_latency_ms` of the final answer call.
     meta = {
         **(meta or {}),
+        "mode": conv_state.mode,
+        "detected_intent": conv_intent.value,
         "response_ms": round((time.monotonic() - request_started) * 1000, 1),
         **llm_stats.as_meta(),
     }

@@ -57,6 +57,7 @@ export function MessageBubble({
   message,
   showStepHeader = true,
   onQuickReply,
+  triggerText,
 }: {
   message: UnifiedChatMessage;
   /** Show "Step N of M: <prompt>" as the first paragraph. The caller turns it off
@@ -66,11 +67,19 @@ export function MessageBubble({
    * quick-reply chips and quiz answers on a walkthrough turn. Only passed
    * for the most recent message, so old option buttons render inert. */
   onQuickReply?: (text: string) => void;
+  /** The student message this reply answers. A chip that would just send
+   * the same text again is never shown (the server already filters these;
+   * this is the renderer's own guard against a recursive action). */
+  triggerText?: string;
 }) {
 
   const isStudent = message.author === "student";
   const meta = message.metadata || {};
   const ui = meta.ui;
+  const trigger = (triggerText || "").trim().toLowerCase();
+  const chips = Array.from(new Set(ui?.chips || [])).filter(
+    (chip) => chip.trim().toLowerCase() !== trigger
+  );
   const [copied, setCopied] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
 
@@ -221,10 +230,11 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Quick-reply chips (Give me a hint, Why do this step?, ...) */}
-        {meta.type === "walkthrough" && ui?.chips && ui.chips.length > 0 && (
+        {/* Quick-reply chips (Give me a hint, Theory / Study, ...) on any
+            reply that carries them: walkthrough, greeting/mode, theory. */}
+        {chips.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
-            {ui.chips.map((chip) => (
+            {chips.map((chip) => (
               <button
                 key={chip}
                 type="button"
