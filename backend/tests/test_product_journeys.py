@@ -121,6 +121,8 @@ async def test_full_student_product_journey(client, make_user, registered_experi
             "classroom_id": classroom_id,
             "experiment_id": "ref01",
             "message": "standard_normality=0.1, standard_volume=25.0, value=2.5",
+            # Guided progress belongs to the chat it started in.
+            "thread_id": guide.json()["thread_id"],
         },
         headers=auth(student),
     )

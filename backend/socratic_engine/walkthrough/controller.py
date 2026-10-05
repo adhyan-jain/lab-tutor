@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import logging
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from backend.socratic_engine import conversation as conv
+from backend.socratic_engine.conversation import Intent
 from backend.socratic_engine.walkthrough import grader
 from backend.socratic_engine.walkthrough.exp07_script import (
     COMBOS,
@@ -31,6 +34,8 @@ from backend.socratic_engine.walkthrough.exp07_script import (
     SCRIPT,
 )
 from backend.socratic_engine.walkthrough.types import Chapter, Question, QuizItem
+
+log = logging.getLogger("labtutor.walkthrough")
 
 TRIES_ALLOWED = 2
 QUIZ_EVERY_STEPS = 6
@@ -61,6 +66,16 @@ class WalkState:
     quiz_history: list[dict[str, Any]] = field(default_factory=list)
     asked_quiz: list[str] = field(default_factory=list)
     seed: int = 0
+    # Actions already used on the question named by `consumed_for` (hint,
+    # why, ...). A response never re-offers one of these: tapping "Give me
+    # a hint" cannot produce another "Give me a hint" chip.
+    consumed: list[str] = field(default_factory=list)
+    consumed_for: str = ""
+    # The student reported a problem with the current step. Until it is
+    # resolved, a message is a report to diagnose, never a wrong answer.
+    troubleshooting: bool = False
+    # Consecutive "what would you like instead?" turns on this question.
+    clarify: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -163,17 +178,41 @@ def _current_question(state: WalkState) -> Question | None:
     return step.check
 
 
-def _chips(q: Question | None) -> list[str]:
-    chips = ["Give me a hint"] if q is not None and q.hint else []
-    return chips + ["Why do this step?", "Something looks different"]
+def _consumed(state: WalkState, q: Question | None) -> list[str]:
+    return list(state.consumed) if q is not None and state.consumed_for == q.id else []
+
+
+def _consume(state: WalkState, q: Question, action: str) -> None:
+    if state.consumed_for != q.id:
+        state.consumed_for, state.consumed = q.id, []
+    if action not in state.consumed:
+        state.consumed.append(action)
+
+
+def _reset_question(state: WalkState) -> None:
+    """A new question is on screen: per-question detours start over."""
+    state.troubleshooting = False
+    state.clarify = 0
+
+
+def _chips(state: WalkState, q: Question | None, source: str | None = None, candidates: list[str] | None = None) -> tuple[list[str], dict[str, Any]]:
+    """The step card offers hint / why / something-different / theory; a
+    reply produced by one of those offers the rest plus "Continue". The
+    shared policy in conversation.actions drops the source action, anything
+    already used on this question, and duplicates."""
+    if candidates is None:
+        base = (["hint"] if q is not None and q.hint else []) + ["why", "different"]
+        candidates = base + (["continue"] if source else ["study_theory"])
+    return conv.actions(candidates, source=source, consumed=_consumed(state, q))
 
 
 def _base_ui(state: WalkState) -> dict[str, Any]:
     return {"progress": _progress(state), "phase": state.phase}
 
 
-def _question_ui(state: WalkState, q: Question, **extra: Any) -> dict[str, Any]:
-    ui = {**_base_ui(state), "kind": "step", "question_id": q.id, "chips": _chips(q), **extra}
+def _question_ui(state: WalkState, q: Question, source: str | None = None, candidates: list[str] | None = None, **extra: Any) -> dict[str, Any]:
+    chips, ctx = _chips(state, q, source, candidates)
+    ui = {**_base_ui(state), "kind": "step", "question_id": q.id, "chips": chips, "action_context": ctx, **extra}
     if q.kind == "mcq":
         ui["options"] = _options_ui(q.choices)
     return ui
@@ -193,6 +232,7 @@ def _step_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, Any]
     if step.id in state.extend_why:
         parts.append(f"**Why this matters:** {_fmt(step.why, state)}")
     state.pending = "evidence" if step.evidence is not None else "check"
+    _reset_question(state)
     q = _current_question(state)
     ui = {**_base_ui(state), "kind": "step", "step_id": step.id, "title": step.title}
     if q is not None:
@@ -212,7 +252,8 @@ def _hook_message(state: WalkState, opener: str = "") -> tuple[str, dict[str, An
         f"{head}\n\n**A quick guess first.** {_fmt(chapter.hook, state)}\n\n"
         "*No right or wrong here; I only want your instinct.*"
     )
-    return text, {**_base_ui(state), "kind": "hook", "chips": ["Just tell me"]}
+    chips, ctx = conv.actions(["just_tell"])
+    return text, {**_base_ui(state), "kind": "hook", "chips": chips, "action_context": ctx}
 
 
 # ------------------------------------------------------------ navigation
@@ -311,7 +352,8 @@ def _quiz_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, Any]
     )
     if lead:
         text = f"{lead}\n\n{text}"
-    return text, {**_base_ui(state), "kind": "quiz", "quiz": ui_items, "chips": ["Skip quiz"]}
+    chips, ctx = conv.actions(["skip_quiz"])
+    return text, {**_base_ui(state), "kind": "quiz", "quiz": ui_items, "chips": chips, "action_context": ctx}
 
 
 def _parse_quiz_answers(text: str, open_numbers: list[int]) -> dict[int, str]:
@@ -362,11 +404,16 @@ def _finish_quiz(state: WalkState) -> str:
 # ------------------------------------------------------------- advancing
 
 
-def _advance(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
-    """Mark the current step done; show the checkpoint or the next thing."""
+def _advance(state: WalkState, lead: str, completed: bool = True) -> tuple[str, dict[str, Any]]:
+    """Leave the current step -- completed, or explicitly skipped by the
+    student (`completed=False`: recorded in `skipped`, never counted as
+    done). Nothing else may call this: a refusal, a problem report or a
+    request for theory never leaves the step."""
     step = SCRIPT.step(state.step_id)
-    state.steps_done += 1
-    state.steps_since_quiz += 1
+    log.info("[STATE] step=%s -> %s", step.id, "STEP_COMPLETED" if completed else "STEP_SKIPPED")
+    if completed:
+        state.steps_done += 1
+        state.steps_since_quiz += 1
     state.tries.pop(step.id, None)
     state.bare = 0
     trigger = _is_chapter_end(state) and (step.chapter != "tables" or state.steps_since_quiz >= QUIZ_EVERY_STEPS)
@@ -503,6 +550,7 @@ def _after_question(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
     step = SCRIPT.step(state.step_id)
     if state.pending == "evidence" and step.check is not None:
         state.pending = "check"
+        _reset_question(state)
         q = step.check
         text = _with_options("\n\n".join(p for p in (lead, f"**Now a why-question:** {_fmt(q.ask, state)}") if p), q)
         return text, _question_ui(state, q, step_id=step.id)
@@ -562,6 +610,116 @@ def _handle_report(state: WalkState, q: Question, verdict: grader.Verdict, event
     return TurnResult(reply, state, {**events, "verdict": "correct", "values": dict(zip(names, values))}, ui)
 
 
+_TROUBLE_ASK = (
+    "Sure, let's sort that out. Tell me what looks different, or describe what you see: "
+    "which window is open, the menu names or buttons you can see, any error message, "
+    "and what you expected compared with what you got."
+)
+_MISSING_ASK = (
+    "Thanks for telling me; I won't assume that option is there. "
+    "Tell me exactly what you do see: the window's title, the menu names along the top, "
+    "or any message on screen, and we'll work from that."
+)
+
+
+def _detour(state: WalkState, q: Question, text: str, verdict: str, events: dict[str, Any], *, source: str | None = None, candidates: list[str] | None = None) -> TurnResult:
+    """A reply that stays on the current question: hint, why, a problem
+    report, a clarification. Never moves the step."""
+    return TurnResult(text, state, {**events, "verdict": verdict}, _question_ui(state, q, source=source, candidates=candidates))
+
+
+def _handle_intent(state: WalkState, q: Question, message: str, intent: Intent, events: dict[str, Any]) -> TurnResult | None:
+    """Student intent first, grading second. Returns None when the message
+    is an answer attempt (or a free question) for the normal path."""
+    step = SCRIPT.step(state.step_id)
+    events["intent"] = intent.value
+
+    if intent is Intent.SWITCH_TO_PRACTICE or (state.troubleshooting and intent is Intent.PROBLEM_RESOLVED):
+        # "Back to step", "it works now": show the same question again.
+        resolved = state.troubleshooting
+        state.troubleshooting = False
+        state.clarify = 0
+        lead = "Good, glad that's sorted." if resolved else "Here is where you are."
+        text = _with_options(f"{lead} {_fmt(q.ask, state)}", q)
+        return _detour(state, q, text, "problem_resolved" if resolved else "resume_shown", events)
+
+    if intent is Intent.USER_REQUESTED_HINT:
+        state.clarify = 0
+        if "hint" in _consumed(state, q):
+            text = _with_options(
+                "That was the only hint I have for this one. If it still isn't clear, say \"just tell me\" "
+                "and I'll show you the answer, or tell me what you see on screen.", q)
+            return _detour(state, q, text, "hint_repeated", events, source="hint", candidates=["why", "different", "just_tell"])
+        _consume(state, q, "hint")
+        if q.hint:
+            text = _with_options(f"**Hint:** {_fmt(q.hint, state)}", q)
+        else:
+            text = _with_options(
+                f"I don't have a separate hint for this one: the answer comes straight from your screen once you have done this: "
+                f"{_fmt(step.do, state)}\n\nWhen you're ready: {_fmt(q.ask, state)}", q)
+        return _detour(state, q, text, "hint_requested", events, source="hint")
+
+    if intent is Intent.USER_REQUESTED_EXPLANATION:
+        state.clarify = 0
+        if "why" in _consumed(state, q):
+            text = _with_options(f"That's the reason I gave just above. When you're ready: {_fmt(q.ask, state)}", q)
+            return _detour(state, q, text, "why_repeated", events, source="why")
+        _consume(state, q, "why")
+        text = _with_options(f"**Why this step:** {_fmt(step.why, state)}\n\nWhen you are ready: {_fmt(q.ask, state)}", q)
+        return _detour(state, q, text, "why_requested", events, source="why")
+
+    if intent is Intent.TROUBLESHOOTING or (state.troubleshooting and intent in (Intent.ANSWER, Intent.USER_QUESTION)):
+        already = state.troubleshooting
+        state.troubleshooting = True
+        state.clarify = 0
+        # Not consumed: unlike a hint, a new problem can come up on the
+        # same question, so the chip is only hidden on its own reply.
+        if already and intent is not Intent.TROUBLESHOOTING:
+            # The student is describing the problem. A structured answer
+            # (option, number) or a correct free-text answer goes back to
+            # normal grading; any other text is a report for the grounded
+            # path to diagnose -- never counted as a wrong try.
+            # Free-text keys are loose patterns, so a long description
+            # ("it just doesn't open at all") can contain a key word; only
+            # a short, correct reply counts as an answer here.
+            verdict = grader.grade(q, message)
+            short_answer = (
+                q.kind == "short" and verdict.correct
+                and len(grader._tokens(message)) <= 5 and not conv.is_negative(message)
+            )
+            if verdict.attempted and (q.kind != "short" or short_answer):
+                state.troubleshooting = False
+                return None
+            return TurnResult(None, state, {**events, "verdict": "troubleshoot_report"}, {}, resume_line=_resume_line(state))
+        detailed = len(grader._tokens(message)) >= 9
+        if detailed:
+            # A specific report on the first message: diagnose it now.
+            return TurnResult(None, state, {**events, "verdict": "troubleshoot_report"}, {}, resume_line=_resume_line(state))
+        parts = [_MISSING_ASK if conv.is_missing_ui(message) else _TROUBLE_ASK]
+        if step.stuck:
+            parts.append(f"Things that commonly trip people up here: {_fmt(step.stuck, state)}")
+        return _detour(state, q, "\n\n".join(parts), "troubleshooting", events,
+                       source="different", candidates=["back_to_step", "study_theory", "skip"])
+
+    if intent is Intent.STEP_REFUSED:
+        state.clarify += 1
+        if state.clarify == 1:
+            text = (
+                "No problem, you don't have to do this step right now. What would you like instead? "
+                "I can switch to the theory behind it, give you a hint, help if something isn't working, "
+                "or skip it for now."
+            )
+            return _detour(state, q, text, "step_refused", events,
+                           candidates=["study_theory", "hint", "different", "skip"])
+        text = (
+            "Understood, we won't do it. Tell me in a few words what you'd rather do, "
+            'or say "skip this step" to move past it, or "study theory" to switch to the concepts.'
+        )
+        return _detour(state, q, text, "step_refused_again", events, candidates=["study_theory", "skip"])
+
+    return None
+
+
 def _handle_answer(state: WalkState, message: str) -> TurnResult:
     step = SCRIPT.step(state.step_id)
     q = _current_question(state)
@@ -579,25 +737,26 @@ def _handle_answer(state: WalkState, message: str) -> TurnResult:
             reply, ui = _step_message(state, "Going back.")
         return TurnResult(reply, state, {**events, "verdict": "back"}, ui)
 
+    intent = conv.classify(message)
     if grader.is_skip(message):
+        intent = Intent.STEP_SKIPPED
+    log.info("[INTENT] step=%s -> %s troubleshooting=%s consumed=%s", step.id, intent.value, state.troubleshooting, _consumed(state, q))
+
+    if intent is Intent.STEP_SKIPPED:
         _flag_help(state, q.id)
         state.skipped.append(step.id)
-        reply, ui = _advance(state, 'Skipped, and noted. Say "back" any time to return to it.')
-        return TurnResult(reply, state, {**events, "verdict": "skip", "needed_help": True}, ui)
+        reply, ui = _advance(state, 'Skipped, and noted. Say "back" any time to return to it.', completed=False)
+        return TurnResult(reply, state, {**events, "verdict": "skip", "intent": intent.value, "needed_help": True}, ui)
 
-    if grader.wants_answer(message):
+    if grader.wants_answer(message) and intent in (Intent.ANSWER, Intent.USER_QUESTION) and not state.troubleshooting:
         _flag_help(state, q.id)
         reply, ui = _after_question(state, _reveal_text(q))
         return TurnResult(reply, state, {**events, "verdict": "reveal", "needed_help": True}, ui)
 
-    lowered = message.strip().lower().rstrip("?.! ")
-    if lowered in ("hint", "give me a hint", "a hint", "hint please") and q.hint:
-        text = _with_options(f"**Hint:** {_fmt(q.hint, state)}", q)
-        return TurnResult(text, state, {**events, "verdict": "hint_requested"}, _question_ui(state, q))
-
-    if lowered in ("why", "why do this step", "why this step", "why are we doing this", "why do we do this"):
-        text = _with_options(f"**Why this step:** {_fmt(step.why, state)}\n\nWhen you are ready: {_fmt(q.ask, state)}", q)
-        return TurnResult(text, state, {**events, "verdict": "why_requested"}, _question_ui(state, q))
+    handled = _handle_intent(state, q, message, intent, events)
+    if handled is not None:
+        return handled
+    state.clarify = 0
 
     if q.kind == "short" and grader.is_side_question(message):
         # A free-text answer can only be recognised by its content, so a
@@ -642,10 +801,6 @@ def _handle_answer(state: WalkState, message: str) -> TurnResult:
             text = _with_options(f"{_pick(_PROBE_OPENERS, state, state.bare)} {_fmt(q.ask, state)}", q)
         return TurnResult(text, state, {**events, "verdict": "probe", "bare": state.bare}, _question_ui(state, q))
 
-    if grader.is_problem(message) and step.stuck:
-        text = _with_options(f"{_fmt(step.stuck, state)}\n\nWhen it works, tell me: {_fmt(q.ask, state)}", q)
-        return TurnResult(text, state, {**events, "verdict": "stuck"}, _question_ui(state, q))
-
     if grader.is_side_question(message):
         return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
 
@@ -689,7 +844,15 @@ def step_context(state: WalkState) -> str:
     if state.phase == "quiz":
         return "The student is answering a short checkpoint quiz."
     step = SCRIPT.step(state.step_id)
-    return f"The student is in a guided walkthrough at {_progress(state)['label']}: {step.title}."
+    line = f"The student is in a guided walkthrough at {_progress(state)['label']}: {step.title}."
+    if state.troubleshooting:
+        # Authored instruction text only, so the grounded answer diagnoses
+        # against what the manual actually asks for at this step.
+        line += (
+            f" They are reporting a problem with this step, whose instruction is: {_fmt(step.do, state)}"
+            " Help with this step only, one actionable check at a time."
+        )
+    return line
 
 
 def take_turn(state: WalkState, message: str) -> TurnResult:
@@ -711,7 +874,7 @@ def _turn_hook(state: WalkState, message: str) -> TurnResult:
     events = {"step_id": state.step_id, "chapter": chapter.id}
     if grader.is_side_question(message) and not grader.wants_answer(message):
         return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
-    if grader.wants_answer(message) or grader.is_skip(message):
+    if grader.wants_answer(message) or grader.is_skip(message) or conv.classify(message) in (Intent.STEP_REFUSED, Intent.STEP_SKIPPED):
         state.skipped.append(f"hook:{chapter.id}")
         lead, events["verdict"] = "No problem, let's get going.", "hook_skipped"
     else:
@@ -725,7 +888,7 @@ def _turn_hook(state: WalkState, message: str) -> TurnResult:
 def _turn_quiz(state: WalkState, message: str) -> TurnResult:
     quiz = state.quiz or {"items": [], "answers": {}}
     events = {"step_id": state.step_id, "phase": "quiz"}
-    if grader.is_skip_quiz(message) or grader.is_skip(message):
+    if grader.is_skip_quiz(message) or grader.is_skip(message) or conv.classify(message) in (Intent.STEP_REFUSED, Intent.STEP_SKIPPED):
         state.skipped.append(f"quiz:{_chapter(state).id}")
         state.quiz = None
         state.steps_since_quiz = 0

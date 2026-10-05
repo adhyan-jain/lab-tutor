@@ -330,20 +330,21 @@ class SocraticSession(Base):
 class WalkthroughProgress(Base):
     """Where a student is in a guided walkthrough (Exp7 today).
 
-    One row per student, classroom, experiment and actor type; the state is
+    One row per chat thread: a new chat never continues another chat's
+    walkthrough (rows from before threads were tracked have thread_id NULL
+    and are only reachable through "Resume previous session"). The state is
     the controller's JSON (step, tries, facts the student reported,
     predictions, quiz history). Per-turn events are also written to
     ChatMessage.metadata_json so analytics need no second store.
     """
 
     __tablename__ = "walkthrough_progress"
-    __table_args__ = (
-        UniqueConstraint(
-            "student_id", "classroom_id", "experiment_id", "actor_type", name="uq_walkthrough_scope"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("thread_id", name="uq_walkthrough_thread"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    thread_id: Mapped[str | None] = mapped_column(
+        ForeignKey("chat_threads.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     student_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     classroom_id: Mapped[str] = mapped_column(ForeignKey("classrooms.id"), index=True)
     class_session_id: Mapped[str | None] = mapped_column(
@@ -389,6 +390,10 @@ class ChatThread(Base):
     )
     experiment_id: Mapped[str] = mapped_column(String(64), index=True)
     title: Mapped[str] = mapped_column(String(255), default="New chat")
+    # Conversation mode for this thread only (initial / theory / practice
+    # and the context to return from a detour) -- see
+    # backend/socratic_engine/conversation.py. NULL means a fresh thread.
+    state: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=_now, onupdate=_now

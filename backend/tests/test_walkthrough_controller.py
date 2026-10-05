@@ -271,7 +271,10 @@ def test_side_question_is_handed_to_qa_with_a_way_back():
 def test_problem_report_gets_the_authored_stuck_text_not_a_model():
     state = at_step("o2_orca_dialog")
     result = ctl.take_turn(state, "the dialog is not opening")
-    assert result.events["verdict"] == "stuck" and "ORCA icon" in result.reply
+    # A problem report enters troubleshooting: it asks what the student sees
+    # and still offers the authored stuck text -- never a model's guess.
+    assert result.events["verdict"] == "troubleshooting" and "ORCA icon" in result.reply
+    assert state.troubleshooting and state.step_id == "o2_orca_dialog"
 
 
 def test_back_and_skip_and_where_am_i():

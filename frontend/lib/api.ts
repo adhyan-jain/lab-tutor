@@ -324,8 +324,16 @@ export interface WalkthroughQuizItem {
   options: WalkthroughOption[];
 }
 
+/** Which action produced a reply and which chips were withheld because of
+ * it -- see backend/socratic_engine/conversation.py `actions`. */
+export interface ActionContext {
+  source_action: string | null;
+  depth: number;
+  suppressed: string[];
+}
+
 export interface WalkthroughUi {
-  kind: "hook" | "step" | "quiz" | "paused" | "done";
+  kind: "hook" | "step" | "quiz" | "paused" | "done" | "greeting" | "mode" | "theory";
   progress?: { label: string; index: number; total: number; chapter: string };
   phase?: string;
   step_id?: string;
@@ -334,10 +342,17 @@ export interface WalkthroughUi {
   options?: WalkthroughOption[];
   quiz?: WalkthroughQuizItem[];
   chips?: string[];
+  action_context?: ActionContext;
+  mode?: ConversationMode;
 }
 
+export type ConversationMode = "initial" | "theory" | "practice";
+
 export interface ChatMessageMetadata {
-  type?: "qa" | "socratic" | "diagnostic" | "triage" | "walkthrough";
+  type?: "qa" | "socratic" | "diagnostic" | "triage" | "walkthrough" | "mode" | "clarification";
+  /** The thread's conversation mode after this turn. */
+  mode?: ConversationMode;
+  detected_intent?: string;
   status?: string;
   tier?: number;
   action?: string;
