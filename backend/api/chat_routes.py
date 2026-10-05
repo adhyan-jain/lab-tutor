@@ -20,12 +20,15 @@ of the same deterministic engine, not a parallel implementation of it.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
 import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +61,7 @@ from backend.socratic_engine.walkthrough import grader
 from backend.socratic_engine.walkthrough import service as walkthrough_service
 from backend.retrieval.pipeline import QUALITATIVE_EXPERIMENTS, answer_question
 from backend.llm import telemetry as llm_telemetry
+from backend.llm.client import _stream_queue
 from backend.router import RouterMode, route_message
 from backend.scope import ontology
 from backend.socratic_engine import (
@@ -916,11 +920,10 @@ async def _handle_final_diagnostic(
     }
 
 
-@router.post("/messages")
-async def send_message(
+async def _process_message(
     body: SendChatMessageRequest,
-    principal: Principal = Depends(current_user),
-    db: AsyncSession = Depends(get_session),
+    principal: Principal,
+    db: AsyncSession,
 ) -> dict:
     request_started = time.monotonic()
     llm_stats = llm_telemetry.begin_request()
@@ -1378,3 +1381,80 @@ async def send_message(
             "created_at": assistant_msg.created_at.isoformat(),
         },
     }
+
+
+@router.post("/messages")
+async def send_message(
+    body: SendChatMessageRequest,
+    principal: Principal = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    return await _process_message(body, principal, db)
+
+
+@router.post("/messages/stream")
+async def send_message_stream(
+    body: SendChatMessageRequest,
+    principal: Principal = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    """SSE endpoint: streams LLM tokens in real time, then sends the final
+    saved message as a `done` event.
+
+    Protocol:
+      data: {"type": "chunk", "text": "..."}   — one or more, LLM tokens
+      data: {"type": "done",  "thread_id": "...", "thread_title": "...",
+             "message": {...}}                  — exactly once, after commit
+      data: {"type": "error", "status": N, "detail": "..."}  — on failure
+    """
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+    # Set the queue in THIS task's context before creating the worker task.
+    # asyncio.create_task copies the current context, so the worker
+    # inherits _stream_queue=queue automatically.
+    _stream_queue.set(queue)
+
+    result_holder: dict = {}
+
+    async def worker() -> None:
+        try:
+            result_holder["ok"] = await _process_message(body, principal, db)
+        except HTTPException as exc:
+            result_holder["http_err"] = exc
+        except Exception as exc:
+            result_holder["err"] = exc
+        finally:
+            await queue.put(None)  # sentinel — signals end of token stream
+
+    task = asyncio.create_task(worker())
+
+    async def events():
+        try:
+            while True:
+                chunk = await queue.get()
+                if chunk is None:
+                    break
+                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+
+            await task  # ensure worker has fully committed before sending done
+
+            if "http_err" in result_holder:
+                exc = result_holder["http_err"]
+                yield f"data: {json.dumps({'type': 'error', 'status': exc.status_code, 'detail': exc.detail})}\n\n"
+            elif "err" in result_holder:
+                yield f"data: {json.dumps({'type': 'error', 'status': 500, 'detail': str(result_holder['err'])})}\n\n"
+            else:
+                r = result_holder["ok"]
+                yield f"data: {json.dumps({'type': 'done', 'thread_id': r['thread_id'], 'thread_title': r['thread_title'], 'message': r['message']})}\n\n"
+        except asyncio.CancelledError:
+            task.cancel()
+            raise
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

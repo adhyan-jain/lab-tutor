@@ -259,7 +259,8 @@ export function ChatWorkspace({ me }: { me: Me }) {
     }
   };
 
-  // Send Message handler
+  // Send Message handler — streams tokens via SSE so the reply appears
+  // character-by-character while the LLM generates it.
   const handleSend = async (override?: string) => {
     const text = (override ?? input).trim();
     if (!text || !activeClassroom || sending) return;
@@ -276,30 +277,55 @@ export function ChatWorkspace({ me }: { me: Me }) {
       kind: "qa",
       created_at: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, tempUserMsg]);
+    // Streaming placeholder for the tutor reply — content grows with each chunk
+    const tempTutorId = `temp-stream-${Date.now()}`;
+    const tempTutorMsg: UnifiedChatMessage = {
+      id: tempTutorId,
+      author: "tutor",
+      content: "",
+      kind: "qa",
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, tempUserMsg, tempTutorMsg]);
 
     try {
-      const res = await api.post<{
+      let finalResult: {
         thread_id: string;
         thread_title: string;
         message: UnifiedChatMessage;
-      }>("/api/chat/messages", {
+      } | null = null;
+
+      for await (const event of api.streamMessage({
         classroom_id: activeClassroom.id,
         experiment_id: selectedExpId,
         message: text,
         thread_id: activeThreadId,
-      });
+      })) {
+        if (event.type === "chunk") {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === tempTutorId ? { ...m, content: m.content + event.text } : m
+            )
+          );
+        } else if (event.type === "done") {
+          finalResult = {
+            thread_id: event.thread_id,
+            thread_title: event.thread_title,
+            message: event.message as UnifiedChatMessage,
+          };
+        } else if (event.type === "error") {
+          throw new ApiError(event.status, event.detail);
+        }
+      }
 
+      if (!finalResult) throw new Error("Stream ended without a done event");
+
+      const res = finalResult;
       if (!activeThreadId || activeThreadId !== res.thread_id) {
         // Switching onto a (possibly just-created) thread also fires the
         // activeThreadId effect below, which calls loadMessages() and
-        // replaces `messages` wholesale from the server. Appending here
-        // too raced with that fetch -- whichever resolved second won,
-        // and when loadMessages won first, this append landed on top of
-        // the already-loaded pair, rendering the question+reply twice.
-        // The thread-switch effect is the sole source of truth for
-        // `messages` in this branch; only the "still on the same
-        // thread" branch below needs to append locally.
+        // replaces `messages` wholesale from the server — temp messages
+        // are cleaned up automatically by that reload.
         setActiveThreadId(res.thread_id);
         await loadThreads();
       } else {
@@ -311,14 +337,16 @@ export function ChatWorkspace({ me }: { me: Me }) {
         // earlier prompt vanish from the thread.
         const settledUserMsg = { ...tempUserMsg, id: `local-${res.message.id}` };
         setMessages((prev) => [
-          ...prev.filter((m) => m.id !== tempUserMsg.id),
+          ...prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempTutorId),
           settledUserMsg,
           res.message,
         ]);
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
-      setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempTutorId)
+      );
       setInput(text);
     } finally {
       setSending(false);

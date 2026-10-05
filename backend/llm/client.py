@@ -14,6 +14,7 @@ import random
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 import httpx
@@ -42,6 +43,13 @@ def _strip_markdown_emphasis(text: str) -> str:
 #: alongside the backend cache so a settings reload -- or a test that
 #: changes `LABTUTOR_LLM_MAX_CONCURRENCY` -- picks up the new limit.
 _semaphore: asyncio.Semaphore | None = None
+
+#: When set, every OpenAIBackend.complete() call in this asyncio task
+#: streams tokens into this queue instead of waiting for the full reply.
+#: The streaming endpoint sets it before spawning the worker task; the
+#: worker inherits it via asyncio's copy-on-write context propagation.
+#: Value is None (default) on every ordinary non-streaming request.
+_stream_queue: ContextVar[asyncio.Queue | None] = ContextVar("_llm_stream_queue", default=None)
 
 
 def _get_semaphore() -> asyncio.Semaphore:
@@ -566,6 +574,76 @@ class OpenAIBackend(LLMBackend):
                 log.info("OpenAI %s; retry %d in %.1fs", type(exc).__name__, attempt, delay)
                 await asyncio.sleep(delay)
 
+    async def _complete_streaming(
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int,
+        queue: asyncio.Queue,
+    ) -> LLMReply:
+        """complete() in streaming mode: pushes text chunks to queue, returns full reply.
+
+        The caller (the SSE endpoint's background worker) already owns the
+        concurrency slot via the normal _slot() path that wraps complete(); we
+        acquire a fresh slot here because _complete_streaming IS complete() for
+        this request -- the slot keeps the stream counted against the cap.
+        """
+        kwargs: dict = {}
+        if self._reasoning_effort:
+            kwargs["reasoning_effort"] = self._reasoning_effort
+
+        started = time.monotonic()
+        telemetry.record_call()
+        telemetry.record_attempt()
+        chunks: list[str] = []
+
+        sem = _get_semaphore()
+        try:
+            await asyncio.wait_for(
+                sem.acquire(), timeout=get_settings().llm_queue_timeout_seconds
+            )
+        except TimeoutError:
+            raise LLMUnavailable("LLM concurrency queue timeout") from None
+
+        try:
+            stream = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                max_completion_tokens=max_tokens,
+                stream=True,
+                **kwargs,
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content if chunk.choices else None
+                if delta:
+                    chunks.append(delta)
+                    await queue.put(delta)
+        except Exception as exc:
+            latency_ms = (time.monotonic() - started) * 1000
+            telemetry.record_result(
+                backend=self.name, model=self._model, ok=False,
+                latency_ms=latency_ms, error=_error_label(exc),
+            )
+            raise LLMUnavailable(f"OpenAI streaming request failed: {exc}") from exc
+        finally:
+            sem.release()
+
+        latency_ms = (time.monotonic() - started) * 1000
+        full_text = "".join(chunks)
+        telemetry.record_result(
+            backend=self.name, model=self._model, ok=True, latency_ms=latency_ms,
+        )
+        return LLMReply(
+            text=_strip_markdown_emphasis(full_text.strip()),
+            backend=self.name,
+            model=self._model,
+            latency_ms=latency_ms,
+        )
+
     async def complete(
         self,
         *,
@@ -577,6 +655,18 @@ class OpenAIBackend(LLMBackend):
     ) -> LLMReply:
         if not self._configured():
             raise LLMUnavailable("OpenAI backend is not configured (OPENAI_API_KEY is required)")
+
+        # Streaming mode: when the SSE endpoint has set a queue in this task's
+        # context, push tokens to it and return the assembled reply as normal.
+        queue = _stream_queue.get()
+        if queue is not None:
+            return await self._complete_streaming(
+                system=system,
+                user=user,
+                max_tokens=max_tokens or self._default_max_tokens,
+                queue=queue,
+            )
+
         started = time.monotonic()
         telemetry.record_call()
         try:
@@ -691,26 +781,30 @@ _cached: LLMBackend | None = None
 
 
 def build_backend(settings: Settings) -> LLMBackend:
-    # GPT=true is a full provider switch, decided before -- and independently
-    # of -- LABTUTOR_LLM_BACKEND: whichever provider is selected stays
-    # selected. No Ollama secondary here on purpose (see OpenAIBackend's
-    # docstring) -- a provider outage reaches the caller's own extractive
-    # fallback instead of silently answering from a different model.
+    # GPT=true: OpenAI is primary. Vertex AI is the fallback when
+    # auto_fallback is on -- no Ollama in this chain so a local service
+    # can't silently answer with a different model in production.
     if settings.gpt:
-        return OpenAIBackend(settings)
+        primary: LLMBackend = OpenAIBackend(settings)
+        if settings.llm_auto_fallback:
+            return FallbackBackend(primary, VertexBackend(settings))
+        return primary
 
-    primary: LLMBackend
-    secondary: LLMBackend
+    # Pure Vertex path (production, non-GPT). No local secondary.
+    if settings.llm_backend == "vertex":
+        return VertexBackend(settings)
+
+    # Local dev paths only (ollama / hosted).
+    lo: LLMBackend
+    hi: LLMBackend
     if settings.llm_backend == "ollama":
-        primary, secondary = OllamaBackend(settings), HostedBackend(settings)
-    elif settings.llm_backend == "vertex":
-        primary, secondary = VertexBackend(settings), OllamaBackend(settings)
+        lo, hi = OllamaBackend(settings), HostedBackend(settings)
     else:
-        primary, secondary = HostedBackend(settings), OllamaBackend(settings)
+        lo, hi = HostedBackend(settings), OllamaBackend(settings)
 
     if settings.llm_auto_fallback:
-        return FallbackBackend(primary, secondary)
-    return primary
+        return FallbackBackend(lo, hi)
+    return lo
 
 
 def get_backend() -> LLMBackend:

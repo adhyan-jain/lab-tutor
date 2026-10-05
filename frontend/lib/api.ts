@@ -52,6 +52,50 @@ export const api = {
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+
+  /** Stream a chat message via SSE.  Yields chunk events as text arrives,
+   *  then a single done event with the saved message, or an error event. */
+  async *streamMessage(body: {
+    classroom_id: string;
+    experiment_id: string | null;
+    message: string;
+    thread_id: string | null;
+  }): AsyncGenerator<
+    | { type: "chunk"; text: string }
+    | { type: "done"; thread_id: string; thread_title: string; message: unknown }
+    | { type: "error"; status: number; detail: string }
+  > {
+    const response = await fetch("/api/chat/messages/stream", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      let detail = response.statusText;
+      try {
+        const b = await response.json();
+        if (typeof b?.detail === "string") detail = b.detail;
+      } catch { /* non-JSON */ }
+      throw new ApiError(response.status, detail);
+    }
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop()!;
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          yield JSON.parse(line.slice(6));
+        } catch { /* malformed SSE line — skip */ }
+      }
+    }
+  },
   /** For binary responses (e.g. the marks .xlsx export) that `request`'s
    * JSON parsing can't handle -- triggers a normal browser download. */
   download: async (path: string, filename: string) => {
