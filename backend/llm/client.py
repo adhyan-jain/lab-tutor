@@ -317,22 +317,31 @@ class VertexBackend(LLMBackend):
         self._timeout = settings.llm_timeout_seconds
         self._default_max_tokens = settings.llm_max_tokens
         self._temperature = settings.llm_temperature
-        self._client = genai.Client(
-            vertexai=True,
-            project=settings.vertex_project or None,
-            location=settings.vertex_location,
-        )
-        self.cache_manager: ContextCacheManager | None = (
-            ContextCacheManager(
-                client=self._client,
-                model=settings.vertex_model,
-                location=settings.vertex_location,
-                ttl_seconds=settings.llm_context_cache_ttl_seconds,
+        self._vertex_project = settings.vertex_project or None
+        self._vertex_location = settings.vertex_location
+        self._context_cache_enabled = settings.llm_context_cache_enabled
+        self._cache_ttl = settings.llm_context_cache_ttl_seconds
+        # Client is created lazily on first use so a missing ADC at startup
+        # (e.g. local dev with GPT=true + Vertex as fallback) doesn't crash.
+        self._client: genai.Client | None = None
+        self.cache_manager: ContextCacheManager | None = None
+        self.supports_context_cache = settings.llm_context_cache_enabled
+
+    def _get_client(self) -> genai.Client:
+        if self._client is None:
+            self._client = genai.Client(
+                vertexai=True,
+                project=self._vertex_project,
+                location=self._vertex_location,
             )
-            if settings.llm_context_cache_enabled
-            else None
-        )
-        self.supports_context_cache = self.cache_manager is not None
+            if self._context_cache_enabled:
+                self.cache_manager = ContextCacheManager(
+                    client=self._client,
+                    model=self._model,
+                    location=self._vertex_location,
+                    ttl_seconds=self._cache_ttl,
+                )
+        return self._client
 
     async def _generate(
         self,
@@ -388,7 +397,7 @@ class VertexBackend(LLMBackend):
             try:
                 async with _slot():
                     return await asyncio.wait_for(
-                        self._client.aio.models.generate_content(
+                        self._get_client().aio.models.generate_content(
                             model=self._model, contents=contents, config=config
                         ),
                         timeout=self._timeout,
@@ -472,7 +481,7 @@ class VertexBackend(LLMBackend):
     async def health(self) -> bool:
         try:
             await asyncio.wait_for(
-                self._client.aio.models.generate_content(
+                self._get_client().aio.models.generate_content(
                     model=self._model,
                     contents="ping",
                     config=genai_types.GenerateContentConfig(max_output_tokens=1),
@@ -480,7 +489,7 @@ class VertexBackend(LLMBackend):
                 timeout=5.0,
             )
             return True
-        except (genai_errors.APIError, TimeoutError):
+        except (genai_errors.APIError, TimeoutError, Exception):
             return False
 
 
