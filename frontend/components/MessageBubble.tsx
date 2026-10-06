@@ -29,6 +29,16 @@ const markdownComponents = {
   pre: (props: React.ComponentProps<"pre">) => (
     <pre style={{ margin: "0 0 0.75em", overflowX: "auto", padding: "8px 10px", borderRadius: "6px", backgroundColor: "rgba(128, 128, 128, 0.15)" }} {...props} />
   ),
+  // Wide tables scroll inside the bubble instead of stretching the page.
+  table: (props: React.ComponentProps<"table">) => (
+    <div className="md-table-wrap">
+      <table {...props} />
+    </div>
+  ),
+  img: (props: React.ComponentProps<"img">) => (
+    // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+    <img style={{ maxWidth: "100%", height: "auto" }} {...props} />
+  ),
   a: (props: React.ComponentProps<"a">) => <a target="_blank" rel="noopener noreferrer" {...props} />,
 };
 
@@ -76,6 +86,12 @@ export function MessageBubble({
   const isStudent = message.author === "student";
   const meta = message.metadata || {};
   const ui = meta.ui;
+  // The concept card is rendered as its own block, so drop its paragraph from
+  // the body (the stored message keeps it for transcripts and exports).
+  const conceptCard = meta.type === "walkthrough" ? ui?.concept_card : undefined;
+  const bodyText = conceptCard
+    ? message.content.replace(`**Concept worth knowing: ${conceptCard.name}.** ${conceptCard.text}\n\n`, "")
+    : message.content;
   const trigger = (triggerText || "").trim().toLowerCase();
   const chips = Array.from(new Set(ui?.chips || [])).filter(
     (chip) => chip.trim().toLowerCase() !== trigger
@@ -99,6 +115,7 @@ export function MessageBubble({
       }}
     >
       <div
+        className="msg-bubble"
         style={{
           maxWidth: "85%",
           padding: "12px 16px",
@@ -181,23 +198,40 @@ export function MessageBubble({
           </div>
         )}
 
+        {/* Concept card: inline, shown only when a core concept is raised */}
+        {conceptCard && (
+          <div
+            role="note"
+            aria-label={`Concept: ${conceptCard.name}`}
+            style={{
+              borderLeft: "3px solid var(--accent)", background: "var(--surface-2, rgba(127,127,127,0.08))",
+              borderRadius: "6px", padding: "8px 12px", margin: "0 0 10px", fontSize: "0.85rem", lineHeight: 1.5,
+            }}
+          >
+            <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)" }}>
+              Concept worth knowing
+            </div>
+            <strong>{conceptCard.name}.</strong> {conceptCard.text}
+          </div>
+        )}
+
         {/* Message Content */}
         <div style={{ wordBreak: "break-word", lineHeight: 1.55 }}>
           {renderFormattedContent(
             showStepHeader && meta.type === "socratic" && meta.prompt
-              ? `**Step ${meta.current_step !== undefined ? meta.current_step + 1 : 1} of ${meta.total_steps || "?"}:** ${meta.prompt}\n\n${message.content}`
-              : message.content
+              ? `**Step ${meta.current_step !== undefined ? meta.current_step + 1 : 1} of ${meta.total_steps || "?"}:** ${meta.prompt}\n\n${bodyText}`
+              : bodyText
           )}
         </div>
 
         {/* Walkthrough option buttons (MCQ / checkpoint) */}
         {meta.type === "walkthrough" && ui?.options && ui.options.length > 0 && (
-          <div role="group" aria-label="Answer options" style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
+          <div role="group" aria-label="Answer options" className="reply-stack" style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
             {ui.options.map((opt) => (
               <button
                 key={opt.key}
                 type="button"
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary btn-sm touch-btn"
                 disabled={!onQuickReply}
                 onClick={() => onQuickReply?.(`${opt.key.toUpperCase()}. ${opt.text}`)}
                 style={{ textAlign: "left", justifyContent: "flex-start", whiteSpace: "normal" }}
@@ -217,7 +251,7 @@ export function MessageBubble({
                   <button
                     key={opt.key}
                     type="button"
-                    className="btn btn-secondary btn-sm"
+                    className="btn btn-secondary btn-sm touch-btn"
                     disabled={!onQuickReply}
                     onClick={() => onQuickReply?.(`${item.n}${opt.key}`)}
                     style={{ textAlign: "left", justifyContent: "flex-start", whiteSpace: "normal" }}
@@ -238,7 +272,7 @@ export function MessageBubble({
               <button
                 key={chip}
                 type="button"
-                className="btn btn-secondary btn-sm"
+                className="btn btn-secondary btn-sm touch-btn chip-btn"
                 disabled={!onQuickReply}
                 onClick={() => onQuickReply?.(chip)}
                 style={{ borderRadius: "999px", fontSize: "0.75rem", padding: "4px 12px" }}

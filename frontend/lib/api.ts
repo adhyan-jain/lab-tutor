@@ -377,8 +377,13 @@ export interface ActionContext {
 }
 
 export interface WalkthroughUi {
-  kind: "hook" | "step" | "quiz" | "paused" | "done" | "greeting" | "mode" | "theory";
+  kind: "hook" | "step" | "quiz" | "concept" | "paused" | "done" | "greeting" | "mode" | "theory";
   progress?: { label: string; index: number; total: number; chapter: string };
+  /** Conceptual moment: a short authored question about why / what to expect. */
+  concept_id?: string;
+  question_type?: "PREDICTION" | "WHY" | "CONSEQUENCE" | "OBSERVATION" | "INTERPRETATION" | "TRANSFER";
+  /** Shown once, only when the concept is core and not yet demonstrated. */
+  concept_card?: { id: string; name: string; text: string };
   phase?: string;
   step_id?: string;
   title?: string;

@@ -601,7 +601,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
           </button>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h1 style={{ fontSize: "1.1rem", margin: 0 }}>
+              <h1 className="chat-title" style={{ fontSize: "1.1rem", margin: 0 }}>
                 {selectedExpId.toUpperCase()}: {selectedExp?.title || "Experiment"}
               </h1>
               {selectedExp && (
@@ -615,7 +615,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
             </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div className="bar-right" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             {/* Session Indicator */}
             {sessionInfo.active ? (
               <span className="pill pill-pass">● Session Active</span>
@@ -640,7 +640,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
         )}
 
         {/* Messages Container */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
+        <div className="chat-scroll" style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
           {!activeClassroom ? (
             <div className="card" style={{ maxWidth: "540px", margin: "40px auto", textAlign: "center" }}>
               <h2>Welcome to LabTutor</h2>
@@ -700,7 +700,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
         </div>
 
         {/* Composer Input Area */}
-        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className="composer" style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -709,11 +709,16 @@ export function ChatWorkspace({ me }: { me: Me }) {
             style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}
           >
             <textarea
+              className="composer-input"
               rows={2}
+              enterKeyHint="send"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                // On a touch device Enter is a newline (the Send button sends);
+                // on desktop Enter sends and Shift+Enter is a newline.
+                const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+                if (e.key === "Enter" && !e.shiftKey && !touch) {
                   e.preventDefault();
                   handleSend();
                 }
@@ -730,7 +735,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
             />
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary composer-send"
               disabled={!input.trim() || !activeClassroom || chatBlockedForStudent || sending}
               style={{ height: "48px", padding: "0 20px" }}
             >

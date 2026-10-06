@@ -602,3 +602,52 @@ header.bar {
   .settings-tabs { padding: 0 12px; }
   .settings-who { display: none; }
 }
+
+/* --- Phone ergonomics (chat + walkthrough) ------------------------------ */
+
+html { -webkit-text-size-adjust: 100%; }
+button, a, summary, [role="button"] { touch-action: manipulation; } /* no double-tap zoom delay */
+
+.md-table-wrap { overflow-x: auto; margin: 0 0 0.75em; -webkit-overflow-scrolling: touch; }
+.md-table-wrap table { border-collapse: collapse; font-size: 0.85em; }
+.md-table-wrap th, .md-table-wrap td { padding: 4px 8px; border: 1px solid var(--border); text-align: left; }
+.chat-scroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+
+/* Finger-sized tap targets wherever the primary pointer is a finger. */
+@media (pointer: coarse) {
+  .touch-btn { min-height: 44px; }
+  .chip-btn { padding: 8px 14px !important; font-size: 0.85rem !important; }
+  .menu-btn, .settings-tab { min-height: 44px; }
+}
+
+@media (max-width: 768px) {
+  .msg-bubble { max-width: 94% !important; padding: 10px 12px !important; }
+  .chat-scroll { padding: 12px 10px !important; }
+
+  /* Composer: compact, clear of the home indicator, keeps its own scroll. */
+  .composer { padding: 10px 10px calc(10px + env(safe-area-inset-bottom)) !important; }
+  .composer form { gap: 8px !important; }
+  .composer-input { height: 48px; min-height: 48px; max-height: 30vh; field-sizing: content; overflow-y: auto; }
+  .composer-send { padding: 0 16px !important; }
+
+  /* Header: the title may take two lines; controls sit on the right. */
+  .chat-title {
+    font-size: 1rem !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .bar-right { gap: 8px !important; margin-left: auto; }
+
+  /* Answer options and quiz choices: one full-width column. */
+  .reply-stack .btn { width: 100%; }
+
+  .app-sidebar { padding-bottom: env(safe-area-inset-bottom); }
+  .modal-content { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@media (max-width: 380px) {
+  .msg-bubble { max-width: 98% !important; }
+  .bar-right .pill { font-size: 0.7rem; padding: 2px 8px; }
+}
