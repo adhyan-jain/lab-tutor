@@ -49,6 +49,12 @@ def good_answer(state: ctl.WalkState) -> str:
         for n, entry in enumerate(state.quiz["items"], start=1):
             parts.append(f"{n}{ctl._find_item(entry['id']).correct}")
         return " ".join(parts)
+    if state.phase in ("concept", "assess"):
+        from backend.tests.concept_answers import GOOD
+
+        if state.phase == "assess":
+            return GOOD[state.assess["queue"][state.assess["i"]]]
+        return GOOD[state.concept["question_id"]]
     q = ctl._current_question(state)
     if q.kind == "mcq":
         return q.correct.upper()
@@ -378,7 +384,7 @@ def _finish_chapter(state: ctl.WalkState, chapter_id: str) -> ctl.TurnResult:
         state.phase = "step"
         state.pending = "evidence" if SCRIPT.step(sid).evidence else "check"
         for _ in range(6):
-            if state.step_id != sid or state.phase != "step":
+            if state.step_id != sid or state.phase not in ("step", "concept"):
                 break
             result = ctl.take_turn(state, good_answer(state))
     return result

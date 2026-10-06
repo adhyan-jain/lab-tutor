@@ -24,6 +24,8 @@ from typing import Any
 
 from backend.socratic_engine import conversation as conv
 from backend.socratic_engine.conversation import Intent
+from backend.socratic_engine.knowledge import get_knowledge
+from backend.socratic_engine.pedagogy import policy, state as pstate
 from backend.socratic_engine.walkthrough import grader
 from backend.socratic_engine.walkthrough.exp07_script import (
     COMBOS,
@@ -76,6 +78,16 @@ class WalkState:
     troubleshooting: bool = False
     # Consecutive "what would you like instead?" turns on this question.
     clarify: int = 0
+    # Per-concept understanding (pedagogy.state.ConceptStates as a dict),
+    # the "step:when" keys already used for a conceptual moment (once per
+    # step, so the 12-run tables loop never nags), and the moment in flight.
+    concepts: dict[str, Any] = field(default_factory=dict)
+    intervened: list[str] = field(default_factory=list)
+    concept: dict[str, Any] | None = None
+    # Final reasoning/transfer assessment: {"queue": [question ids], "i": n}
+    # while it runs; `assessed` once it has, so it is never asked twice.
+    assess: dict[str, Any] | None = None
+    assessed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -106,6 +118,11 @@ class TurnResult:
     events: dict[str, Any] = field(default_factory=dict)
     ui: dict[str, Any] = field(default_factory=dict)
     resume_line: str = ""
+    # Set when `reply` is the authored fallback for a free-text conceptual
+    # answer the patterns could not classify. The caller may swap it for ONE
+    # model-phrased reply (socratic_engine/realise.py); the controller never
+    # calls a model itself.
+    realise: dict[str, Any] | None = None
 
 
 def new_state(student_key: str) -> WalkState:
@@ -401,6 +418,226 @@ def _finish_quiz(state: WalkState) -> str:
     return "\n\n".join(lines)
 
 
+# ------------------------------------------------------ conceptual moments
+#
+# A conceptual moment is one short authored question about *why* (or what
+# to expect, or what the result means), raised only at the checkpoint steps
+# in knowledge/exp07.py and only while the student has not shown
+# understanding of the concept. Whether to raise one, which question, how an
+# answer is classified and how concept state changes are all decided by
+# pedagogy/policy.py with no model involved; a reply here is authored text.
+
+_WHEN_TYPES = {"pre": policy.PRE_STEP_TYPES, "post": policy.POST_STEP_TYPES}
+
+
+def _cs(state: WalkState) -> pstate.ConceptStates:
+    return pstate.ConceptStates.from_dict(state.concepts)
+
+
+def _save_cs(state: WalkState, cs: pstate.ConceptStates) -> None:
+    state.concepts = cs.to_dict()
+
+
+def _concept_moment(state: WalkState, when: str, lead: str, *, resume: str) -> tuple[str, dict[str, Any]] | None:
+    knowledge = get_knowledge("exp07")
+    if knowledge is None:
+        return None
+    key = f"{state.step_id}:{when}"
+    if key in state.intervened:
+        return None
+    cs = _cs(state)
+    rows = _rows_recorded(state)
+    decision = policy.decide(
+        knowledge, state.step_id, cs, blocked=state.troubleshooting, allowed=_WHEN_TYPES[when],
+        available=lambda q: q.min_rows <= rows,
+    )
+    if decision.action == "none" or decision.question is None:
+        return None
+    state.intervened.append(key)
+    pstate.introduce(cs, decision.concept_id)
+    cs.get(decision.concept_id).last_seq = cs.seq
+    _save_cs(state, cs)
+    state.phase = "concept"
+    state.concept = {
+        "concept_id": decision.concept_id,
+        "question_id": decision.question.id,
+        "step_id": state.step_id,
+        "when": when,
+        "resume": resume,
+        "card": decision.action == "card_question",
+    }
+    return _concept_message(state, lead)
+
+
+def _rows_recorded(state: WalkState) -> int:
+    """Runs of the method/basis table the student has recorded a HOMO for."""
+    return sum(1 for row in state.facts.get("table", {}).values() if row.get("homo") is not None)
+
+
+def _data_view(state: WalkState, qid: str) -> str:
+    """The student's OWN recorded numbers, laid out so a question about them
+    can be answered by looking. Built only from `state.facts` (what they
+    typed in); nothing is computed beyond a difference of their own values,
+    and no reference value is ever shown."""
+    facts = state.facts
+    if qid in ("q_energy_lower", "q_opt_observe") and "e_first" in facts and "e_final" in facts:
+        first, final = facts["e_first"], facts["e_final"]
+        return (
+            f"**Your numbers:** first energy {first:g} Eh, last energy {final:g} Eh "
+            f"(change {final - first:+.6f} Eh)."
+        )
+    if qid == "q_pattern_interpret":
+        rows = []
+        for idx, row in sorted(facts.get("table", {}).items(), key=lambda kv: int(kv[0])):
+            if row.get("homo") is None or int(idx) >= len(COMBOS):
+                continue
+            molecule, method, basis = COMBOS[int(idx)]
+            lumo = row.get("lumo")
+            gap = f"{lumo - row['homo']:.3f}" if lumo is not None else "-"
+            lumo_s = f"{lumo:g}" if lumo is not None else "-"
+            rows.append(f"| {MOLECULE_NAMES[molecule]} | {method} | {basis} | {row['homo']:g} | {lumo_s} | {gap} |")
+        if rows:
+            head = "| Molecule | Method | Basis | HOMO (eV) | LUMO (eV) | Gap (eV) |\n|---|---|---|---|---|---|\n"
+            return "**Your results so far:**\n\n" + head + "\n".join(rows)
+    if qid == "q_compare_ch4_o2" and {"homo_out", "lumo_out", "o2_homo", "o2_lumo"} <= facts.keys():
+        return (
+            "**Your numbers:**\n\n| Molecule | HOMO (eV) | LUMO (eV) |\n|---|---|---|\n"
+            f"| {MOLECULE_NAMES['ch4']} | {facts['homo_out']:g} | {facts['lumo_out']:g} |\n"
+            f"| {MOLECULE_NAMES['o2']} | {facts['o2_homo']:g} | {facts['o2_lumo']:g} |"
+        )
+    return ""
+
+
+def _concept_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, Any]]:
+    info = state.concept or {}
+    knowledge = get_knowledge("exp07")
+    q = knowledge.question_by_id[info["question_id"]]
+    concept = knowledge.concept_by_id[info["concept_id"]]
+    parts = [lead] if lead else []
+    card = None
+    if info.get("card"):
+        card = {"id": concept.id, "name": concept.name, "text": concept.description}
+        parts.append(f"**Concept worth knowing: {concept.name}.** {concept.description}")
+    label = "A quick prediction" if q.qtype == "PREDICTION" else "A quick thought"
+    view = _data_view(state, q.id)
+    if view:
+        parts.append(view)
+    parts.append(f"**{label}:** {q.ask}")
+    chips, ctx = conv.actions(["just_tell", "skip_concept"])
+    ui = {
+        **_base_ui(state),
+        "kind": "concept",
+        "step_id": state.step_id,
+        "concept_id": concept.id,
+        "question_type": q.qtype,
+        "chips": chips,
+        "action_context": ctx,
+    }
+    if card:
+        ui["concept_card"] = card
+    # Research telemetry: take_turn copies this into the turn's events.
+    ui["intervention"] = {
+        "concept_id": concept.id, "question_id": q.id, "question_type": q.qtype,
+        "when": info.get("when"), "step_id": info.get("step_id"), "card": bool(card),
+        "concept_state": _cs(state).get(concept.id).state,
+    }
+    return "\n\n".join(parts), ui
+
+
+def _finish_concept(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
+    resume = (state.concept or {}).get("resume", "enter")
+    state.concept = None
+    state.phase = "step"
+    if resume == "advance":
+        return _after_concept_post(state, lead)
+    return _step_message(state, lead)
+
+
+def _turn_concept(state: WalkState, message: str) -> TurnResult:
+    info = state.concept or {}
+    knowledge = get_knowledge("exp07")
+    q = knowledge.question_by_id.get(info.get("question_id", ""))
+    cid = info.get("concept_id", "")
+    if q is None or cid not in knowledge.concept_by_id:  # stale state: just carry on
+        text, ui = _finish_concept(state, "")
+        return TurnResult(text, state, {"step_id": state.step_id, "verdict": "concept_dropped"}, ui)
+
+    cs = _cs(state)
+    rec = cs.get(cid)
+    before = rec.state
+    pedagogy: dict[str, Any] = {
+        "concept_id": cid, "question_id": q.id, "question_type": q.qtype, "when": info.get("when"),
+        "state_before": before, "source": "deterministic",
+    }
+    events: dict[str, Any] = {"step_id": state.step_id, "phase": "concept", "pedagogy": pedagogy}
+
+    def done(lead: str, verdict: str) -> TurnResult:
+        pedagogy["state_after"] = cs.get(cid).state
+        _save_cs(state, cs)
+        text, ui = _finish_concept(state, lead)
+        return TurnResult(text, state, {**events, "verdict": verdict}, ui)
+
+    intent = conv.classify(message)
+    if (
+        message.strip().lower() == conv.ACTIONS["skip_concept"].lower()
+        or grader.is_skip(message)
+        or intent in (Intent.STEP_REFUSED, Intent.STEP_SKIPPED)
+    ):
+        state.skipped.append(f"concept:{cid}")
+        pedagogy["classification"] = "SKIPPED"
+        return done("No problem, we'll carry on.", "concept_skipped")
+
+    if grader.wants_answer(message):
+        pstate.apply_classification(cs, cid, "UNCLEAR", question_id=q.id, question_type=q.qtype, reason="asked_for_answer")
+        pedagogy["classification"] = "UNCLEAR"
+        return done(f"Here is the short version: {q.expected_reasoning}", "concept_explained")
+
+    cls = policy.classify_answer(q, message, knowledge, step_id=info.get("step_id", ""))
+    if cls.label == "UNCLEAR" and not cls.dont_know and grader.is_side_question(message):
+        # A real question, not an attempt: the grounded Q&A path answers it,
+        # then the resume line brings the student back to this question.
+        return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
+
+    rec = pstate.apply_classification(
+        cs, cid, cls.label, question_id=q.id, question_type=q.qtype, misconception_id=cls.misconception_id
+    )
+    if cls.label == "CORRECT" and q.qtype == "TRANSFER" and before == "UNDERSTOOD":
+        pstate.mark_mastered(cs, cid)
+    pedagogy.update(classification=cls.label, misconception_id=cls.misconception_id)
+    follow = policy.next_after_answer(knowledge, q, cls, rec)
+    pedagogy["followup"] = follow.kind
+
+    if follow.kind == "advance":
+        return done(f"**Yes.** {q.expected_reasoning}", "concept_correct")
+    if follow.kind == "explain":
+        return done(f"Here is the short version: {follow.text or q.expected_reasoning}", "concept_explained")
+
+    pedagogy["state_after"] = cs.get(cid).state
+    _save_cs(state, cs)
+    if follow.kind == "probe":
+        note = f"That is a common way to think about it. {follow.text}"
+    elif cls.label == "PARTIAL":
+        note = f"You are part of the way there. {follow.text}"
+    else:
+        note = f"Let's come at it another way. {follow.text}"
+    chips, ctx = conv.actions(["just_tell", "skip_concept"])
+    ui = {
+        **_base_ui(state), "kind": "concept", "step_id": state.step_id, "concept_id": cid,
+        "question_type": q.qtype, "chips": chips, "action_context": ctx,
+    }
+    realise = None
+    if cls.label == "UNCLEAR" and not cls.dont_know:
+        concept = knowledge.concept_by_id[cid]
+        realise = {
+            "concept_id": cid, "question_id": q.id, "question_type": q.qtype,
+            "step_title": SCRIPT.step(state.step_id).title, "concept_name": concept.name,
+            "concept_description": concept.description, "question": q.ask,
+            "expected_reasoning": q.expected_reasoning, "concept_state": rec.state,
+            "misses": rec.misses.get(q.id, 0), "student_answer": message,
+        }
+    return TurnResult(note, state, {**events, "verdict": f"concept_{follow.kind}"}, ui, realise=realise)
+
+
 # ------------------------------------------------------------- advancing
 
 
@@ -416,6 +653,16 @@ def _advance(state: WalkState, lead: str, completed: bool = True) -> tuple[str, 
         state.steps_since_quiz += 1
     state.tries.pop(step.id, None)
     state.bare = 0
+    if completed:
+        moment = _concept_moment(state, "post", lead, resume="advance")
+        if moment is not None:
+            return moment
+    return _after_concept_post(state, lead)
+
+
+def _after_concept_post(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
+    """The rest of leaving a step: checkpoint quiz, or the next step."""
+    step = SCRIPT.step(state.step_id)
     trigger = _is_chapter_end(state) and (step.chapter != "tables" or state.steps_since_quiz >= QUIZ_EVERY_STEPS)
     if trigger:
         picks = _select_quiz(state)
@@ -431,7 +678,7 @@ def _move_to_next(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
     old_chapter = _chapter(state).id
     nxt = _next_position(state)
     if nxt is None:
-        return _closing_message(state, lead)
+        return _begin_assessment(state, lead)
     state.step_id, state.combo_index = nxt
     state.pending = "evidence"
     state.phase = "step"
@@ -440,7 +687,124 @@ def _move_to_next(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
         state.phase = "hook"
         state.hooked.append(new_chapter)
         return _hook_message(state, opener=lead)
-    return _step_message(state, lead)
+    return _enter_step(state, lead)
+
+
+def _enter_step(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
+    """Show a step, after a prediction-style conceptual moment if one is due."""
+    moment = _concept_moment(state, "pre", lead, resume="enter")
+    return moment if moment is not None else _step_message(state, lead)
+
+
+# ------------------------------------------------- final assessment
+#
+# The procedure is complete; this checks understanding of the ideas, not the
+# clicks. Every student gets the same authored questions (comparable data),
+# each is skippable, and feedback is the authored key idea -- no model call.
+# Classification is conservative: free text the patterns cannot place stays
+# UNCLEAR, and the raw answer is kept in the event for later human review.
+
+
+def _assessment_ids() -> list[str]:
+    knowledge = get_knowledge("exp07")
+    return list(knowledge.assessment) if knowledge else []
+
+
+def _begin_assessment(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
+    queue = _assessment_ids()
+    if not queue or state.assessed:
+        return _closing_message(state, lead)
+    state.assess = {"queue": queue, "i": 0}
+    state.phase = "assess"
+    intro = (
+        "**That is the whole experiment.** One last thing before you write up: "
+        f"{len(queue)} short questions on the ideas behind it, not the clicks. "
+        "Short answers are fine, and you can skip any."
+    )
+    return _assess_message(state, "\n\n".join(p for p in (lead, intro) if p))
+
+
+def _assess_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, Any]]:
+    info = state.assess or {"queue": [], "i": 0}
+    q = get_knowledge("exp07").question_by_id[info["queue"][info["i"]]]
+    n, total = info["i"] + 1, len(info["queue"])
+    label = f"Final reflection {n} of {total}"
+    view = _data_view(state, q.id)
+    text = "\n\n".join(p for p in (lead, view, f"**{label}:** {q.ask}") if p)
+    chips, ctx = conv.actions(["skip_concept"])
+    ui = {
+        "kind": "assessment", "phase": "assess", "chips": chips, "action_context": ctx,
+        "progress": {"label": label, "index": n - 1, "total": total, "chapter": "final"},
+        "question_type": q.qtype, "concept_id": q.concept_id,
+    }
+    return text, ui
+
+
+def _concept_summary(state: WalkState) -> str:
+    knowledge = get_knowledge("exp07")
+    cs = _cs(state)
+    asked = [cid for cid, rec in cs.records.items() if rec.attempts and cid in knowledge.concept_by_id]
+    solid = [knowledge.concept_by_id[c].name for c in asked if cs.get(c).state in pstate.UNDERSTOOD_OR_BETTER]
+    revisit = [knowledge.concept_by_id[c].name for c in asked if cs.get(c).state not in pstate.UNDERSTOOD_OR_BETTER]
+    parts = []
+    if solid:
+        parts.append("Ideas you explained well: " + ", ".join(solid) + ".")
+    if revisit:
+        parts.append("Worth another look before you write up: " + ", ".join(revisit) + ".")
+    return " ".join(parts)
+
+
+def _turn_assess(state: WalkState, message: str) -> TurnResult:
+    info = state.assess or {}
+    knowledge = get_knowledge("exp07")
+    queue = info.get("queue", [])
+    q = knowledge.question_by_id.get(queue[info["i"]]) if queue and info.get("i", 0) < len(queue) else None
+    if q is None:  # stale state: finish cleanly
+        state.assess, state.assessed = None, True
+        text, ui = _closing_message(state, "")
+        return TurnResult(text, state, {"step_id": state.step_id, "verdict": "assessment_dropped"}, ui)
+
+    cs = _cs(state)
+    rec = cs.get(q.concept_id)
+    pedagogy: dict[str, Any] = {
+        "concept_id": q.concept_id, "question_id": q.id, "question_type": q.qtype, "when": "final",
+        "state_before": rec.state, "source": "deterministic",
+    }
+    events: dict[str, Any] = {"step_id": state.step_id, "phase": "assess", "pedagogy": pedagogy}
+    intent = conv.classify(message)
+    skipped = (
+        message.strip().lower() == conv.ACTIONS["skip_concept"].lower()
+        or grader.is_skip(message)
+        or intent in (Intent.STEP_REFUSED, Intent.STEP_SKIPPED)
+    )
+    if skipped:
+        pedagogy["classification"] = "SKIPPED"
+        state.skipped.append(f"assess:{q.id}")
+        feedback, verdict = "Skipped.", "assessment_skipped"
+    else:
+        cls = policy.classify_answer(q, message, knowledge)
+        if cls.label == "UNCLEAR" and not cls.dont_know and grader.is_side_question(message):
+            return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
+        before = rec.state
+        pstate.apply_classification(
+            cs, q.concept_id, cls.label, question_id=q.id, question_type=q.qtype,
+            misconception_id=cls.misconception_id, reason="final_assessment",
+        )
+        if cls.label == "CORRECT" and q.qtype == "TRANSFER" and before == "UNDERSTOOD":
+            pstate.mark_mastered(cs, q.concept_id, "final_transfer_correct")
+        pedagogy.update(classification=cls.label, misconception_id=cls.misconception_id,
+                        state_after=cs.get(q.concept_id).state, answer=message.strip()[:300])
+        feedback = "**Yes.**" if cls.label == "CORRECT" else f"The key idea: {q.expected_reasoning}"
+        verdict = "assessment_answered"
+    _save_cs(state, cs)
+    info["i"] += 1
+    if info["i"] < len(queue):
+        state.assess = info
+        text, ui = _assess_message(state, feedback)
+        return TurnResult(text, state, {**events, "verdict": verdict}, ui)
+    state.assess, state.assessed = None, True
+    text, ui = _closing_message(state, feedback)
+    return TurnResult(text, state, {**events, "verdict": verdict, "assessment_done": True}, ui)
 
 
 def _closing_message(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
@@ -458,6 +822,8 @@ def _closing_message(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
             lines.append(f'You guessed: "{guess}". Does your own data agree?')
     if state.needs_help:
         lines.append(f"There were {len(state.needs_help)} points where I helped you along. Those are worth revisiting before you write up.")
+    if state.assessed:
+        lines.append(_concept_summary(state))
     lines.append('Ask me anything about the results, or say "start over" to run the guide again.')
     return "\n\n".join(p for p in lines if p), {**_base_ui(state), "kind": "done", "chips": []}
 
@@ -578,6 +944,12 @@ def _correct_note(q: Question, verdict: grader.Verdict) -> str:
 def _resume_line(state: WalkState) -> str:
     if state.phase == "quiz":
         return "\n\n---\n*Back to the checkpoint:* answer whenever you are ready."
+    if state.phase == "concept" and state.concept:
+        cq = get_knowledge("exp07").question_by_id.get(state.concept.get("question_id", ""))
+        return f"\n\n---\n*Back to my question:* {cq.ask}" if cq else ""
+    if state.phase == "assess" and state.assess:
+        aq = get_knowledge("exp07").question_by_id.get(state.assess["queue"][state.assess["i"]])
+        return f"\n\n---\n*Back to the final question:* {aq.ask}" if aq else ""
     if state.phase == "hook":
         return '\n\n---\n*Back to my guess question:* say what you think, or "just tell me" to skip it.'
     step = SCRIPT.step(state.step_id)
@@ -832,6 +1204,10 @@ def show_current(state: WalkState, lead: str = "") -> TurnResult:
         text, ui = _hook_message(state, opener=lead)
     elif state.phase == "quiz" and state.quiz:
         text, ui = _quiz_message(state, lead)
+    elif state.phase == "concept" and state.concept:
+        text, ui = _concept_message(state, lead)
+    elif state.phase == "assess" and state.assess:
+        text, ui = _assess_message(state, lead)
     else:
         state.phase = "step"
         text, ui = _step_message(state, lead)
@@ -843,6 +1219,13 @@ def step_context(state: WalkState) -> str:
     question. Contains only authored text and the step title."""
     if state.phase == "quiz":
         return "The student is answering a short checkpoint quiz."
+    if state.phase == "assess":
+        return "The student has finished the experiment and is answering short final reflection questions."
+    if state.phase == "concept" and state.concept:
+        return (
+            f"The student is at {_progress(state)['label']} and was just asked a short conceptual "
+            "question about the experiment."
+        )
     step = SCRIPT.step(state.step_id)
     line = f"The student is in a guided walkthrough at {_progress(state)['label']}: {step.title}."
     if state.troubleshooting:
@@ -862,11 +1245,22 @@ def take_turn(state: WalkState, message: str) -> TurnResult:
         result = show_current(state, "Here is where you are.")
         result.events["verdict"] = "resume_shown"
         return result
+    cs = _cs(state)
+    cs.tick()
+    _save_cs(state, cs)
     if state.phase == "hook":
-        return _turn_hook(state, message)
-    if state.phase == "quiz":
-        return _turn_quiz(state, message)
-    return _handle_answer(state, message)
+        result = _turn_hook(state, message)
+    elif state.phase == "quiz":
+        result = _turn_quiz(state, message)
+    elif state.phase == "concept" and state.concept:
+        result = _turn_concept(state, message)
+    elif state.phase == "assess" and state.assess:
+        result = _turn_assess(state, message)
+    else:
+        result = _handle_answer(state, message)
+    if "intervention" in result.ui:
+        result.events.setdefault("intervention", result.ui["intervention"])
+    return result
 
 
 def _turn_hook(state: WalkState, message: str) -> TurnResult:
@@ -881,7 +1275,7 @@ def _turn_hook(state: WalkState, message: str) -> TurnResult:
         state.predictions[chapter.id] = message.strip()[:300]
         lead, events["verdict"] = _fmt(chapter.hook_ack, state), "hook_answered"
     state.phase = "step"
-    text, ui = _step_message(state, lead)
+    text, ui = _enter_step(state, lead)
     return TurnResult(text, state, events, ui)
 
 

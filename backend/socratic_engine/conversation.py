@@ -199,6 +199,7 @@ ACTIONS: dict[str, str] = {
     "back_to_experiment": "Back to the experiment",
     "just_tell": "Just tell me",
     "skip_quiz": "Skip quiz",
+    "skip_concept": "Skip this question",
     "resume": "Resume",
     "resume_previous": "Resume previous session",
 }
