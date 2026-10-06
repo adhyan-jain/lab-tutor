@@ -227,6 +227,26 @@ def action_for_intent(intent: Intent) -> str | None:
     return None
 
 
+# Chip display text (lowercased) → forced intent. A tapped chip sends its
+# display text verbatim; this lookup is more reliable than classify() for
+# short strings like "Continue" that have no practice noun to anchor to.
+_CHIP_FORCED_INTENTS: dict[str, Intent] = {
+    text.lower(): ACTION_INTENT[aid]
+    for aid, text in ACTIONS.items()
+    if aid in ACTION_INTENT
+}
+# "Continue" and "Back to step" are resume chips; classify("Continue")
+# returns ANSWER (no practice noun follows), so we force it explicitly.
+_CHIP_FORCED_INTENTS["continue"] = Intent.SWITCH_TO_PRACTICE
+_CHIP_FORCED_INTENTS["back to step"] = Intent.SWITCH_TO_PRACTICE
+
+
+def intent_for_chip_text(text: str) -> Intent | None:
+    """If *text* is the exact display string of a known chip, return its
+    forced intent.  Returns None for free-form messages so classify() runs."""
+    return _CHIP_FORCED_INTENTS.get((text or "").strip().lower())
+
+
 def actions(
     candidates: Iterable[str],
     *,

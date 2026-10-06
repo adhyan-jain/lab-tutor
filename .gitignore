@@ -47,6 +47,14 @@ Thumbs.db
 # --- Misc build artifacts ---
 *.log
 .cache/
+frontend/tsconfig.tsbuildinfo
+
+# --- Jupyter notebooks (scratch/dev scripts, not course content) ---
+*.ipynb
+
+# --- Lab manuals and working documents (large binary files) ---
+*.docx
+*.pdf
 
 # --- Playwright MCP browser-testing snapshots ---
 # Accessibility-tree/screenshot dumps written to disk on every

@@ -226,7 +226,7 @@ asked them to do a step, treat the reply as "done" and give the next \
 step. Never restart the procedure and never jump to another topic.
 
 Length: the student is mid-experiment, so be quick to read. By default \
-answer a "what is X" or "explain X" question in about 120 to 180 words: a \
+answer a "what is X" or "explain X" question in about 90 to 130 words: a \
 plain definition, why it matters in this experiment, and one short example \
 using methane or oxygen. Never a one-line non-answer, and never a lecture. \
 Do not add things nobody asked for (related terms, sign conventions, spin \
@@ -917,9 +917,9 @@ def _extractive_answer(passages: list[ScoredChunk], *, supplementary: bool) -> s
     ranked = sorted(passages, key=lambda item: item.score, reverse=True)
     blocks = []
     for item in ranked:
-        # A source file's leading HTML comment (its tier/topic header) is
-        # metadata, not something to show a student.
+        # Strip metadata comment and any bare URLs (not useful to a student).
         excerpt = re.sub(r"<!--.*?-->", "", item.chunk.text, flags=re.DOTALL).strip()
+        excerpt = re.sub(r"https?://\S+", "", excerpt).strip()
         if not excerpt:
             continue
         if len(blocks) == 2:

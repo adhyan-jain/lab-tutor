@@ -737,7 +737,7 @@ def _handle_answer(state: WalkState, message: str) -> TurnResult:
             reply, ui = _step_message(state, "Going back.")
         return TurnResult(reply, state, {**events, "verdict": "back"}, ui)
 
-    intent = conv.classify(message)
+    intent = conv.intent_for_chip_text(message) or conv.classify(message)
     if grader.is_skip(message):
         intent = Intent.STEP_SKIPPED
     log.info("[INTENT] step=%s -> %s troubleshooting=%s consumed=%s", step.id, intent.value, state.troubleshooting, _consumed(state, q))
