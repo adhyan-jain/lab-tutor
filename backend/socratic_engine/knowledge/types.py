@@ -31,6 +31,10 @@ class Concept:
     # 1 (background) .. 3 (core to the experiment's point)
     importance: int = 2
     experiment_relevance: str = ""
+    # Regexes (matched against a lower-cased student message) that mean the
+    # student is asking about this concept. Used to pick a Socratic follow-up
+    # for a theory question without a model call.
+    aliases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,18 @@ class Misconception:
     probe: str
     # Concise correction, used only after repeated difficulty.
     correction: str
+
+
+#: Where a question's information comes from. Phone-only mode permits only
+#: the first three: a student with just a phone and this page can answer them.
+QUESTION_SOURCES: tuple[str, ...] = (
+    "THEORY",                    # recall or reason from chemistry knowledge
+    "CONCEPTUAL_REASONING",      # predict / explain / compare from the ideas alone
+    "GIVEN_DATA_INTERPRETATION",  # the information to interpret is stated in the question
+    "EXTERNAL_OBSERVATION",      # needs something seen in external software or output
+    "PROCEDURAL_EXTERNAL_ACTION",  # asks the student to do something outside this page
+)
+PHONE_SOURCES: frozenset[str] = frozenset({"THEORY", "CONCEPTUAL_REASONING", "GIVEN_DATA_INTERPRETATION"})
 
 
 @dataclass(frozen=True)
@@ -65,6 +81,10 @@ class ConceptQuestion:
     # Only ask once the student has recorded this many runs of the repeated
     # method/basis table (a pattern question needs a pattern to look at).
     min_rows: int = 0
+    source: str = "CONCEPTUAL_REASONING"  # one of QUESTION_SOURCES
+    # Written for the phone-only session as a stand-in for a question that needs
+    # the student's own results; never asked at a software walkthrough step.
+    phone_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -83,6 +103,19 @@ class StepKnowledge:
 
 
 @dataclass(frozen=True)
+class Stage:
+    """One part of the phone-only conceptual session: a short factual context
+    card (information LabTutor itself provides) and the concepts to probe."""
+
+    id: str
+    title: str
+    context: str
+    concepts: tuple[str, ...]
+    questions: tuple[str, ...]
+    max_questions: int = 2
+
+
+@dataclass(frozen=True)
 class ExperimentKnowledge:
     experiment_id: str
     concepts: tuple[Concept, ...]
@@ -91,6 +124,7 @@ class ExperimentKnowledge:
     questions: tuple[ConceptQuestion, ...]
     # Final reasoning/transfer assessment, question ids in order.
     assessment: tuple[str, ...] = ()
+    stages: tuple[Stage, ...] = ()
     concept_by_id: dict[str, Concept] = field(default_factory=dict, compare=False)
     step_by_id: dict[str, StepKnowledge] = field(default_factory=dict, compare=False)
     misconception_by_id: dict[str, Misconception] = field(default_factory=dict, compare=False)
@@ -146,6 +180,16 @@ class ExperimentKnowledge:
         for qid in self.assessment:
             if qid not in self.question_by_id:
                 problems.append(f"assessment: unknown question {qid}")
+        for q in self.questions:
+            if q.source not in QUESTION_SOURCES:
+                problems.append(f"question {q.id}: bad source {q.source}")
+        for stage in self.stages:
+            for cid in stage.concepts:
+                if cid not in cids:
+                    problems.append(f"stage {stage.id}: unknown concept {cid}")
+            for qid in stage.questions:
+                if qid not in self.question_by_id:
+                    problems.append(f"stage {stage.id}: unknown question {qid}")
         return problems
 
 
@@ -156,7 +200,14 @@ def build(
     misconceptions: tuple[Misconception, ...],
     questions: tuple[ConceptQuestion, ...],
     assessment: tuple[str, ...] = (),
+    stages: tuple[Stage, ...] = (),
 ) -> ExperimentKnowledge:
+    # A stage is probed through the same policy as a checkpoint step, so it is
+    # registered as one (not listed in `steps`, which map to the software script).
+    stage_steps = {
+        s.id: StepKnowledge(step_id=s.id, why=s.context, concepts=s.concepts, checkpoint=True, questions=s.questions)
+        for s in stages
+    }
     return ExperimentKnowledge(
         experiment_id=experiment_id,
         concepts=concepts,
@@ -164,8 +215,9 @@ def build(
         misconceptions=misconceptions,
         questions=questions,
         assessment=assessment,
+        stages=stages,
         concept_by_id={c.id: c for c in concepts},
-        step_by_id={s.step_id: s for s in steps},
+        step_by_id={**{s.step_id: s for s in steps}, **stage_steps},
         misconception_by_id={m.id: m for m in misconceptions},
         question_by_id={q.id: q for q in questions},
     )

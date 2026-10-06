@@ -6,9 +6,15 @@ keys in knowledge/exp07.py honest.
 """
 
 GOOD = {
+    "q_ch4_atoms": "5 atoms, one carbon and four hydrogens",
+    "q_ch4_geometry": "tetrahedral because the bonds repel and stay far apart",
+    "q_ch4_why_tetra": "the bonds repel each other so they spread as far apart as possible",
+    "q_hybrid_why": "hybridisation, the orbitals mix to form four equivalent sp3 orbitals",
+    "q_dft_idea": "it is much faster and cheaper than the exact treatment so larger molecules are practical",
+    "q_pattern_predict": "the values would shift slightly with the method but stay broadly similar",
     "q_opt_predict": "No, probably not, it is only a rough guess so the energy is not the lowest",
     "q_opt_why": "It lowers the energy so the geometry is at its minimum before the orbital calculation",
-    "q_opt_observe": "The energy decreased, the last one is lower than the first",
+    "q_opt_observe": "It moved the atoms to a lower energy, more stable structure",
     "q_energy_lower": "A lower more negative energy means a more stable arrangement",
     "q_opt_consequence": "The orbital energies would be wrong because the geometry is not relaxed",
     "q_geom_use_opt": "It is the optimised lowest energy structure, so the geometry is more accurate",

@@ -217,3 +217,12 @@ def test_concept_with_only_interpretation_questions_is_still_raised():
     assert policy.choose_question(K, "p5_homo_lumo", "homo", s.get("homo"), policy.PRE_STEP_TYPES) is None
     assert policy.choose_question(K, "r1_run", "geometry_optimization", s.get("geometry_optimization"),
                                   frozenset({"TRANSFER"})) is None
+
+
+def test_homo_most_electrons_is_caught_even_without_the_word_homo():
+    for answer in ("the orbital with the most electrons", "it is the one that has the highest number of electrons"):
+        c = policy.classify_answer(Q("q_homo_meaning"), answer, K, step_id="")
+        assert c.misconception_id == "homo_most_electrons", answer
+    # and a correct answer is not mistaken for it
+    ok = policy.classify_answer(Q("q_homo_meaning"), "highest occupied molecular orbital, by energy", K)
+    assert ok.misconception_id is None
