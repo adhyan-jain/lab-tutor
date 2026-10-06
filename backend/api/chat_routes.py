@@ -56,6 +56,7 @@ from backend.models import (
 from backend.config import get_settings
 from backend.pipeline import run_diagnosis
 from backend.socratic_engine import conversation
+from backend.socratic_engine.realise import realise_turn
 from backend.socratic_engine.walkthrough import controller as walkthrough_controller
 from backend.socratic_engine.walkthrough import grader
 from backend.socratic_engine.walkthrough import service as walkthrough_service
@@ -1065,6 +1066,20 @@ async def _process_message(
         reply_text = wt_turn.reply
         msg_kind = ChatMessageKind.SOCRATIC
         meta = {"type": "walkthrough", "walkthrough": wt_turn.events, "ui": wt_turn.ui}
+        if wt_turn.realise is not None:
+            # A free-text conceptual answer the authored patterns could not
+            # classify: ONE model call phrases the reply and suggests a
+            # classification (advisory, clamped). Failure keeps the authored reply.
+            realised = await realise_turn(wt_turn.realise)
+            if realised is not None:
+                reply_text = realised.response
+                after = await walkthrough_service.apply_advisory(
+                    db, thread.id, wt_turn.realise["concept_id"], realised.suggested
+                )
+                wt_turn.events.setdefault("pedagogy", {}).update(
+                    realised=True, advisory=realised.suggested, state_after=after
+                )
+                meta.update(_llm_meta(realised.latency_ms, realised.prompt_tokens, realised.completion_tokens))
         if conv_state.mode != conversation.Mode.PRACTICE.value:
             conv_state.switch(conversation.Mode.PRACTICE, "walkthrough engaged")
     elif wt_turn is not None:
@@ -1337,12 +1352,24 @@ async def _process_message(
     # Record Assistant Message. `response_ms` is end-to-end handling time
     # (routing + retrieval + every model call), distinct from the single
     # `llm_latency_ms` of the final answer call.
+    total_ms = round((time.monotonic() - request_started) * 1000, 1)
     meta = {
         **(meta or {}),
         "mode": conv_state.mode,
         "detected_intent": conv_intent.value,
-        "response_ms": round((time.monotonic() - request_started) * 1000, 1),
+        "response_ms": total_ms,
         **llm_stats.as_meta(),
+        # Structured timing, no prompt or reply text. `non_llm_ms` is routing,
+        # retrieval, prompt assembly and DB work together; the commit time
+        # cannot be inside the row it writes, so it is logged instead.
+        "timing": {
+            "total_ms": total_ms,
+            "llm_ms": round(llm_stats.latency_ms, 1),
+            "ttft_ms": round(llm_stats.ttft_ms, 1) if llm_stats.ttft_ms is not None else None,
+            "non_llm_ms": round(max(0.0, total_ms - llm_stats.latency_ms), 1),
+            "llm_calls": llm_stats.calls,
+            "retry_count": llm_stats.retry_count,
+        },
     }
     log.info(
         "chat_message llm_calls=%d attempts=%d retries=%d vertex_ok=%s fallback=%s "
@@ -1367,7 +1394,13 @@ async def _process_message(
     )
     db.add(assistant_msg)
     thread.title = thread.title  # touched
+    persist_started = time.monotonic()
     await db.commit()
+    log.info(
+        "chat_timing total_ms=%s llm_ms=%s ttft_ms=%s non_llm_ms=%s persist_ms=%.1f llm_calls=%d retries=%d exp=%s",
+        total_ms, meta["timing"]["llm_ms"], meta["timing"]["ttft_ms"], meta["timing"]["non_llm_ms"],
+        (time.monotonic() - persist_started) * 1000, llm_stats.calls, llm_stats.retry_count, experiment_id,
+    )
 
     return {
         "thread_id": thread.id,
