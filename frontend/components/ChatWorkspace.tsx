@@ -31,7 +31,15 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<UnifiedChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
+  // Which threads have a reply in flight. "Sending" is per thread, so starting a
+  // new chat while another is still streaming leaves the new chat usable.
+  const [sendingKeys, setSendingKeys] = useState<Record<string, boolean>>({});
+  // The thread currently on screen, readable synchronously from async callbacks.
+  // A stale closure of `activeThreadId` is exactly how a reply from chat A used
+  // to be appended into chat B, so every async result checks this ref first.
+  const activeThreadRef = useRef<string | null>(null);
+  const loadSeq = useRef(0);
+  const sending = Boolean(sendingKeys[activeThreadId ?? "__new__"]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [error, setError] = useState("");
@@ -127,6 +135,30 @@ export function ChatWorkspace({ me }: { me: Me }) {
     }
   };
 
+  // The one way to change the active thread: update the ref immediately and
+  // clear the visible messages so nothing from the previous thread lingers
+  // while the new thread's history loads.
+  const activateThread = (id: string | null) => {
+    if (activeThreadRef.current !== id) {
+      activeThreadRef.current = id;
+      setMessages([]);
+    }
+    setActiveThreadId(id);
+  };
+
+  // Refresh the sidebar list only; never changes which thread is open.
+  const refreshThreadList = async () => {
+    if (!activeClassroom || !selectedExpId) return;
+    try {
+      const res = await api.get<{ threads: ChatThread[] }>(
+        `/api/chat/threads?classroom_id=${activeClassroom.id}&experiment_id=${selectedExpId}`
+      );
+      setThreads(res.threads);
+    } catch (e) {
+      console.error("Failed to refresh chat threads", e);
+    }
+  };
+
   // Load threads when classroom or experiment changes
   const loadThreads = async () => {
     if (!activeClassroom || !selectedExpId) return;
@@ -136,9 +168,9 @@ export function ChatWorkspace({ me }: { me: Me }) {
       );
       setThreads(res.threads);
       if (res.threads.length > 0) {
-        setActiveThreadId(res.threads[0].id);
+        activateThread(res.threads[0].id);
       } else {
-        setActiveThreadId(null);
+        activateThread(null);
         setMessages([]);
       }
     } catch (e) {
@@ -152,16 +184,20 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
   // Load messages for active thread
   const loadMessages = async (threadId: string) => {
+    const seq = ++loadSeq.current;
     setLoadingMessages(true);
     try {
       const res = await api.get<{ messages: UnifiedChatMessage[] }>(
         `/api/chat/threads/${threadId}/messages`
       );
+      // A slow response for a thread the student has already left must never
+      // overwrite the thread they are looking at now (A -> B -> A switching).
+      if (seq !== loadSeq.current || activeThreadRef.current !== threadId) return;
       setMessages(res.messages);
     } catch (e) {
       console.error("Failed to load messages", e);
     } finally {
-      setLoadingMessages(false);
+      if (seq === loadSeq.current) setLoadingMessages(false);
     }
   };
 
@@ -219,9 +255,12 @@ export function ChatWorkspace({ me }: { me: Me }) {
         title: "New chat",
       });
       setThreads((prev) => [fresh, ...prev]);
-      setActiveThreadId(fresh.id);
+      // A brand-new, empty conversation: new id, no messages, no leftover input.
+      activeThreadRef.current = null; // force the clear even if ids were equal
+      activateThread(fresh.id);
       setMessages([]);
       setInput("");
+      setError("");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }
@@ -252,7 +291,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
       setThreads((prev) => prev.filter((t) => t.id !== id));
       if (activeThreadId === id) {
         const remaining = threads.filter((t) => t.id !== id);
-        setActiveThreadId(remaining.length > 0 ? remaining[0].id : null);
+        activateThread(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (err) {
       console.error("Failed to delete thread", err);
@@ -265,8 +304,14 @@ export function ChatWorkspace({ me }: { me: Me }) {
     const text = (override ?? input).trim();
     if (!text || !activeClassroom || sending) return;
 
+    // The thread this message belongs to. Everything that comes back from the
+    // server is applied only while this is still the thread on screen.
+    const originThread = activeThreadRef.current;
+    const originKey = originThread ?? "__new__";
+    const isCurrent = () => activeThreadRef.current === originThread;
+
     setError("");
-    setSending(true);
+    setSendingKeys((prev) => ({ ...prev, [originKey]: true }));
     setInput("");
 
     // Optimistic user message
@@ -299,9 +344,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
         classroom_id: activeClassroom.id,
         experiment_id: selectedExpId,
         message: text,
-        thread_id: activeThreadId,
+        thread_id: originThread,
       })) {
         if (event.type === "chunk") {
+          if (!isCurrent()) continue; // the student moved to another chat
           setMessages((prev) =>
             prev.map((m) =>
               m.id === tempTutorId ? { ...m, content: m.content + event.text } : m
@@ -321,13 +367,17 @@ export function ChatWorkspace({ me }: { me: Me }) {
       if (!finalResult) throw new Error("Stream ended without a done event");
 
       const res = finalResult;
-      if (!activeThreadId || activeThreadId !== res.thread_id) {
-        // Switching onto a (possibly just-created) thread also fires the
-        // activeThreadId effect below, which calls loadMessages() and
-        // replaces `messages` wholesale from the server — temp messages
-        // are cleaned up automatically by that reload.
-        setActiveThreadId(res.thread_id);
-        await loadThreads();
+      if (!isCurrent()) {
+        // The student opened another chat while this reply was generating. The
+        // reply is saved server-side under its own thread; do not touch the
+        // chat on screen, just refresh the sidebar (titles, new thread).
+        await refreshThreadList();
+      } else if (originThread === null || originThread !== res.thread_id) {
+        // A message sent from a not-yet-created chat: switch onto the thread
+        // the server just created. The activeThreadId effect below then calls
+        // loadMessages(), which replaces `messages` from the server.
+        activateThread(res.thread_id);
+        await refreshThreadList();
       } else {
         setThreads((prev) =>
           prev.map((t) => (t.id === res.thread_id ? { ...t, title: res.thread_title } : t))
@@ -343,13 +393,19 @@ export function ChatWorkspace({ me }: { me: Me }) {
         ]);
       }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
-      setMessages((prev) =>
-        prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempTutorId)
-      );
-      setInput(text);
+      if (isCurrent()) {
+        setError(e instanceof ApiError ? e.message : String(e));
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempTutorId)
+        );
+        setInput(text);
+      }
     } finally {
-      setSending(false);
+      setSendingKeys((prev) => {
+        const next = { ...prev };
+        delete next[originKey];
+        return next;
+      });
     }
   };
 
@@ -523,7 +579,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
               return (
                 <div
                   key={t.id}
-                  onClick={() => setActiveThreadId(t.id)}
+                  onClick={() => activateThread(t.id)}
                   style={{
                     padding: "8px 10px",
                     borderRadius: "6px",
@@ -656,7 +712,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
             <div className="card" style={{ maxWidth: "620px", margin: "40px auto", textAlign: "center" }}>
               <h2 style={{ marginTop: 0 }}>Hi! What would you like to do today?</h2>
               <p className="muted">
-                We&apos;re on <strong>{selectedExp?.title}</strong>. Study the theory behind it, or work through the experiment one step at a time.
+                We&apos;re on <strong>{selectedExp?.title}</strong>. Study the theory behind it, or {selectedExpId === "exp07" ? "reason through its key ideas, one short question at a time." : "work through the experiment one step at a time."}
               </p>
               <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", marginTop: "14px" }}>
                 <button className="btn btn-primary" disabled={sending} onClick={() => handleSend("Theory / Study")}>
