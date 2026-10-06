@@ -405,6 +405,19 @@ by someone who teaches the course. No claim of improved learning, shorter
 completion time or 70-user capacity is made: those need measurement
 (`scripts/bench_exp07.py`, `scripts/load_test_openai.py`).
 
+### 2.1.4 Phone-only mode: theory first, procedure on request
+
+Exp7's default for students with only a phone (`LABTUTOR_PHONE_ONLY`, on by
+default). Theory questions get a grounded answer plus one authored Socratic
+follow-up whose reply is graded deterministically; the practical is an authored
+overview shown only on an explicit request; "guide me through the key ideas"
+opens an optional six-part conceptual session; and every student-facing question
+passes the phone-safety gate. Detection of theory, procedure and exit is
+regex-only, so it adds no model call. The software walkthrough of 2.1.2 remains
+behind `LABTUTOR_PHONE_ONLY=false`. Full description, root causes of the earlier
+automatic-procedure behaviour, the step audit and limits are in
+[phone_only_mode.md](phone_only_mode.md).
+
 ## 3. Data flow diagram
 
 ```
