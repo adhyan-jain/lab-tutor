@@ -135,6 +135,11 @@ class Settings(BaseSettings):
     #: Guided, verified step-by-step walkthrough for Exp7 (no model call for
     #: most turns). Off returns Exp7 to plain grounded Q&A.
     walkthrough_enabled: bool = Field(True, alias="LABTUTOR_WALKTHROUGH")
+    #: Students have only a phone and this website: Exp7's "practical" runs as
+    #: a conceptual session that never asks them to use or read external
+    #: software (see walkthrough/concept_session.py). Set false for a class
+    #: that does have Gabedit/ORCA/Avogadro to restore the software walkthrough.
+    phone_only: bool = Field(True, alias="LABTUTOR_PHONE_ONLY")
     #: USD per million tokens, for the Activity cost-estimate column and
     #: export. Both unset by default -- an estimate is only ever shown once
     #: someone has checked current Vertex pricing and set both explicitly;

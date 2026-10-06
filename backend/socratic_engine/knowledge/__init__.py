@@ -4,6 +4,7 @@ from .types import (  # noqa: F401
     ConceptQuestion,
     ExperimentKnowledge,
     Misconception,
+    Stage,
     StepKnowledge,
     build,
 )

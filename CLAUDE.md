@@ -128,6 +128,15 @@ confined to Exp7. Numeric results, procedural checks, sanity rules and the
 final assessment stay fully deterministic, and `pedagogy/` and `walkthrough/`
 must keep importing no LLM code. Do not extend this to another experiment.
 
+**Exp7 phone-only mode (`LABTUTOR_PHONE_ONLY`, default on).** For students with
+only a phone: theory is the default, the practical is an authored overview shown
+only when explicitly asked for, any exit to theory works at any time, and no
+student-facing question may require external software, a screen or output
+(`knowledge/phone_safe.py`, enforced by tests). Mode and procedure detection are
+deterministic, never a model call. See [docs/phone_only_mode.md](docs/phone_only_mode.md).
+A new chat is a new conversation: history, concept state, follow-ups and
+walkthrough progress are all scoped to the thread.
+
 ## Coding conventions
 
 - **Language/framework**: FastAPI + Postgres + Next.js. Confirmed by the

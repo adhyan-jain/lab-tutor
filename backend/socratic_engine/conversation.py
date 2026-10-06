@@ -28,9 +28,10 @@ same action twice.
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Iterable
 
@@ -43,6 +44,7 @@ class Intent(str, Enum):
     STEP_REFUSED = "step_refused"
     SWITCH_TO_THEORY = "switch_to_theory"
     SWITCH_TO_PRACTICE = "switch_to_practice"
+    GUIDED_CONCEPTS = "guided_concepts"  # "guide me through the key ideas" (phone-only Exp7)
     USER_REQUESTED_HINT = "user_requested_hint"
     USER_REQUESTED_EXPLANATION = "user_requested_explanation"
     TROUBLESHOOTING = "troubleshooting"
@@ -71,6 +73,64 @@ _THEORY_RE = re.compile(
     rf"|^\s*(?:theory|study|theory\s*/\s*study|study theory|theory please|learn)\s*[.!]*\s*$",
     re.IGNORECASE,
 )
+
+# Leaving a procedure, in the ways people actually say it. All of these are
+# switches to theory; a message that ALSO contains a real question ("forget the
+# steps, explain why optimisation works") is answered, not just acknowledged
+# (see `theory.has_substance`).
+_EXIT_VERB = r"(?:forget|ignore|drop|stop|leave|exit|quit|cancel|bypass)"
+_PROC_NOUN = r"(?:steps?|procedures?|walk-?through|instructions?|practical|lab)"
+# "skip" is special: "skip this step" skips ONE step (STEP_SKIPPED), while
+# "skip the steps" / "skip the procedure" leaves the procedure.
+_SKIP_PROC_NOUN = r"(?:steps|procedures?|walk-?through|instructions?|practical|lab)"
+_EXIT_RE = re.compile(
+    rf"\b{_EXIT_VERB}\s+(?:all\s+)?(?:about\s+)?(?:the\s+|these\s+|those\s+|this\s+|that\s+|any\s+)?{_PROC_NOUN}\b"
+    rf"|\bskip\s+(?:all\s+)?(?:the\s+|these\s+|those\s+)?{_SKIP_PROC_NOUN}\b"
+    rf"|\b(?:don.?t|do not|dont|no)\s+(?:want|need|wish)\s+(?:to\s+(?:do|follow|see)\s+)?(?:the\s+|any\s+|a\s+)?{_PROC_NOUN}\b"
+    r"|\b(?:explain|teach|tell me|show me|help me understand|just explain)\b[^.?!]{0,30}\b(?:the\s+)?"
+    r"(?:theory|concepts?|chemistry|science|ideas?|principles?)\b"
+    r"|\bwhy\s+does\s+(?:this|it|that)\s+work\b",
+    re.IGNORECASE,
+)
+
+_GUIDED_RE = re.compile(
+    r"\b(?:guide|walk|take)\s+me\s+through\s+(?:the\s+)?(?:key\s+|main\s+)?(?:ideas|concepts)\b"
+    r"|\b(?:quiz|test)\s+me\b|\btest\s+my\s+understanding\b",
+    re.IGNORECASE,
+)
+
+# A STRICT request for the practical procedure. Deliberately narrow: a how-to
+# that is really about an idea ("how do we choose a basis set?", "how do I
+# interpret the HOMO?") is a theory question, and "help me" or "procedure"
+# alone are not requests to be walked through anything.
+_PROCEDURE_RE = re.compile(
+    r"\b(?:walk|guide|take)\s+me\s+through\s+(?:the\s+|this\s+)?(?:procedure|experiment|lab|practical|steps?|workflow|process)\b"
+    r"|\bhow\s+(?:do|can|should|would|could)\s+(?:i|we)\s+(?:actually\s+|really\s+|even\s+)?"
+    r"(?:perform|conduct|carry\s+out|do|run|complete|execute|start|begin|set\s+up|use)\b[^.?!]{0,50}?"
+    r"\b(?:experiment|practical|lab|exp(?:eriment)?\s*\d*|procedure|orca|gabedit|avogadro)\b"
+    r"|\b(?:what\s+are|what\s+is|what.?s|give\s+me|show\s+me|tell\s+me|list|explain|describe|outline)\s+(?:me\s+)?"
+    r"(?:all\s+)?(?:the\s+)?(?:practical\s+|lab\s+|experimental\s+)?(?:steps?|procedure|workflow)\b"
+    r"|\bwhere\s+do\s+i\s+start\b"
+    r"|\blet.?s\s+(?:start|begin|do)\s+(?:the\s+)?(?:experiment|lab|practical|procedure)\b"
+    r"|\bstart\s+the\s+(?:experiment|lab|practical)\b"
+    r"|\b(?:i\s+)?(?:want|need|would like|.d like)\s+to\s+(?:do|perform|run|start|conduct)\s+(?:the\s+|this\s+)?(?:experiment|lab|practical)\b",
+    re.IGNORECASE,
+)
+
+
+def is_procedure_request(text: str) -> bool:
+    """True only when the student explicitly asks how the practical is
+    performed or to be walked through it. Theory questions are not."""
+    return bool(_PROCEDURE_RE.search(text or "")) and not _EXIT_RE.search(text or "")
+
+
+def exit_spans(text: str) -> list[str]:
+    """The phrases in `text` that switch to theory (for stripping them to see
+    whether a real question remains)."""
+    spans = [m.group(0) for m in _EXIT_RE.finditer(text or "")]
+    spans += [m.group(0) for m in _THEORY_RE.finditer(text or "")]
+    return spans
+
 
 _PRACTICE_NOUN = r"(?:experiment|practical|practice|lab|procedure|walkthrough|guide|steps?|hands.on)"
 _PRACTICE_RE = re.compile(
@@ -160,7 +220,9 @@ def classify(text: str) -> Intent:
     t = (text or "").strip()
     if not t:
         return Intent.ANSWER
-    if _THEORY_RE.search(t):
+    if _GUIDED_RE.search(t):
+        return Intent.GUIDED_CONCEPTS
+    if _THEORY_RE.search(t) or _EXIT_RE.search(t):
         return Intent.SWITCH_TO_THEORY
     if _PRACTICE_RE.search(t) and not _REFUSE_RE.search(t):
         return Intent.SWITCH_TO_PRACTICE
@@ -199,6 +261,8 @@ ACTIONS: dict[str, str] = {
     "back_to_experiment": "Back to the experiment",
     "just_tell": "Just tell me",
     "skip_quiz": "Skip quiz",
+    "guide_concepts": "Guide me through the key ideas",
+    "explain_theory": "Explain the theory instead",
     "skip_concept": "Skip this question",
     "resume": "Resume",
     "resume_previous": "Resume previous session",
@@ -211,6 +275,8 @@ ACTION_INTENT: dict[str, Intent] = {
     "theory": Intent.SWITCH_TO_THEORY,
     "study_theory": Intent.SWITCH_TO_THEORY,
     "practice": Intent.SWITCH_TO_PRACTICE,
+    "guide_concepts": Intent.GUIDED_CONCEPTS,
+    "explain_theory": Intent.SWITCH_TO_THEORY,
     "back_to_experiment": Intent.SWITCH_TO_PRACTICE,
     "hint": Intent.USER_REQUESTED_HINT,
     "why": Intent.USER_REQUESTED_EXPLANATION,
@@ -301,6 +367,12 @@ class ConversationState:
     #: The legacy Socratic session this thread started, if any. Lookups go
     #: through this id only, so another thread's session is never resumed.
     socratic_session_id: str | None = None
+    #: Theory-mode concept understanding for THIS thread (pedagogy.state
+    #: ConceptStates as a dict) and the one short Socratic question currently
+    #: awaiting the student's answer. Thread-local like everything else here:
+    #: a new chat starts with neither.
+    concepts: dict[str, Any] = field(default_factory=dict)
+    pending: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -310,7 +382,9 @@ class ConversationState:
         base = cls()
         for key, value in (data or {}).items():
             if hasattr(base, key):
-                setattr(base, key, value)
+                # copy: the dict comes straight from the DB column and this
+                # state mutates its own copies in place (see WalkState.from_dict)
+                setattr(base, key, copy.deepcopy(value) if isinstance(value, (dict, list)) else value)
         if base.mode not in {m.value for m in Mode}:
             base.mode = Mode.INITIAL.value
         return base
@@ -342,6 +416,12 @@ def greeting_ui() -> dict[str, Any]:
     return {"kind": "greeting", "chips": chips, "action_context": ctx, "mode": Mode.INITIAL.value}
 
 
-def greeting_text(experiment_title: str = "") -> str:
+GREETING_DETAIL_CONCEPTUAL = (
+    "**Theory / Study**: understand the concepts behind this experiment.\n"
+    "**Practical / Experiment**: reason through the key ideas of the experiment, one short question at a time."
+)
+
+
+def greeting_text(experiment_title: str = "", *, conceptual: bool = False) -> str:
     head = GREETING if not experiment_title else f"{GREETING} We're on **{experiment_title}**."
-    return f"{head}\n\n{GREETING_DETAIL}"
+    return f"{head}\n\n{GREETING_DETAIL_CONCEPTUAL if conceptual else GREETING_DETAIL}"

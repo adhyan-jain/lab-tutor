@@ -795,6 +795,17 @@ async def _phrase_with_llm(
                 "experiment, even if it describes a multi-step procedure.",
                 "",
             ]
+            from backend.config import get_settings
+
+            if get_settings().phone_only:
+                parts += [
+                    "PHONE-ONLY: the student has only a phone and this chat, no computer and no software. "
+                    "Explain ideas and reasons in prose. Do NOT give numbered or step-by-step software "
+                    "instructions unless they explicitly ask how the practical is performed, and never ask them "
+                    "to look at, open, run, check, count or read anything outside this chat. Do not end with an "
+                    "offer or a question: the app adds one short follow-up question itself.",
+                    "",
+                ]
         elif experiment_id in QUALITATIVE_EXPERIMENTS:
             if guided:
                 parts += [

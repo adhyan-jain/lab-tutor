@@ -25,6 +25,7 @@ import json
 import logging
 import re
 import time
+from dataclasses import replace
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -56,6 +57,7 @@ from backend.models import (
 from backend.config import get_settings
 from backend.pipeline import run_diagnosis
 from backend.socratic_engine import conversation
+from backend.socratic_engine import procedure, theory
 from backend.socratic_engine.realise import realise_turn
 from backend.socratic_engine.walkthrough import controller as walkthrough_controller
 from backend.socratic_engine.walkthrough import grader
@@ -126,6 +128,9 @@ async def _exp07_invite_suffix(db: AsyncSession, thread_id: str, experiment_id: 
     row exists (active, paused or done) the student already knows how to
     get back to it, so this stays silent from then on."""
     if experiment_id != "exp07" or not get_settings().walkthrough_enabled:
+        return ""
+    if get_settings().phone_only:
+        # Procedure is opt-in, never offered: a bare "yes" must not start it.
         return ""
     row = await walkthrough_service.get_progress(db, thread_id)
     if row is not None:
@@ -349,6 +354,97 @@ def _mode_reply(text: str, state: conversation.ConversationState, chips: list[st
     }
 
 
+def _phone_exp07(experiment_id: str) -> bool:
+    """Exp7 for students with only a phone: theory is the default and the
+    practical is explained on request, never walked through automatically."""
+    settings = get_settings()
+    return experiment_id == "exp07" and settings.phone_only and settings.walkthrough_enabled
+
+
+async def _conversation_turn_phone(
+    db: AsyncSession,
+    state: conversation.ConversationState,
+    intent: conversation.Intent,
+    *,
+    thread: ChatThread,
+    message: str,
+    title: str,
+) -> tuple[tuple[str, ChatMessageKind, dict] | None, bool]:
+    """Mode logic for phone-only Exp7, all deterministic (no model call).
+
+    THEORY is the default. The practical is an overview shown only when asked
+    for. A student can leave the procedure or a guided session at any moment,
+    in any common wording, and if the same message holds a real question it is
+    answered straight away. Returns (a reply that fully handles the turn, or
+    None to carry on) and whether a guided session should start."""
+    Mode, Intent = conversation.Mode, conversation.Intent
+    row = await walkthrough_service.get_progress(db, thread.id)
+
+    # Changing direction always drops a follow-up that was waiting for an answer.
+    if (
+        intent in (Intent.SWITCH_TO_THEORY, Intent.SWITCH_TO_PRACTICE, Intent.GUIDED_CONCEPTS)
+        or conversation.is_procedure_request(message)
+    ):
+        state.pending = None
+
+    # 1. Leaving a procedure or guided session for theory, any time.
+    if intent is Intent.SWITCH_TO_THEORY:
+        paused = ""
+        if row is not None and row.status == "active":
+            wstate = walkthrough_service.pause(row)
+            _, label = walkthrough_controller.topic_for(wstate)
+            paused = f' I have paused the key-ideas session at **{label}**; say "guide me through the key ideas" to carry on from there.'
+        state.switch(Mode.THEORY, "student asked for theory")
+        if theory.has_substance(message):
+            return None, False  # "forget the steps, explain why X": answer X now
+        return _mode_reply(
+            f"Sure, let's work on the ideas.{paused}\n\nWhat would you like to understand?",
+            state, ["guide_concepts"], "to theory",
+        ), False
+
+    # 2. A guided key-ideas session, only when asked for.
+    if intent is Intent.GUIDED_CONCEPTS:
+        if row is not None and row.status == "paused":
+            state.switch(Mode.PRACTICE, "student resumed the key ideas")
+            result = walkthrough_service.resume(row, "Back to the key ideas. Here is where you were.")
+            return (result.reply or "", ChatMessageKind.SOCRATIC, {
+                "type": "walkthrough", "walkthrough": result.events, "ui": result.ui,
+                "mode": state.mode, "transition_reason": "theory -> key ideas",
+            }), False
+        if row is not None:
+            return None, False  # already in one: let the session handle the message
+        state.switch(Mode.PRACTICE, "student asked for the key ideas")
+        return None, True
+
+    # 3. The practical procedure: an overview, only when explicitly asked for.
+    if conversation.is_procedure_request(message) or intent is Intent.SWITCH_TO_PRACTICE:
+        if row is not None and row.status == "paused" and intent is Intent.SWITCH_TO_PRACTICE:
+            state.switch(Mode.PRACTICE, "student resumed")
+            result = walkthrough_service.resume(row, "Back to the key ideas. Here is where you were.")
+            return (result.reply or "", ChatMessageKind.SOCRATIC, {
+                "type": "walkthrough", "walkthrough": result.events, "ui": result.ui,
+                "mode": state.mode, "transition_reason": "theory -> key ideas",
+            }), False
+        state.switch(Mode.PRACTICE, "student asked for the procedure")
+        return _mode_reply(procedure.overview(), state, procedure.CHIPS, "procedure overview"), False
+
+    # 4. Everything else is theory, unless a key-ideas session is running.
+    if state.mode == Mode.INITIAL.value:
+        if len(grader._tokens(message)) <= 3 and intent is Intent.ANSWER:
+            state.clarify_count += 1
+            text = (
+                conversation.greeting_text(title, conceptual=True)
+                if state.clarify_count == 1
+                else "Tap one of the two options, or just ask me about any idea in this experiment."
+            )
+            return _mode_reply(text, state, ["theory", "practice"], "greeting"), False
+        state.switch(Mode.THEORY, "question in a new chat")
+        return None, False
+    if state.mode == Mode.PRACTICE.value and (row is None or row.status != "active"):
+        state.switch(Mode.THEORY, "back to theory after the procedure overview")
+    return None, False
+
+
 async def _conversation_turn(
     db: AsyncSession,
     principal: Principal,
@@ -368,6 +464,8 @@ async def _conversation_turn(
     Mode, Intent = conversation.Mode, conversation.Intent
     wants_practice = intent is Intent.SWITCH_TO_PRACTICE
     title = _experiment_title(experiment_id)
+    if _phone_exp07(experiment_id):
+        return await _conversation_turn_phone(db, state, intent, thread=thread, message=message, title=title)
 
     if state.mode == Mode.INITIAL.value:
         if intent is Intent.SWITCH_TO_THEORY:
@@ -395,7 +493,9 @@ async def _conversation_turn(
             # the exact same menu twice in a row.
             state.clarify_count += 1
             text = (
-                conversation.greeting_text(title)
+                conversation.greeting_text(
+                    title, conceptual=experiment_id == "exp07" and get_settings().phone_only
+                )
                 if state.clarify_count == 1
                 else "Tap one of the two options, or tell me in your own words what you need: a concept explained, or help doing the experiment."
             )
@@ -432,8 +532,7 @@ async def _conversation_turn(
     row = await walkthrough_service.get_progress(db, thread.id)
     if row is not None:
         wstate = walkthrough_service.pause(row)
-        step = walkthrough_controller.SCRIPT.step(wstate.step_id)
-        topic, step_label = step.title, f"{walkthrough_controller._progress(wstate)['label']}: {step.title}"
+        topic, step_label = walkthrough_controller.topic_for(wstate)
         step_id = wstate.step_id
     else:
         session = await _thread_socratic_session(db, principal, state)
@@ -1021,6 +1120,15 @@ async def _process_message(
         )
     conv_state.last_intent = conv_intent.value
     theory_mode = conv_state.mode == conversation.Mode.THEORY.value
+    phone07 = _phone_exp07(experiment_id)
+    theory_turn = None
+    if (
+        phone07 and theory_mode and conv_state.pending and mode_handled is None
+        and not triage.short_circuits(intent) and not _extract_numbers_dict(body.message)
+    ):
+        # The student is answering the Socratic follow-up asked after the last
+        # theory answer: grade it deterministically against that question.
+        theory_turn = theory.handle_pending(conv_state, body.message)
 
     # Guided walkthrough (Exp7): deterministic verification of each step,
     # zero model calls for most turns. Safety triage above always wins, and
@@ -1062,6 +1170,20 @@ async def _process_message(
             )
     elif mode_handled is not None:
         reply_text, msg_kind, meta = mode_handled
+    elif theory_turn is not None:
+        reply_text = theory_turn.reply
+        msg_kind = ChatMessageKind.SOCRATIC
+        meta = {"type": "walkthrough", "walkthrough": theory_turn.events, "ui": theory_turn.ui}
+        if theory_turn.realise is not None:
+            # Same single advisory call as the key-ideas session (clamped).
+            realised = await realise_turn(theory_turn.realise)
+            if realised is not None:
+                reply_text = realised.response
+                after = theory.apply_advisory(conv_state, theory_turn.realise["concept_id"], realised.suggested)
+                theory_turn.events.setdefault("pedagogy", {}).update(
+                    realised=True, advisory=realised.suggested, state_after=after
+                )
+                meta.update(_llm_meta(realised.latency_ms, realised.prompt_tokens, realised.completion_tokens))
     elif wt_turn is not None and wt_turn.reply is not None:
         reply_text = wt_turn.reply
         msg_kind = ChatMessageKind.SOCRATIC
@@ -1242,7 +1364,16 @@ async def _process_message(
                     result = await answer_question(
                         qa_message, active_experiment=experiment_id, conversation_history=history_text
                     )
-                    reply_text = result.text + await _exp07_invite_suffix(db, thread.id, experiment_id)
+                    answer_text = theory.guard_answer(result.text, body.message) if phone07 else result.text
+                    authored = None
+                    if phone07 and result.answer_source != "llm":
+                        # No model answer (outage, quota, key problem): an authored
+                        # explanation of the concept beats an unrelated manual excerpt.
+                        authored = theory.fallback_explanation(body.message)
+                        if authored:
+                            answer_text = authored
+                            result = replace(result, citations=[])  # the excerpts were not used
+                    reply_text = answer_text + await _exp07_invite_suffix(db, thread.id, experiment_id)
                     msg_kind = ChatMessageKind.QA
                     meta = {
                         "type": "qa",
@@ -1257,6 +1388,18 @@ async def _process_message(
                             result.latency_ms, result.prompt_tokens, result.completion_tokens
                         ),
                     }
+                    if (
+                        phone07
+                        and conv_state.mode == conversation.Mode.THEORY.value
+                        and (result.status.answerable or authored)
+                    ):
+                        # Theory stays Socratic: ONE authored, state-aware, phone-safe
+                        # question about the concept just discussed (no extra model call).
+                        follow = theory.open_followup(conv_state, body.message)
+                        if follow is not None:
+                            reply_text = f"{reply_text}\n\n{follow.reply}"
+                            meta["ui"] = follow.ui
+                            meta["walkthrough"] = follow.events
             elif (
                 router_decision.mode is RouterMode.DIAGNOSTIC
                 and plugin is not None
@@ -1335,7 +1478,8 @@ async def _process_message(
                 }
 
     if (
-        conv_state.mode == conversation.Mode.THEORY.value
+        not phone07
+        and conv_state.mode == conversation.Mode.THEORY.value
         and conv_state.previous_mode == conversation.Mode.PRACTICE.value
         and meta.get("type") == "qa"
     ):
