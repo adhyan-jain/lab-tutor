@@ -118,6 +118,16 @@ one level deeper into a specific experiment. Do not extend the walkthrough
 pattern to a third experiment without the same authored-content, code-
 decides discipline.
 
+**Exp7 concept tutoring -- second narrow exception.** The concept-aware
+layer (docs/ARCHITECTURE.md §2.1.3) lets one model call *suggest* a
+classification for a free-text conceptual answer that the deterministic
+patterns left UNCLEAR. It is advisory only: clamped by
+`pedagogy.state.apply_advisory` (at most one level up, never to
+UNDERSTOOD/MASTERED, never down), logged with source `llm_advisory`, and
+confined to Exp7. Numeric results, procedural checks, sanity rules and the
+final assessment stay fully deterministic, and `pedagogy/` and `walkthrough/`
+must keep importing no LLM code. Do not extend this to another experiment.
+
 ## Coding conventions
 
 - **Language/framework**: FastAPI + Postgres + Next.js. Confirmed by the
