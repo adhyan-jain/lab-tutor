@@ -38,6 +38,8 @@ class LLMRequestStats:
     thinking_tokens: int | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    #: Time to first streamed token, ms. Only set when the reply streamed.
+    ttft_ms: float | None = None
 
     def as_meta(self) -> dict:
         meta: dict = {
@@ -60,6 +62,8 @@ class LLMRequestStats:
             meta["cached_tokens"] = self.cached_tokens
         if self.thinking_tokens is not None:
             meta["thinking_tokens"] = self.thinking_tokens
+        if self.ttft_ms is not None:
+            meta["ttft_ms"] = round(self.ttft_ms, 1)
         return meta
 
 
@@ -132,6 +136,13 @@ def record_result(
         stats.completion_tokens = completion_tokens
         stats.cached_tokens = cached_tokens
         stats.thinking_tokens = thinking_tokens
+
+
+def record_ttft(ms: float) -> None:
+    """First streamed token of the request's first generation."""
+    stats = _current.get()
+    if stats is not None and stats.ttft_ms is None:
+        stats.ttft_ms = ms
 
 
 def record_cache(*, hit: bool, ref: str | None) -> None:

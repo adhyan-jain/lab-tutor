@@ -78,6 +78,22 @@ def _save(row: WalkthroughProgress, state: ctl.WalkState) -> None:
     row.status = state.status
 
 
+async def apply_advisory(db: AsyncSession, thread_id: str, concept_id: str, suggested: str) -> str | None:
+    """Fold a model's suggested classification into the stored concept state,
+    clamped by pedagogy.state.apply_advisory. Returns the resulting state."""
+    from backend.socratic_engine.pedagogy import state as pstate
+
+    row = await get_progress(db, thread_id)
+    if row is None:
+        return None
+    wstate = ctl.WalkState.from_dict(row.state)
+    cs = ctl._cs(wstate)
+    rec = pstate.apply_advisory(cs, concept_id, suggested)
+    ctl._save_cs(wstate, cs)
+    _save(row, wstate)
+    return rec.state
+
+
 def pause(row: WalkthroughProgress) -> ctl.WalkState:
     """Leave practice for theory: the step is kept exactly where it was."""
     state = ctl.WalkState.from_dict(row.state)

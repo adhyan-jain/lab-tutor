@@ -343,6 +343,68 @@ checkpoint selection, no-LLM-import architecture test) and
 isolation, pause/resume, prompt-injection containment, safety triage
 priority, the kill switch).
 
+### 2.1.3 Concept-aware tutoring on top of the walkthrough
+
+The walkthrough teaches the procedure; this layer adds the *why*. It is a
+generic engine plus one authored knowledge model per experiment (Exp7 only
+so far), and it adds no model call to an ordinary turn.
+
+**Pieces** (all under `backend/socratic_engine/`):
+
+- `knowledge/` -- authored data: concept graph with prerequisites, step ->
+  why -> concept links, misconceptions (each with detection patterns, a
+  Socratic probe and a short correction), and questions of six types
+  (PREDICTION, WHY, CONSEQUENCE, OBSERVATION, INTERPRETATION, TRANSFER) with
+  answer patterns. `exp07.py` is the Exp7 instance; no reference HOMO/LUMO
+  values appear in it.
+- `pedagogy/state.py` -- per-concept state UNKNOWN -> INTRODUCED -> ATTEMPTED
+  -> PARTIALLY_UNDERSTOOD -> UNDERSTOOD -> MASTERED. Every transition goes
+  through one table and is logged with its source (`deterministic` or
+  `llm_advisory`). MASTERED is reachable only from UNDERSTOOD by a correct
+  TRANSFER answer. Recency is a turn counter; nothing depends on wall-clock
+  time and there is no timer.
+- `pedagogy/policy.py` -- whether to raise a conceptual moment (checkpoint
+  step, concept not yet understood, outside cooldown, not troubleshooting),
+  which question type from the concept's state, how an answer is classified
+  (CORRECT / PARTIAL / MISCONCEPTION / UNCLEAR, negation-aware), and the next
+  move (advance / probe / scaffold / explain after two misses).
+- `walkthrough/controller.py` -- calls the policy at 12 checkpoint steps:
+  prediction-style questions before a step, the rest after it. Each step is
+  raised at most once, so the 12-run tables loop never repeats. A final
+  reflection (9 authored questions incl. transfer, all skippable) runs after
+  the last step and is recorded for research.
+- `realise.py` -- the only place a model joins in, for one case: a free-text
+  conceptual answer the authored patterns left UNCLEAR.
+
+**Model use, and the CLAUDE.md rule.** Correctness and state are decided by
+the authored patterns. For an UNCLEAR free-text answer, ONE call both phrases
+a short Socratic reply and suggests a classification. The suggestion is
+advisory: applied only to an UNCLEAR answer, clamped to lift a state by at
+most one level and never past PARTIALLY_UNDERSTOOD, never lowering it, and
+logged as `llm_advisory`. The call has an 8 s timeout and a 300-token cap; if
+it fails, times out or returns unusable output (including any reference-style
+number) the authored reply is used. Student text is passed inside a delimited
+block the system prompt marks as data. Correct, misconception, "I don't
+know", skip and every final-assessment answer make zero model calls. This is
+a second place a model contributes to a judgment (after §2.1's Exp7/8
+ordering note); it is confined to Exp7 and must not be copied to another
+experiment without a deterministic checker.
+
+**Telemetry.** Each concept moment records an `intervention` event and each
+classified answer a `pedagogy` event in the message's `walkthrough` metadata;
+the research export has a "Concept events" sheet built from them (raw answer
+text kept only for the final assessment). Streamed replies record
+`ttft_ms` and token usage; background summaries draw from a separate
+concurrency pool (`LABTUTOR_LLM_BACKGROUND_CONCURRENCY`, default 4) so they
+cannot take a live student's slot.
+
+**Known limits.** Pattern grading is conservative: a correct answer in
+unexpected wording is UNCLEAR, not wrong, and the final assessment keeps the
+raw text for human review. The authored questions and patterns need review
+by someone who teaches the course. No claim of improved learning, shorter
+completion time or 70-user capacity is made: those need measurement
+(`scripts/bench_exp07.py`, `scripts/load_test_openai.py`).
+
 ## 3. Data flow diagram
 
 ```

@@ -43,6 +43,10 @@ def _strip_markdown_emphasis(text: str) -> str:
 #: alongside the backend cache so a settings reload -- or a test that
 #: changes `LABTUTOR_LLM_MAX_CONCURRENCY` -- picks up the new limit.
 _semaphore: asyncio.Semaphore | None = None
+#: Separate, small pool for background work, so a summary job cannot take a
+#: slot a live student is waiting for.
+_bg_semaphore: asyncio.Semaphore | None = None
+_background: ContextVar[bool] = ContextVar("_llm_background", default=False)
 
 #: When set, every OpenAIBackend.complete() call in this asyncio task
 #: streams tokens into this queue instead of waiting for the full reply.
@@ -53,10 +57,21 @@ _stream_queue: ContextVar[asyncio.Queue | None] = ContextVar("_llm_stream_queue"
 
 
 def _get_semaphore() -> asyncio.Semaphore:
-    global _semaphore
+    """The pool for the current task: background work has its own."""
+    global _semaphore, _bg_semaphore
+    if _background.get():
+        if _bg_semaphore is None:
+            _bg_semaphore = asyncio.Semaphore(get_settings().llm_background_concurrency)
+        return _bg_semaphore
     if _semaphore is None:
         _semaphore = asyncio.Semaphore(get_settings().llm_max_concurrency)
     return _semaphore
+
+
+def mark_background() -> None:
+    """Call at the top of a background task: every model call it makes in
+    this task context uses the background pool, never the live-student one."""
+    _background.set(True)
 
 
 class LLMUnavailable(RuntimeError):
@@ -606,6 +621,8 @@ class OpenAIBackend(LLMBackend):
         telemetry.record_call()
         telemetry.record_attempt()
         chunks: list[str] = []
+        prompt_tokens: int | None = None
+        completion_tokens: int | None = None
 
         sem = _get_semaphore()
         try:
@@ -616,21 +633,39 @@ class OpenAIBackend(LLMBackend):
             raise LLMUnavailable("LLM concurrency queue timeout") from None
 
         try:
-            stream = await self._client.chat.completions.create(
-                model=self._model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                max_completion_tokens=max_tokens,
-                stream=True,
-                **kwargs,
-            )
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content if chunk.choices else None
-                if delta:
-                    chunks.append(delta)
-                    await queue.put(delta)
+            # One retry, and only while nothing has reached the student yet:
+            # once a token is on the wire a retry would repeat or garble text.
+            for attempt in range(2):
+                try:
+                    stream = await self._client.chat.completions.create(
+                        model=self._model,
+                        messages=[
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        max_completion_tokens=max_tokens,
+                        stream=True,
+                        stream_options={"include_usage": True},
+                        **kwargs,
+                    )
+                    async for chunk in stream:
+                        usage = getattr(chunk, "usage", None)
+                        if usage is not None:
+                            prompt_tokens = getattr(usage, "prompt_tokens", None)
+                            completion_tokens = getattr(usage, "completion_tokens", None)
+                        delta = chunk.choices[0].delta.content if chunk.choices else None
+                        if delta:
+                            if not chunks:
+                                telemetry.record_ttft((time.monotonic() - started) * 1000)
+                            chunks.append(delta)
+                            await queue.put(delta)
+                    break
+                except Exception as exc:
+                    if chunks or attempt == 1 or not _is_retryable_openai_error(exc):
+                        raise
+                    log.warning("OpenAI stream failed before the first token (%s); retrying once", _error_label(exc))
+                    telemetry.record_attempt(retry=True)
+                    await asyncio.sleep(0.5)
         except Exception as exc:
             latency_ms = (time.monotonic() - started) * 1000
             telemetry.record_result(
@@ -645,12 +680,15 @@ class OpenAIBackend(LLMBackend):
         full_text = "".join(chunks)
         telemetry.record_result(
             backend=self.name, model=self._model, ok=True, latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
         )
         return LLMReply(
             text=_strip_markdown_emphasis(full_text.strip()),
             backend=self.name,
             model=self._model,
             latency_ms=latency_ms,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
         )
 
     async def complete(
@@ -831,5 +869,6 @@ def reset_backend_cache() -> None:
 
 def reset_concurrency_limit() -> None:
     """Tests and config reloads (LABTUTOR_LLM_MAX_CONCURRENCY changes)."""
-    global _semaphore
+    global _semaphore, _bg_semaphore
     _semaphore = None
+    _bg_semaphore = None

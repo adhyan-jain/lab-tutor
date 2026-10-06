@@ -297,3 +297,12 @@ async def test_the_invite_disappears_once_a_walkthrough_row_exists(client, make_
     await chat.send("a guess")
     later = await chat.send("what is a basis set?")
     assert "let's start" not in later["message"]["content"].lower()
+
+
+async def test_every_reply_carries_structured_timing_and_no_text(client, make_user, counting_llm):
+    classroom_id, code, _ = await _classroom(client, make_user, "timing")
+    _, token = await _student(client, make_user, code, "s1.timing@vitstudent.ac.in")
+    out = await _send(client, token, classroom_id, "how do i do the calculations in ORCA and Gabedit")
+    timing = out["message"]["metadata"]["timing"]
+    assert set(timing) == {"total_ms", "llm_ms", "ttft_ms", "non_llm_ms", "llm_calls", "retry_count"}
+    assert timing["llm_calls"] == 0 and timing["total_ms"] >= 0 and timing["ttft_ms"] is None

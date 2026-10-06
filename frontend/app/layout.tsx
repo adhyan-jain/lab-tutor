@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Serif } from "next/font/google";
 import "./globals.css";
 
@@ -23,6 +23,16 @@ const plexSans = IBM_Plex_Sans({
 export const metadata: Metadata = {
   title: "LabTutor",
   description: "Chemistry lab learning support for BACHY105",
+};
+
+// Phones: fit the device width, extend under notches (the composer pads for the
+// safe area), and let the on-screen keyboard shrink the page so the composer
+// stays visible instead of being covered.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
 };
 
 // Runs before React hydrates, so a saved "light" preference (or dark,

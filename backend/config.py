@@ -105,6 +105,10 @@ class Settings(BaseSettings):
     #: connections and lets excess work fail over to the extractive
     #: fallback instead of queueing for minutes.
     llm_max_concurrency: int = Field(20, alias="LABTUTOR_LLM_MAX_CONCURRENCY")
+    #: Slots for background work (post-session summaries, sanity checks) that
+    #: must never compete with live students for `llm_max_concurrency`. Work
+    #: running with `client.background_llm()` set draws from this pool instead.
+    llm_background_concurrency: int = Field(4, alias="LABTUTOR_LLM_BACKGROUND_CONCURRENCY")
     #: How long a request may wait for a concurrency slot before it gives
     #: up on the model and takes the extractive fallback.
     llm_queue_timeout_seconds: float = Field(10.0, alias="LABTUTOR_LLM_QUEUE_TIMEOUT_SECONDS")

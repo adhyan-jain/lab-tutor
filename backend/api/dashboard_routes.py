@@ -955,6 +955,33 @@ async def research_export(
             ]
         )
 
+    # Conceptual-tutoring events (student chats only): one row per concept
+    # moment opened and per answer classified, for analysing how concept
+    # states and interventions evolved. Built from stored message metadata,
+    # so it adds no query beyond one read of the classroom's tutor messages.
+    from backend.socratic_engine.pedagogy import export as pedagogy_export
+
+    concept_sheet = workbook.create_sheet("Concept events")
+    concept_sheet.append(pedagogy_export.HEADER)
+    concept_msgs = (
+        await db.scalars(
+            select(ChatMessage)
+            .where(
+                ChatMessage.classroom_id == classroom_id,
+                ChatMessage.actor_type == ActorType.STUDENT,
+                ChatMessage.author == "tutor",
+            )
+            .order_by(ChatMessage.created_at)
+        )
+    ).all()
+    for msg in concept_msgs:
+        user = users_by_id.get(msg.student_id)
+        for row in pedagogy_export.rows_for_message(
+            user.email if user else msg.student_id, msg.experiment_id, msg.class_session_id,
+            msg.created_at.isoformat(), msg.metadata_json,
+        ):
+            concept_sheet.append(row)
+
     buffer = io.BytesIO()
     workbook.save(buffer)
     buffer.seek(0)
