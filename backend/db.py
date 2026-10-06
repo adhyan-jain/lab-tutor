@@ -35,7 +35,11 @@ def get_engine() -> AsyncEngine:
         settings = get_settings()
         url = _async_url(settings.database_url)
         kwargs: dict = {"echo": False, "future": True}
-        if not url.startswith("sqlite"):
+        if url.startswith("sqlite"):
+            # SQLite allows one writer. Wait for the lock instead of failing
+            # at once (local development and the test suite use SQLite).
+            kwargs["connect_args"] = {"timeout": 30}
+        else:
             # Sized for ~70 concurrent users. Configurable because this
             # pool is per-process: several uvicorn workers in one
             # container, or several Cloud Run instances, each get their

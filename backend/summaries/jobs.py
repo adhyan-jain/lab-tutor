@@ -318,6 +318,9 @@ async def _summarise_student(job: SummaryJob, student_id: str) -> None:
 
 async def run_job(job_id: str, student_ids: list[str], *, workers: int = 4) -> None:
     """Background entry point. Owns its own sessions; never reuses the request's."""
+    from backend.llm.client import mark_background
+
+    mark_background()  # summaries draw from the background pool, not live students'
     sessionmaker = get_sessionmaker()
 
     async with sessionmaker() as db:
