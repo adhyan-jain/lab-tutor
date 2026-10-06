@@ -287,11 +287,12 @@ class ComputationSanityPlugin(ExperimentPlugin):
       "highest occupied" / "lowest unoccupied" mean).
 
     Neither check tells you whether the *chemistry* (method, basis set,
-    molecule) was done correctly -- that still needs a human, same as
-    Experiment 8 -- so a clean run is NOT_APPLICABLE (-> Tier 3), never a
-    PASS. A violation of either fact is a determinate, signature-backed
-    finding, because both are true regardless of manual, molecule or
-    method. See `exp07.py`.
+    molecule) was done correctly -- that still needs a human eye for the
+    write-up -- but a clean run (both facts hold) is a PASS: the student's
+    own numbers are internally consistent, which is the determinate thing
+    Tier 1 can honestly confirm. A violation of either fact is a
+    determinate, signature-backed finding, because both are true
+    regardless of manual, molecule or method. See `exp07.py`.
     """
 
     @property
@@ -361,10 +362,9 @@ class ComputationSanityPlugin(ExperimentPlugin):
             )
 
         return Tier1Result(
-            outcome=Outcome.NOT_APPLICABLE,
+            outcome=Outcome.PASS,
             detail={
-                "reason": "sanity_checks_passed_method_unverified",
-                "confidence": "low",
+                "reason": "sanity_checks_passed",
                 "experiment_kind": self.kind,
             },
         )
@@ -376,7 +376,9 @@ class ComputationSanityPlugin(ExperimentPlugin):
 
         Each step checks only the fact its own inputs can speak to, so a
         student gets a signal after each stage rather than only at the
-        end. Neither step is ever a PASS -- see the class docstring.
+        end. A step passes when its own universal fact is not violated;
+        it does not verify the method/basis-set choice -- see the class
+        docstring.
         """
         step = step_index
         if step == 0:
@@ -414,19 +416,14 @@ class ComputationSanityPlugin(ExperimentPlugin):
                 ),
                 detail={"confidence": "low", "experiment_kind": self.kind},
             )
-        # This step's own fact holds. Still never a PASS -- see the class
-        # docstring -- so, exactly like Experiment 8's ordering check, the
-        # Socratic step machine cannot auto-advance past this step via
-        # `/attempt`: `handle_attempt` only advances on Outcome.PASS, and
-        # nothing here can honestly claim that. This is a known, shared
-        # limitation of both method-choice experiments, not something
-        # papered over with a fake PASS or a misleading INVALID -- see
-        # docs/final_audit.md.
+        # This step's own fact holds: no contradiction in what the student
+        # reported, so the step passes and the Socratic machine can advance.
+        # This does not verify the chemistry (method/basis-set choice) --
+        # only that the two universal facts above are not violated.
         return Tier1Result(
-            outcome=Outcome.NOT_APPLICABLE,
+            outcome=Outcome.PASS,
             detail={
-                "reason": "sanity_check_passed_no_auto_advance_for_method_choice",
-                "confidence": "low",
+                "reason": "sanity_check_passed",
                 "experiment_kind": self.kind,
             },
         )

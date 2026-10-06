@@ -255,7 +255,7 @@ async def test_other_experiments_do_not_use_followup_carry_over(backend):
 def test_default_answer_length_is_medium_with_one_closing_offer():
     from backend.retrieval.pipeline import SYSTEM_PROMPT
 
-    assert "120 to 180 words" in SYSTEM_PROMPT
+    assert "90 to 130 words" in SYSTEM_PROMPT
     assert "ONE short offer" in SYSTEM_PROMPT
     # a definition must never collapse to a one-line non-answer
     assert "Never a one-line non-answer" in SYSTEM_PROMPT

@@ -254,23 +254,24 @@ check:
 **Update (2026-09-14): the fifth checker type now exists.** Exp 7 is
 implemented via `registry.ComputationSanityPlugin` — it checks two facts
 that hold regardless of molecule, method or basis set (energy must not
-increase after optimisation; LUMO must be higher than HOMO), and never
-returns PASS, escalating to Tier 3 on a clean run exactly as Exp 8 does,
-because the method/basis-set choice itself still needs a human eye.
-**Known shared limitation, Exp 7 and Exp 8 both:** because neither
-plugin's `check_step` can honestly return PASS, and `handle_attempt`
-(Socratic's `/attempt` endpoint) only advances the step index on PASS,
-a student can open a session for either experiment and chat about it,
-but cannot step-by-step "complete" it through `/attempt` — that always
-returns a hint, never advances, never sets `all_steps_complete`. The
-diagnostic submission path (`plugin.check(...)`, used by
-`POST /api/submissions`) and the free-text Socratic chat path
-(`tutor_reply`, which never calls `check_step`) both work as intended for
-both experiments; only step-by-step numeric advancement does not. This
-was discovered, not designed — see `docs/final_audit.md` — and fixing it
-properly (giving the Socratic step machine a third outcome between
-"advance" and "hint forever") is future work, not something patched
-around here with a fake PASS.
+increase after optimisation; LUMO must be higher than HOMO).
+
+**Amended (2026-10-06): a clean run is now a PASS, not an escalation.**
+A student whose reported values do not violate either fact gets a PASS —
+the student's own numbers are internally consistent, which is the
+determinate thing Tier 1 can honestly confirm. This still does not
+verify the method/basis-set choice itself (that still needs a human eye
+for the write-up), and a violation of either fact remains a
+determinate, signature-backed `FAIL_WITH_SIGNATURE`. Escalation
+(`NOT_APPLICABLE`) is now reserved for the case where neither pair of
+values (`energy_before_opt`/`energy_after_opt` or
+`homo_energy`/`lumo_energy`) was reported at all, in both `check()` and
+`check_step()`. Exp 8's clean-ordering case is unchanged and still
+escalates — this amendment applies to Exp 7 only. Both the diagnostic
+submission path (`plugin.check(...)`, used by `POST /api/submissions`)
+and the Socratic `/attempt` step machine now advance normally on a clean
+Exp 7 step, which also resolves the "known shared limitation" noted
+below for Exp 7 (Exp 8 is unaffected and keeps that limitation).
 
 See `manual/IACHY102_manual.md` and `docs/final_audit.md` for the full
 per-experiment mapping against the real manual.

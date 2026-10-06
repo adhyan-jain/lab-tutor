@@ -60,16 +60,25 @@ different experiment shapes, corrected in
   check — a single run has one HOMO and one LUMO, not two conformers to
   compare — so it uses a different deterministic checker instead
   (`ComputationSanityPlugin`: optimisation must not raise energy, LUMO
-  must exceed HOMO), always escalating on a clean run exactly as
-  Experiment 8 does. It has no narrative-note mechanism at all.
+  must exceed HOMO). **Amended again:** a clean run (neither fact
+  violated) is now a **PASS**, not an escalation — the student's own
+  numbers are internally consistent, which is the determinate thing
+  Tier 1 can honestly confirm; this still does not verify the
+  method/basis-set choice itself, which still needs a human eye at
+  write-up time. A violation of either fact remains a determinate,
+  signature-backed `FAIL_WITH_SIGNATURE`, never a model judgment call.
+  Escalation (`NOT_APPLICABLE`) is reserved for when neither pair of
+  values was reported at all. It still has no narrative-note mechanism.
 
-The hard rule above is intact for both — no model decides the ordering or
-the sanity check — but Experiment 8 is the one place a model contributes
-to a judgment at all. The full rationale and the containment measures are
+The hard rule above is intact for both — no model decides the ordering,
+the sanity check, or the PASS/FAIL verdict — Experiment 8 remains the
+one place a model contributes a low-confidence narrative note at all,
+and Experiment 8's clean-ordering case still escalates rather than
+passing (unchanged). The full rationale and the containment measures are
 recorded in [docs/ARCHITECTURE.md §2.1](docs/ARCHITECTURE.md). Do not
-extend that exception to a third experiment; if one seems to need it, it
-needs a
-deterministic checker instead.
+extend Experiment 7's PASS-on-clean-run behavior, or Experiment 8's
+model narrative-note exception, to a third experiment; if one seems to
+need either, it needs its own deterministic checker instead.
 
 **Experiment 7 — guided walkthrough (added later in the build).** Exp7 now
 has a second layer on top of `ComputationSanityPlugin`:

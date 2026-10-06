@@ -204,7 +204,7 @@ def test_exp07_is_a_computation_sanity_plugin_not_an_ordering_check():
         },
         None,
     )
-    assert clean.outcome.value == "not_applicable"  # never a PASS -- method still unverified
+    assert clean.outcome.value == "pass"  # clean run: internally consistent, no violation
 
     violated = plugin.check(
         {

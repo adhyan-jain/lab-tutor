@@ -12,16 +12,15 @@ facts that hold for any molecule/method/basis set:
 * geometry optimisation must not increase the energy;
 * the LUMO must be higher in energy than the HOMO.
 
-A clean run is NOT_APPLICABLE (escalates to Tier 3) rather than a PASS --
-the method/basis-set choice itself still needs a human eye, exactly as
-for Experiment 8. Known limitation, shared with Experiment 8: because
-neither step can honestly return PASS, the Socratic `/attempt` step
-machine cannot auto-advance past either step for this experiment
-(`handle_attempt` only advances on Outcome.PASS) -- see
-`docs/final_audit.md`. The diagnostic submission path
-(`plugin.check(...)`) and the Socratic chat path (`tutor_reply`, which
-never calls `check_step`) both work as intended; only step-by-step
-numeric advancement through `/attempt` does not.
+A clean run (neither fact violated) is a PASS: the student's own numbers
+are internally consistent, which is the determinate thing Tier 1 can
+honestly confirm. This does not verify the method/basis-set choice
+itself -- that still needs a human eye for the write-up -- only that
+what the student reported does not contradict itself. A violation of
+either fact is a determinate, signature-backed finding (FAIL_WITH_
+SIGNATURE), never escalated. Escalation (NOT_APPLICABLE) is now reserved
+for the case where neither pair of values was reported at all, so Tier 1
+has nothing to check.
 """
 
 from __future__ import annotations
