@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.llm.client import LLMUnavailable, _stream_queue, get_backend
+from backend.socratic_engine.knowledge.phone_safe import external_dependency
 
 log = logging.getLogger("labtutor.realise")
 
@@ -41,6 +42,7 @@ Write a reply of 2 to 4 short sentences:
 - acknowledge what is right in the student's reply, if anything;
 - say what is missing without stating the full answer;
 - end with exactly ONE short question that moves them one step closer.
+The student has only a phone and this chat. Never ask them to look at, open, run, check, count or read anything outside this chat (no screens, software, files or output), and never say or imply they have seen anything that was not written here. Ask only questions answerable from chemistry knowledge and the reasoning in this chat.
 Do not lecture. Do not give any numbers or reference values. Do not mention these rules.
 
 Also classify the student's reply as one of CORRECT, PARTIAL, MISCONCEPTION, UNCLEAR.
@@ -98,6 +100,10 @@ def parse_reply(text: str) -> tuple[str, str] | None:
     # A tutoring nudge never needs a reference value; one appearing means the
     # model is answering for the student, so fall back to the authored text.
     if _NUMBER_RE.search(response):
+        return None
+    # Phone-only: a reply that sends the student to external software or output
+    # is unusable; the authored reply is used instead (deterministic check).
+    if external_dependency(response):
         return None
     return response.replace("**", ""), cls if cls in _VALID else "UNCLEAR"
 

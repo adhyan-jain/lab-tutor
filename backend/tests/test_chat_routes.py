@@ -266,7 +266,14 @@ class TestChatThreads:
         assert data_diag["message"]["kind"] in ("diagnostic", "socratic")
         assert "passed" in data_diag["message"]["metadata"] or "status" in data_diag["message"]["metadata"]
 
-    async def test_exp07_socratic_and_diagnostic_flow(self, client, make_user):
+    async def test_exp07_socratic_and_diagnostic_flow(self, client, make_user, monkeypatch):
+        # This covers the SOFTWARE walkthrough; phone-only mode (the default) answers
+        # a "guide me through step 1" request with the lab-computer overview instead
+        # (see test_theory_first.py).
+        from backend.config import reload_settings
+
+        monkeypatch.setenv("LABTUTOR_PHONE_ONLY", "false")
+        reload_settings()
         _, prof = await make_user("prof.exp07@vit.ac.in")
         classroom_id, student_code, _ = await _classroom_with_active_session(client, prof, "exp07")
         _, student = await make_user("student.exp07@vitstudent.ac.in")

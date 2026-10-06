@@ -28,9 +28,13 @@ def counting_llm(fake_llm, monkeypatch):
     monkeypatch.setattr("backend.retrieval.pipeline.get_backend", lambda: fake_llm)
     monkeypatch.setenv("LABTUTOR_ROUTER_ENABLED", "false")
     monkeypatch.delenv("LABTUTOR_WALKTHROUGH", raising=False)
+    # These tests cover the SOFTWARE walkthrough; phone-only mode (the default)
+    # is covered in test_phone_only.py.
+    monkeypatch.setenv("LABTUTOR_PHONE_ONLY", "false")
     reload_settings()
     yield fake_llm
     monkeypatch.delenv("LABTUTOR_ROUTER_ENABLED", raising=False)
+    monkeypatch.delenv("LABTUTOR_PHONE_ONLY", raising=False)
     reload_settings()
 
 
@@ -124,8 +128,10 @@ async def test_progress_is_stored_per_thread_and_a_new_chat_starts_fresh(client,
     assert chat_b.thread_id != chat_a.thread_id
     assert fresh["message"]["metadata"]["ui"]["kind"] == "hook"
     assert "**Step 2 of 27" not in fresh["message"]["content"]  # no step card; only the offer mentions it
-    assert "unfinished walkthrough from another chat (Step 2 of 27)" in fresh["message"]["content"]
-    assert "Resume previous session" in fresh["message"]["metadata"]["ui"]["chips"]
+    # A new chat is a new conversation: it never mentions or advertises another chat's progress.
+    assert "unfinished walkthrough" not in fresh["message"]["content"]
+    assert "another chat" not in fresh["message"]["content"]
+    assert "Resume previous session" not in fresh["message"]["metadata"]["ui"]["chips"]
     rows = (await db.scalars(select(WalkthroughProgress).where(WalkthroughProgress.student_id == user.id))).all()
     by_thread = {r.thread_id: r.state["step_id"] for r in rows}
     assert by_thread == {chat_a.thread_id: "b2_draw", chat_b.thread_id: "b1_open"}

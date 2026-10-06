@@ -65,7 +65,7 @@ def test_misconception_is_probed_not_corrected_outright():
     r = ctl.take_turn(state, "geometry optimization makes the molecule look nicer")
     assert r.events["verdict"] == "concept_probe"
     assert r.events["pedagogy"]["misconception_id"] == "opt_is_cosmetic"
-    assert "What quantity is ORCA actually trying to make smaller" in r.reply
+    assert "What quantity is the calculation actually trying to make smaller" in r.reply
     assert state.phase == "concept"  # still waiting on the student
     assert "lowers the calculated total energy" not in r.reply  # answer not revealed
 

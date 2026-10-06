@@ -20,6 +20,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import get_settings
 from backend.models import ActorType, WalkthroughProgress
 from backend.socratic_engine import conversation as conv
 from backend.socratic_engine.walkthrough import controller as ctl
@@ -78,6 +79,12 @@ def _save(row: WalkthroughProgress, state: ctl.WalkState) -> None:
     row.status = state.status
 
 
+def _mode() -> str:
+    """Phone-only students (no Gabedit/ORCA/Avogadro) get the conceptual
+    session; `LABTUTOR_PHONE_ONLY=false` restores the software walkthrough."""
+    return "concept" if get_settings().phone_only else "software"
+
+
 async def apply_advisory(db: AsyncSession, thread_id: str, concept_id: str, suggested: str) -> str | None:
     """Fold a model's suggested classification into the stored concept state,
     clamped by pedagogy.state.apply_advisory. Returns the resulting state."""
@@ -134,9 +141,18 @@ async def handle_turn(
 
     if row is None:
         wants_previous = is_resume_previous(message)
-        if not (entering_practice or wants_previous or grader.is_start_request(message) or grader.is_affirmative_start(message)):
+        if _mode() == "concept":
+            # Phone-only: a guided session starts only when the student asks
+            # for one. "how do I..." and a bare "yes" never start anything.
+            starts = entering_practice or wants_previous
+        else:
+            starts = (
+                entering_practice or wants_previous
+                or grader.is_start_request(message) or grader.is_affirmative_start(message)
+            )
+        if not starts:
             return None
-        state = ctl.new_state(seed_key)
+        state = ctl.new_state(seed_key, mode=_mode())
         result = ctl.start(state)
         previous = await previous_progress(db, **scope, exclude_thread_id=thread_id)
         if previous is not None and wants_previous:
@@ -144,15 +160,9 @@ async def handle_turn(
             state.status = "active"
             result = ctl.show_current(state, "Picking up where you left off in your previous session.")
             result.events["verdict"] = "resume_previous"
-        elif previous is not None:
-            # Offer, don't load: the student chose a fresh chat.
-            prev_state = ctl.WalkState.from_dict(previous.state)
-            label = ctl._progress(prev_state)["label"]
-            result.reply += (
-                f"\n\n*You also have an unfinished walkthrough from another chat ({label}). "
-                'Tap "Resume previous session" to continue that one instead.*'
-            )
-            result.ui["chips"] = list(result.ui.get("chips", [])) + [conv.ACTIONS["resume_previous"]]
+        # A new chat is a new conversation: it never mentions or offers another
+        # chat's progress. Continuing a previous session happens only when the
+        # student explicitly asks for it (`wants_previous` above).
         row = WalkthroughProgress(
             thread_id=thread_id,
             student_id=user_id,
@@ -182,7 +192,7 @@ async def handle_turn(
     if grader.is_restart(message) and (
         state.status != "active" or grader.wants_answer(message) or len(message.split()) <= 4
     ):
-        state = ctl.new_state(seed_key)
+        state = ctl.new_state(seed_key, mode=_mode())
         result = ctl.start(state)
         _save(row, state)
         result.events["verdict"] = "restart"

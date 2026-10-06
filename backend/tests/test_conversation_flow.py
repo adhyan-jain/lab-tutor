@@ -22,6 +22,17 @@ from backend.socratic_engine.walkthrough import controller as ctl
 from backend.socratic_engine.walkthrough.exp07_script import SCRIPT
 from backend.tests.reference_plugin import reference_plugin
 
+@pytest.fixture(autouse=True)
+def _software_walkthrough(monkeypatch):
+    """These tests cover the SOFTWARE walkthrough's conversation flow. Phone-only
+    mode (the default) is covered by test_theory_first.py."""
+    monkeypatch.setenv("LABTUTOR_PHONE_ONLY", "false")
+    reload_settings()
+    yield
+    monkeypatch.delenv("LABTUTOR_PHONE_ONLY", raising=False)
+    reload_settings()
+
+
 HINT, WHY, DIFFERENT = conv.ACTIONS["hint"], conv.ACTIONS["why"], conv.ACTIONS["different"]
 STEP_CHIPS = (HINT, WHY, DIFFERENT, conv.ACTIONS["study_theory"])
 

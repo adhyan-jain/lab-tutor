@@ -24,7 +24,7 @@ from typing import Any
 
 from backend.socratic_engine import conversation as conv
 from backend.socratic_engine.conversation import Intent
-from backend.socratic_engine.knowledge import get_knowledge
+from backend.socratic_engine.knowledge import get_knowledge, phone_safe
 from backend.socratic_engine.pedagogy import policy, state as pstate
 from backend.socratic_engine.walkthrough import grader
 from backend.socratic_engine.walkthrough.exp07_script import (
@@ -88,6 +88,12 @@ class WalkState:
     # while it runs; `assessed` once it has, so it is never asked twice.
     assess: dict[str, Any] | None = None
     assessed: bool = False
+    # "software": the Gabedit/ORCA/Avogadro walkthrough. "concept": the
+    # phone-only conceptual session (concept_session.py), which asks nothing
+    # that needs software or output. `stage`/`stage_asked` track its parts.
+    mode: str = "software"
+    stage: int = 0
+    stage_asked: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -125,9 +131,19 @@ class TurnResult:
     realise: dict[str, Any] | None = None
 
 
-def new_state(student_key: str) -> WalkState:
+def topic_for(state: WalkState) -> tuple[str, str]:
+    """(topic, label) naming where the student is, in the mode's own vocabulary."""
+    if state.mode == "concept":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.topic_label(state)
+    step = SCRIPT.step(state.step_id)
+    return step.title, f"{_progress(state)['label']}: {step.title}"
+
+
+def new_state(student_key: str, mode: str = "software") -> WalkState:
     seed = int(hashlib.sha256(student_key.encode()).hexdigest()[:8], 16)
-    return WalkState(seed=seed)
+    return WalkState(seed=seed, mode=mode)
 
 
 # ---------------------------------------------------------------- helpers
@@ -162,6 +178,10 @@ def _molecule_key(state: WalkState) -> str:
 
 
 def _progress(state: WalkState) -> dict[str, Any]:
+    if state.mode == "concept":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.progress(state)
     step = SCRIPT.step(state.step_id)
     total = len(LINEAR_STEP_IDS) + len(COMBOS) * len(LOOP_STEP_IDS)
     if state.step_id in LOOP_STEP_IDS:
@@ -224,6 +244,8 @@ def _chips(state: WalkState, q: Question | None, source: str | None = None, cand
 
 
 def _base_ui(state: WalkState) -> dict[str, Any]:
+    if state.mode == "theory":  # a theory follow-up is not a step in anything
+        return {"phase": state.phase}
     return {"progress": _progress(state), "phase": state.phase}
 
 
@@ -427,7 +449,7 @@ def _finish_quiz(state: WalkState) -> str:
 # answer is classified and how concept state changes are all decided by
 # pedagogy/policy.py with no model involved; a reply here is authored text.
 
-_WHEN_TYPES = {"pre": policy.PRE_STEP_TYPES, "post": policy.POST_STEP_TYPES}
+_WHEN_TYPES = {"pre": policy.PRE_STEP_TYPES, "post": policy.POST_STEP_TYPES, "stage": None}
 
 
 def _cs(state: WalkState) -> pstate.ConceptStates:
@@ -438,22 +460,32 @@ def _save_cs(state: WalkState, cs: pstate.ConceptStates) -> None:
     state.concepts = cs.to_dict()
 
 
-def _concept_moment(state: WalkState, when: str, lead: str, *, resume: str) -> tuple[str, dict[str, Any]] | None:
+def _concept_moment(
+    state: WalkState, when: str, lead: str, *, resume: str, step_id: str | None = None
+) -> tuple[str, dict[str, Any]] | None:
     knowledge = get_knowledge("exp07")
     if knowledge is None:
         return None
-    key = f"{state.step_id}:{when}"
-    if key in state.intervened:
+    sid = step_id or state.step_id
+    key = f"{sid}:{when}"
+    if when != "stage" and key in state.intervened:
         return None
     cs = _cs(state)
     rows = _rows_recorded(state)
+    phone_only = state.mode == "concept"
     decision = policy.decide(
-        knowledge, state.step_id, cs, blocked=state.troubleshooting, allowed=_WHEN_TYPES[when],
-        available=lambda q: q.min_rows <= rows,
+        knowledge, sid, cs, blocked=state.troubleshooting, allowed=_WHEN_TYPES[when],
+        # In phone-only mode a question must pass the phone-safety gate (source
+        # metadata AND wording scan); a question about the student's own
+        # recorded results is also unavailable, since there are none.
+        available=lambda q: q.min_rows <= rows
+        and (phone_only or not q.phone_only)  # phone-only stand-ins never appear at software steps
+        and (not phone_only or phone_safe.is_phone_safe(q)),
     )
     if decision.action == "none" or decision.question is None:
         return None
-    state.intervened.append(key)
+    if when != "stage":
+        state.intervened.append(key)
     pstate.introduce(cs, decision.concept_id)
     cs.get(decision.concept_id).last_seq = cs.seq
     _save_cs(state, cs)
@@ -461,12 +493,24 @@ def _concept_moment(state: WalkState, when: str, lead: str, *, resume: str) -> t
     state.concept = {
         "concept_id": decision.concept_id,
         "question_id": decision.question.id,
-        "step_id": state.step_id,
+        "step_id": sid,
         "when": when,
         "resume": resume,
         "card": decision.action == "card_question",
     }
     return _concept_message(state, lead)
+
+
+def _context_title(state: WalkState) -> str:
+    """What part of the experiment the student is in, in the right vocabulary
+    for the mode: a software step title, or a conceptual part title."""
+    if state.mode == "concept":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.stage_title(state)
+    if state.mode == "theory":
+        return "a theory discussion about Experiment 7"
+    return SCRIPT.step(state.step_id).title
 
 
 def _rows_recorded(state: WalkState) -> int:
@@ -519,6 +563,8 @@ def _concept_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, A
         card = {"id": concept.id, "name": concept.name, "text": concept.description}
         parts.append(f"**Concept worth knowing: {concept.name}.** {concept.description}")
     label = "A quick prediction" if q.qtype == "PREDICTION" else "A quick thought"
+    if state.mode == "theory":
+        label = "Think about this"
     view = _data_view(state, q.id)
     if view:
         parts.append(view)
@@ -527,7 +573,7 @@ def _concept_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, A
     ui = {
         **_base_ui(state),
         "kind": "concept",
-        "step_id": state.step_id,
+        "step_id": info.get("step_id", state.step_id),
         "concept_id": concept.id,
         "question_type": q.qtype,
         "chips": chips,
@@ -548,6 +594,13 @@ def _finish_concept(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
     resume = (state.concept or {}).get("resume", "enter")
     state.concept = None
     state.phase = "step"
+    if resume == "theory":
+        # A follow-up question asked after a theory answer: nothing comes next.
+        return lead, {"kind": "theory_followup", "phase": "step", "chips": []}
+    if resume == "stage":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.after_moment(state, lead)
     if resume == "advance":
         return _after_concept_post(state, lead)
     return _step_message(state, lead)
@@ -630,7 +683,7 @@ def _turn_concept(state: WalkState, message: str) -> TurnResult:
         concept = knowledge.concept_by_id[cid]
         realise = {
             "concept_id": cid, "question_id": q.id, "question_type": q.qtype,
-            "step_title": SCRIPT.step(state.step_id).title, "concept_name": concept.name,
+            "step_title": _context_title(state), "concept_name": concept.name,
             "concept_description": concept.description, "question": q.ask,
             "expected_reasoning": q.expected_reasoning, "concept_state": rec.state,
             "misses": rec.misses.get(q.id, 0), "student_answer": message,
@@ -705,22 +758,34 @@ def _enter_step(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
 # UNCLEAR, and the raw answer is kept in the event for later human review.
 
 
-def _assessment_ids() -> list[str]:
+def _assessment_ids(state: WalkState | None = None) -> list[str]:
     knowledge = get_knowledge("exp07")
-    return list(knowledge.assessment) if knowledge else []
+    if not knowledge:
+        return []
+    ids = list(knowledge.assessment)
+    if state is not None and state.mode == "concept":
+        ids = [q for q in ids if phone_safe.is_phone_safe(knowledge.question_by_id[q])]
+    return ids
 
 
 def _begin_assessment(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
-    queue = _assessment_ids()
+    queue = _assessment_ids(state)
     if not queue or state.assessed:
         return _closing_message(state, lead)
     state.assess = {"queue": queue, "i": 0}
     state.phase = "assess"
-    intro = (
-        "**That is the whole experiment.** One last thing before you write up: "
-        f"{len(queue)} short questions on the ideas behind it, not the clicks. "
-        "Short answers are fine, and you can skip any."
-    )
+    if state.mode == "concept":
+        intro = (
+            "**That covers the main ideas of Experiment 7.** One last thing: "
+            f"{len(queue)} short questions that check the ideas, not any procedure. "
+            "Short answers are fine, and you can skip any."
+        )
+    else:
+        intro = (
+            "**That is the whole experiment.** One last thing before you write up: "
+            f"{len(queue)} short questions on the ideas behind it, not the clicks. "
+            "Short answers are fine, and you can skip any."
+        )
     return _assess_message(state, "\n\n".join(p for p in (lead, intro) if p))
 
 
@@ -810,6 +875,17 @@ def _turn_assess(state: WalkState, message: str) -> TurnResult:
 def _closing_message(state: WalkState, lead: str) -> tuple[str, dict[str, Any]]:
     state.status = "done"
     state.phase = "done"
+    if state.mode == "concept":
+        lines = [
+            lead,
+            "**That is the end of this session.** You reasoned through the ideas behind Experiment 7: the shape of "
+            "methane, how a calculation is set up, geometry optimisation, orbitals and the HOMO and LUMO, oxygen "
+            "compared with methane, and comparing methods.",
+        ]
+        if state.assessed:
+            lines.append(_concept_summary(state))
+        lines.append('Ask me anything about these ideas, or say "start over" to go through them again.')
+        return "\n\n".join(p for p in lines if p), {**_base_ui(state), "kind": "done", "chips": []}
     lines = [
         lead,
         "**That is the whole experiment.** You built two molecules, optimised and analysed both, and ran all twelve method and basis combinations.",
@@ -1190,6 +1266,10 @@ def _handle_answer(state: WalkState, message: str) -> TurnResult:
 
 def start(state: WalkState) -> TurnResult:
     """Open the walkthrough with the first chapter's curiosity question."""
+    if state.mode == "concept":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.start(state)
     state.status = "active"
     state.phase = "hook"
     first = SCRIPT.chapters[0].id
@@ -1200,6 +1280,15 @@ def start(state: WalkState) -> TurnResult:
 
 
 def show_current(state: WalkState, lead: str = "") -> TurnResult:
+    if state.mode == "theory":  # only ever the one pending follow-up; never a software step
+        if state.concept:
+            text, ui = _concept_message(state, lead)
+            return TurnResult(text, state, {"verdict": "resume"}, ui)
+        return TurnResult(lead or "What would you like to understand?", state, {"verdict": "resume"}, {})
+    if state.mode == "concept":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.show_current(state, lead)
     if state.phase == "hook":
         text, ui = _hook_message(state, opener=lead)
     elif state.phase == "quiz" and state.quiz:
@@ -1217,6 +1306,10 @@ def show_current(state: WalkState, lead: str = "") -> TurnResult:
 def step_context(state: WalkState) -> str:
     """One line describing where the student is, for grounding a side
     question. Contains only authored text and the step title."""
+    if state.mode == "concept":
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.step_context(state)
     if state.phase == "quiz":
         return "The student is answering a short checkpoint quiz."
     if state.phase == "assess":
@@ -1248,6 +1341,11 @@ def take_turn(state: WalkState, message: str) -> TurnResult:
     cs = _cs(state)
     cs.tick()
     _save_cs(state, cs)
+    if state.mode == "concept" and state.phase not in ("concept", "assess"):
+        # Never fall into the software step machine in phone-only mode.
+        from backend.socratic_engine.walkthrough import concept_session
+
+        return concept_session.show_current(state, "Here is where you are.")
     if state.phase == "hook":
         result = _turn_hook(state, message)
     elif state.phase == "quiz":
