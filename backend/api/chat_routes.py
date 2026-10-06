@@ -39,7 +39,7 @@ from backend.answer_gate import PrematureRevealError
 from backend.auth import Principal, current_user
 from backend.auth.dependencies import attribute_login_session_to_classroom
 from backend.data_access import FacultyScope, StudentScope
-from backend.db import get_session
+from backend.db import get_session, get_sessionmaker
 from backend.extraction import extract_submission
 from backend.models import (
     ActorType,
@@ -1396,7 +1396,6 @@ async def send_message(
 async def send_message_stream(
     body: SendChatMessageRequest,
     principal: Principal = Depends(current_user),
-    db: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     """SSE endpoint: streams LLM tokens in real time, then sends the final
     saved message as a `done` event.
@@ -1416,8 +1415,14 @@ async def send_message_stream(
     result_holder: dict = {}
 
     async def worker() -> None:
+        # The worker outlives this request handler, and FastAPI closes a
+        # yield-dependency (the request-scoped session) before a streaming
+        # body runs -- reusing it fails ("Cannot operate on a closed
+        # database" on SQLite) and holds a pooled connection for nothing. So
+        # the worker owns its session for exactly as long as it needs one.
         try:
-            result_holder["ok"] = await _process_message(body, principal, db)
+            async with get_sessionmaker()() as worker_db:
+                result_holder["ok"] = await _process_message(body, principal, worker_db)
         except HTTPException as exc:
             result_holder["http_err"] = exc
         except Exception as exc:
