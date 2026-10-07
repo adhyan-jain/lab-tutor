@@ -29,6 +29,34 @@ export function CloseIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function MenuIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <line x1="4" y1="7" x2="20" y2="7" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="17" x2="20" y2="17" />
+    </svg>
+  );
+}
+
+export function SendIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <line x1="12" y1="19" x2="12" y2="5" />
+      <polyline points="5 12 12 5 19 12" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
 export function ChatIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

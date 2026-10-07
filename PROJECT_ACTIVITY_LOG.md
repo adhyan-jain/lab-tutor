@@ -5,6 +5,95 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-08 — Mobile-first redesign of the student chat UI
+
+Frontend only. No backend, prompt, retrieval, API or chemistry change.
+
+### Audit (baseline, rendered at 320-1280px)
+
+- Header crammed into a narrow column: title cut to "Build...", classroom
+  name over three lines, P0+ badge, session pill and Light button competing.
+- Drawer looked like a desktop sidebar; Escape did not close it; it stayed
+  focusable when closed; the theme toggle was only in the header.
+- Thinking state was an empty bubble containing only "Copy".
+- Composer: two-line textarea plus a separate text "Send" button.
+- Most chat styling was inline, so phone rules needed `!important`.
+- No page-level horizontal overflow at any width (kept that way).
+
+### Architecture
+
+One responsive layout, no second mobile app. Desktop keeps the fixed
+sidebar; at <=768px the same `<aside>` becomes an off-canvas drawer. The
+inline styles of `ChatWorkspace` and `MessageBubble` moved into classes in
+the "Chat workspace" section of `globals.css`, replacing the old chat
+`!important` overrides. `useNarrow()` (matchMedia) only picks the shorter
+placeholder and marks the closed drawer `inert`.
+
+### Changes
+
+- Header (phone): menu button, `EXP07` code chip over a short title (first
+  clause of the experiment title; the full title is on desktop and in the
+  drawer), compact "Active"/"No session" status with a dot and text (not
+  colour alone). P0+ badge, classroom line, Settings and theme toggle hidden
+  on phones. About 56px plus the top safe area.
+- Drawer: 86vw (max 340px), rounded right edge, blurred fading backdrop,
+  eased slide, close button, Escape and backdrop tap close it, body scroll
+  locked while open, own scroll, `inert` when closed. Order: brand, identity,
+  classroom, experiment, chats + New chat, theme toggle + Sign out. Active
+  chat has an accent bar and bold title; thread rows are real buttons.
+- Messages: tutor replies use the full width on phones, student bubbles at
+  most 84% and rounder; 0.97rem / 1.62 line height on phones; long words,
+  formulas and inline code wrap; code blocks and tables scroll inside the
+  bubble. Typing dots replace the empty streaming bubble; Copy is hidden
+  until the reply settles.
+- Sources: collapsed by default, chevron toggle with `aria-expanded`, 44px
+  tap height, cards wrap long titles and file names.
+- Composer: one rounded field with an integrated circular send button
+  (44px on phones, spinner while waiting), auto-grows to 160px, 16px text
+  (no iOS zoom), focus ring on the whole pill, short inline note when no
+  session is active. Enter-to-send on desktop and newline on touch kept.
+- iOS: `env(safe-area-inset-*)` on header, drawer and composer;
+  `--app-h` follows `visualViewport` height (skipped while pinch-zoomed) so
+  the keyboard shrinks the app instead of covering the composer.
+- Auto-scroll follows streaming text only while the reader is near the
+  bottom; sending a message always scrolls to its reply.
+- Touch targets: every control on the phone layout is >=40px and the drawer
+  and header controls are 44px (audited by script).
+- Reduced motion: drawer, backdrop, chevron and message transitions off.
+- `app/layout.tsx`: `suppressHydrationWarning` on `<html>`; the pre-paint
+  theme script sets `data-theme` before hydration, which logged a hydration
+  error in light mode (pre-existing).
+
+### Streaming (documented, not changed)
+
+The frontend shows streamed chunks in a temporary message and replaces it
+with the saved message from the `done` event. The server post-processes
+the saved text (see the comparison-format entry), so the two can differ by
+design. The UI change keeps that replacement exactly as before.
+
+### Validation
+
+Against a production build (`next build` + `next start`) with a mocked
+`/api`, Playwright (Chromium and WebKit, the latter as the iOS Safari
+engine):
+
+- 320, 360, 375, 390, 430, 768, 1280px; states: conversation, sources open,
+  drawer open, keyboard open (visual viewport halved), empty chat, session
+  inactive, thinking, error, sent. No horizontal overflow in any state in
+  either engine; composer visible with the keyboard open.
+- 39 functional checks pass at 390px and 1280px: load, sources, copy,
+  switch chat, drawer open/close (button, backdrop, Escape), scroll lock,
+  inert drawer, rename, delete, new chat, classroom switch, theme toggle,
+  greeting buttons, typed send, Enter sends on desktop, streamed draft
+  replaced by the saved reply, composer cleared, sign out, "Just tell me"
+  chip, no console errors.
+- `tsc --noEmit` clean, `next build` succeeds.
+
+Not tested on a physical iPhone; WebKit in Playwright does not reproduce
+the real iOS keyboard, so keyboard behaviour should be confirmed on a device.
+
+---
+
 ## 2026-10-08 — Exp7: a new question during a reflection is answered, not graded
 
 ### Observation

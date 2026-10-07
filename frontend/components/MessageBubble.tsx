@@ -65,11 +65,14 @@ function renderFormattedContent(content: string) {
 
 export function MessageBubble({
   message,
+  streaming = false,
   showStepHeader = true,
   onQuickReply,
   triggerText,
 }: {
   message: UnifiedChatMessage;
+  /** The reply is still arriving (its final, saved text replaces it when done). */
+  streaming?: boolean;
   /** Show "Step N of M: <prompt>" as the first paragraph. The caller turns it off
    * when the previous tutor reply was already on the same step. */
   showStepHeader?: boolean;
@@ -106,28 +109,8 @@ export function MessageBubble({
   };
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: isStudent ? "flex-end" : "flex-start",
-        margin: "8px 0",
-      }}
-    >
-      <div
-        className="msg-bubble"
-        style={{
-          maxWidth: "85%",
-          padding: "12px 16px",
-          borderRadius: "12px",
-          borderTopRightRadius: isStudent ? "2px" : "12px",
-          borderTopLeftRadius: isStudent ? "12px" : "2px",
-          backgroundColor: isStudent ? "var(--accent-weak)" : "var(--surface)",
-          border: isStudent ? "1px solid var(--accent-border)" : "1px solid var(--border)",
-          color: "var(--text)",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-        }}
-      >
+    <div className={`msg-row ${isStudent ? "from-student" : "from-tutor"}`}>
+      <div className={`msg-bubble ${isStudent ? "is-student" : "is-tutor"}`}>
         {/* Diagnostic Metadata Badge Card */}
         {meta.type === "diagnostic" && meta.status && (
           <div
@@ -216,7 +199,12 @@ export function MessageBubble({
         )}
 
         {/* Message Content */}
-        <div style={{ wordBreak: "break-word", lineHeight: 1.55 }}>
+        {streaming && !message.content && (
+          <div className="typing" role="status" aria-label="Tutor is thinking">
+            <span /><span /><span />
+          </div>
+        )}
+        <div className="msg-body" aria-busy={streaming || undefined}>
           {renderFormattedContent(
             showStepHeader && meta.type === "socratic" && meta.prompt
               ? `**Step ${meta.current_step !== undefined ? meta.current_step + 1 : 1} of ${meta.total_steps || "?"}:** ${meta.prompt}\n\n${bodyText}`
@@ -267,7 +255,7 @@ export function MessageBubble({
         {/* Quick-reply chips (Give me a hint, Theory / Study, ...) on any
             reply that carries them: walkthrough, greeting/mode, theory. */}
         {chips.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+          <div className="chip-row">
             {chips.map((chip) => (
               <button
                 key={chip}
@@ -275,7 +263,6 @@ export function MessageBubble({
                 className="btn btn-secondary btn-sm touch-btn chip-btn"
                 disabled={!onQuickReply}
                 onClick={() => onQuickReply?.(chip)}
-                style={{ borderRadius: "999px", fontSize: "0.75rem", padding: "4px 12px" }}
               >
                 {chip}
               </button>
@@ -294,44 +281,27 @@ export function MessageBubble({
 
         {/* Q&A Citations Accordion */}
         {meta.citations && meta.citations.length > 0 && (
-          <div style={{ marginTop: "10px", paddingTop: "8px", borderTop: "1px solid var(--border)" }}>
+          <div className="msg-sources">
             <button
+              type="button"
+              className="src-toggle"
+              aria-expanded={showCitations}
               onClick={() => setShowCitations(!showCitations)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--accent)",
-                cursor: "pointer",
-                padding: 0,
-                fontSize: "0.8rem",
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
             >
-              {showCitations ? "▼ Hide sources" : `▶ View ${meta.citations.length} source${meta.citations.length === 1 ? "" : "s"}`}
+              <span className="src-chevron" aria-hidden="true">▶</span>
+              {showCitations ? "Hide sources" : `View ${meta.citations.length} source${meta.citations.length === 1 ? "" : "s"}`}
             </button>
             {showCitations && (
-              <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div className="src-list">
                 {meta.citations.map((c, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      fontSize: "0.775rem",
-                      padding: "6px 8px",
-                      borderRadius: "6px",
-                      backgroundColor: "var(--surface)",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text)", marginBottom: "2px" }}>
+                  <div key={i} className="src-card">
+                    <div className="src-card-head">
                       <span>Page {c.page}</span>
-                      <span className="pill" style={{ fontSize: "0.7rem" }}>
+                      <span className="pill src-tier">
                         {c.tier === "A" ? "Manual" : c.tier === "B" ? "Course material" : c.tier === "C" ? "Background" : c.tier}
                       </span>
                     </div>
-                    <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>
+                    <p className="src-text">
                       "{c.text}"
                     </p>
                   </div>
@@ -342,12 +312,13 @@ export function MessageBubble({
         )}
 
         {/* Footer controls */}
-        {!isStudent && (
-          <div style={{ marginTop: "6px", display: "flex", justifyContent: "flex-end" }}>
+        {!isStudent && !streaming && (
+          <div className="msg-actions">
             <button
+              type="button"
               onClick={handleCopy}
-              className="btn btn-sm btn-secondary"
-              style={{ padding: "2px 6px", fontSize: "0.7rem" }}
+              className="msg-action"
+              aria-label={copied ? "Copied to clipboard" : "Copy reply"}
             >
               {copied ? (
                 <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
