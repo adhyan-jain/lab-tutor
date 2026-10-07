@@ -5,6 +5,90 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-08 — Exp7: student-facing replies are English only
+
+### Bug
+
+During manual Exp7 testing, the English question "Ok so for now I want to
+first understand the concept behind this experiment before starting it" got a
+reply in Romanized Hindi. The course deploys to students who should get
+English only.
+
+### Root cause
+
+`backend/retrieval/pipeline.py` told the model to mirror the student:
+`SYSTEM_PROMPT` said "reply in the language AND script the student wrote in
+... Hinglish ... reply in the same Roman-letter Hinglish", and the dynamic
+tail added "REPLY LANGUAGE: the same language AND script as the student
+question below (Roman-letter Hinglish stays in Roman letters)". That was the
+only instruction in any prompt that allowed a non-English reply; the exact
+reason it fired on an English question was not reproduced (the model applies
+"match the student" loosely). The other student-facing prompts
+(`rag/phrasing.py`, `socratic_engine/chat.py`, `socratic_engine/realise.py`)
+said nothing about language.
+
+### Fix
+
+- One shared `ENGLISH_ONLY_RULE` in `backend/rag/phrasing.py`: always reply
+  in English whatever the student's language or script; never Hindi, Hinglish,
+  Romanized Hindi or Devanagari; never mirror or switch on request; understand
+  mixed-language input and answer in English; chemistry terms, software names,
+  menu labels, file names and notation stay as the source writes them.
+- Appended to all four student-facing system prompts. In `pipeline.py` it
+  replaces the mirroring paragraph, and the tail line now reads "REPLY
+  LANGUAGE: English only, whatever language or script the student question
+  below uses." Grounding, scope, one-step, phone-only and injection rules are
+  unchanged.
+- Input handling is unchanged: `scope/normalize.py` still maps Hinglish to
+  English for routing, and the walkthrough grader still accepts "haan",
+  "theek hai", "kya" etc. as input. Only output language changed.
+- Professor-facing prompts (summaries, Exp8 demonstrator note) and the router
+  (classification only) were not changed.
+
+### Temperature
+
+Default `LABTUTOR_LLM_TEMPERATURE` 0.7 -> 0.3 (`config.py`, `.env.example`)
+for consistent, instruction-following tutoring. It does not enforce English;
+the prompt rule does. The OpenAI backend still never sends a temperature
+(reasoning models reject non-default values), so this affects the Vertex,
+hosted and Ollama paths only.
+
+### Datasets
+
+- `evaluation/exp07_dataset.json`: the 9 Hinglish cases (e07-02, -03, -05,
+  -07, -12, -13, -17, -18, -19) rewritten as natural English questions with the
+  same intent; language label `hinglish` -> `en_clean`. IDs, step index,
+  category, expected intent and expected page unchanged.
+- `golden_dataset/qa/exp07.json`: checked, all 170 questions already English
+  (`language: english`); not modified.
+
+### Tests
+
+New `backend/tests/test_english_only.py` (11 tests, mocked backend, no network):
+every student-facing prompt contains the rule and none of the old mirroring
+phrases; the rule names Hindi/Hinglish/Romanized Hindi/Devanagari and forbids
+switching; five Exp7 inputs (English, Hinglish, mixed, "Explain this in
+Hindi.", "mujhe hinglish me explain karo") all reach the model with the rule
+in the system prompt and "REPLY LANGUAGE: English only" in the user prompt,
+and the mocked English reply reaches the student unchanged; default
+temperature is 0.3. No word-list language validator was added.
+
+### Results
+
+Run with the local `.env` moved aside (it sets `GPT=true`, a real API key and
+a different admin email, which leak into tests that expect defaults):
+
+- English-only, Exp7 content, retrieval pipeline, theory-first,
+  normalisation, golden QA and walkthrough API suites: 842 passed.
+- Full suite: 2102 passed, 1 skipped, 16 failed. The same 16 fail on the
+  unmodified tree (router x11 incl. `TestConversationalRouter`, context cache
+  x4, OpenAI `max_completion_tokens` x1); none touch language.
+
+Tier 1 computation, signatures, tolerances, the answer gate and walkthrough
+grading were not changed.
+
+---
+
 ## 2026-10-05 — Conversation flow, intent priority and per-chat state
 
 Branch: `fix/conversation-flow` (worktree off `origin/master` @ `52b1d62`).
