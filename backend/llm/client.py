@@ -703,6 +703,7 @@ class OpenAIBackend(LLMBackend):
         if not self._configured():
             raise LLMUnavailable("OpenAI backend is not configured (OPENAI_API_KEY is required)")
 
+        token_cap = max(max_tokens or self._default_max_tokens, 1000)
         # Streaming mode: when the SSE endpoint has set a queue in this task's
         # context, push tokens to it and return the assembled reply as normal.
         queue = _stream_queue.get()
@@ -710,7 +711,7 @@ class OpenAIBackend(LLMBackend):
             return await self._complete_streaming(
                 system=system,
                 user=user,
-                max_tokens=max_tokens or self._default_max_tokens,
+                max_tokens=token_cap,
                 queue=queue,
             )
 
@@ -718,7 +719,7 @@ class OpenAIBackend(LLMBackend):
         telemetry.record_call()
         try:
             response = await self._generate(
-                system=system, user=user, max_tokens=max_tokens or self._default_max_tokens
+                system=system, user=user, max_tokens=token_cap
             )
         except Exception as exc:
             telemetry.record_result(
@@ -768,7 +769,7 @@ class OpenAIBackend(LLMBackend):
                 self._client.chat.completions.create(
                     model=self._model,
                     messages=[{"role": "user", "content": "ping"}],
-                    max_completion_tokens=1,
+                    max_completion_tokens=50,
                 ),
                 timeout=5.0,
             )
@@ -828,14 +829,9 @@ _cached: LLMBackend | None = None
 
 
 def build_backend(settings: Settings) -> LLMBackend:
-    # GPT=true: OpenAI is primary. Vertex AI is the fallback when
-    # auto_fallback is on -- no Ollama in this chain so a local service
-    # can't silently answer with a different model in production.
+    # GPT=true: OpenAI is primary.
     if settings.gpt:
-        primary: LLMBackend = OpenAIBackend(settings)
-        if settings.llm_auto_fallback:
-            return FallbackBackend(primary, VertexBackend(settings))
-        return primary
+        return OpenAIBackend(settings)
 
     # Pure Vertex path (production, non-GPT). No local secondary.
     if settings.llm_backend == "vertex":

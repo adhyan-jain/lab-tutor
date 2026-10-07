@@ -30,7 +30,7 @@ GOLDEN = REPO_ROOT / "golden_dataset"
 def load_golden(*parts: str) -> dict:
     path = GOLDEN.joinpath(*parts)
     if not path.exists():
-        pytest.skip(f"Golden dataset file missing: {path}")
+        pytest.skip(f"Golden dataset file missing: {path}", allow_module_level=True)
     return json.loads(path.read_text(encoding="utf-8"))
 
 
