@@ -39,6 +39,7 @@ _NOT_AN_ANSWER = frozenset({
 })
 _STEP_RE = re.compile(r"\bstep\s*\d+\b|^\s*step\s*:", re.IGNORECASE | re.MULTILINE)
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_LIST_MARKER = re.compile(r"\s*(?:[-*•]|\d+[.)]|#+)\s+")
 
 
 def concept_for_message(text: str) -> str | None:
@@ -76,12 +77,22 @@ def guard_answer(text: str, message: str) -> str:
     to the authored concept description. Deterministic; no model call."""
     if not text or conv.is_procedure_request(message):
         return text
-    sentences = [s for s in _SENTENCE_SPLIT.split(text) if s.strip()]
-    bad = [s for s in sentences if phone_safe.external_dependency(s) or _STEP_RE.search(s)]
-    if not bad:
+    def bad(s: str) -> bool:
+        return bool(phone_safe.external_dependency(s) or _STEP_RE.search(s))
+
+    if not any(bad(s) for s in _SENTENCE_SPLIT.split(text) if s.strip()):
         return text
-    kept = [s for s in sentences if s not in bad]
-    cleaned = " ".join(kept).strip()
+    # Filter line by line so headings, bullets and paragraph breaks survive.
+    lines: list[str] = []
+    for line in text.split("\n"):
+        marker = _LIST_MARKER.match(line)
+        prefix = marker.group(0) if marker else ""
+        kept = [s for s in _SENTENCE_SPLIT.split(line[len(prefix):]) if s.strip() and not bad(s)]
+        if kept:
+            lines.append(prefix + " ".join(kept))
+        elif not line.strip() and lines and lines[-1]:
+            lines.append("")
+    cleaned = "\n".join(lines).strip()
     if len(cleaned) >= 60:
         return cleaned
     cid = concept_for_message(message)

@@ -5,6 +5,91 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-08 — Exp7: structured, mobile-friendly comparison answers
+
+### Observation
+
+"How is HOMO different from LUMO" got a correct answer as one dense
+paragraph (HOMO definition, behaviour, LUMO definition, behaviour, gap,
+methane details). Students use LabTutor on phones, where a long paragraph is
+hard to scan and the two things being compared blur together.
+
+### Root cause
+
+1. Nothing in the prompt asked for structure on a comparison; the system
+   prompt and the phone-only line ask for prose.
+2. `socratic_engine/theory.guard_answer` (Exp7 phone-only theory answers)
+   split the answer into sentences *and lines*, and when it dropped any
+   sentence naming software or a step it rejoined the rest with spaces. Any
+   heading, bullet or paragraph break the model produced was flattened into
+   one paragraph.
+
+### Fix
+
+- `is_comparison_request` in `retrieval/pipeline.py`: deterministic regex
+  ("compare", "difference", "differ", "X vs Y", "different from/than",
+  "how are ... different", Hinglish "fark"). A bare "different" ("why do
+  different methods give different values") is not a comparison.
+- When it matches, one `COMPARISON_FORMAT` line is added to the per-message
+  prompt: a short bold-labelled section per item (full name for an
+  abbreviation), 1-3 sentences or compact bullets each, then an
+  "**In short:**" one-sentence takeaway. Tables only for several short
+  attributes with few-word cells, so labelled sections are the default.
+  Facts only from the material; length follows the question (a request for
+  detail may be longer). No word limit. Nothing about HOMO/LUMO is hardcoded.
+- A comparison is never also treated as an overview (Fix #2).
+- `guard_answer` now filters line by line, keeping list markers, headings
+  and paragraph breaks. Which sentences it drops is unchanged.
+- `SYSTEM_PROMPT` is unchanged, so every non-comparison question gets
+  exactly the prompt it had before; no global length change.
+
+### Streaming vs final message (investigated, not changed)
+
+`/messages/stream` sends the model's raw tokens as they arrive, then a
+`done` event with the saved message, which the frontend shows in their
+place. The saved text is post-processed after streaming: `pipeline`
+strips leaked passage references and normalises markdown, `guard_answer`
+drops software/step sentences for phone-only Exp7, an authored concept
+explanation replaces it when the model reply was not usable, and a
+follow-up/invite suffix is appended. So the streamed and final text differ
+by design whenever any of those apply.
+
+### Found, not changed
+
+For Exp7, a message of `FOLLOWUP_MAX_WORDS` (7) words or fewer gets no
+conversation context in the prompt: the LASTMSG block is built only for other
+experiments, and HISTORY is skipped whenever LASTMSG would apply. Sending
+HISTORY in that case breaks
+`test_walkthrough_api::test_student_text_stays_out_of_every_model_prompt`,
+which relies on walkthrough replies never reaching the model. Left as is;
+it needs a decision on what history Exp7 may send.
+
+### Tests
+
+New `backend/tests/test_comparison_format.py` (38 tests): 11 comparison
+phrasings detected (HOMO/LUMO variants, B3LYP vs B3P, 6-31G vs 6-31G*,
+"how are these two basis sets different", Hinglish "bhai HOMO aur LUMO me
+kya difference hai", follow-up "And how is it different from LUMO?"); 6
+non-comparisons not detected ("What is HOMO?", "Explain HOMO in detail.",
+"Why is HOMO important?", procedure, overview, "Why do different methods
+give different values?"); comparison prompts carry the format line,
+citations and the English-only rule, and no overview focus; non-comparisons
+get no format line; the overview still gets its focus; the format line is
+not in the global system prompt and has no word limit; `guard_answer` drops
+a software sentence while keeping headings, bullets and breaks; a
+structured answer survives the full chat API.
+
+### Results
+
+Run with the local `.env` moved aside. New tests plus English-only,
+overview, theory-first, Exp7 content, retrieval pipeline, walkthrough API,
+conversation flow, normalisation and golden QA suites: 961 passed. Full
+suite: 2166 passed, 1 skipped, 16 failed, the same 16 pre-existing
+failures, no new ones. Tier 1, the answer gate, walkthrough grading,
+grounding, Fix #1 and Fix #2 behaviour unchanged.
+
+---
+
 ## 2026-10-08 — Exp7: concise answers to broad concept-overview requests
 
 ### Observation

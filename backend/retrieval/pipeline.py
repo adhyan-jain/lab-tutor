@@ -464,6 +464,34 @@ def is_overview_request(message: str) -> bool:
     return bool(_OVERVIEW_RE.search(message)) and not _NOT_OVERVIEW_RE.search(message)
 
 
+#: "X vs Y", "difference between", "how is X different from Y", "compare",
+#: Hinglish "fark". "Why do different methods give different values" is a why
+#: question, not a comparison, so a bare "different" does not count.
+_COMPARISON_RE = re.compile(
+    r"\bcompar\w*|\bcontrast\w*|\bversus\b|\bvs\b\.?"
+    r"|\bdifferences?\b|\bdiffer\b|\bdiff\b|\bfa?ra?k\b"
+    r"|\bdifferent\s+(?:from|than|to)\b"
+    r"|\b(?:how|why)\s+(?:is|are)\b[^.?!]{0,60}\bdifferent\b",
+    re.IGNORECASE,
+)
+
+
+def is_comparison_request(message: str) -> bool:
+    return bool(_COMPARISON_RE.search(message))
+
+
+COMPARISON_FORMAT = (
+    "FORMAT: the student is asking for a comparison and reads on a phone, so do not "
+    "answer in one dense paragraph. Give each thing being compared its own short "
+    "labelled section: a bold label line naming it (with the full name when it is an "
+    "abbreviation, e.g. **ABC — full name**), then 1 to 3 plain sentences or a few "
+    "compact bullets. Finish with a line starting **In short:** giving the key "
+    "difference in one sentence. No table unless several short attributes are compared "
+    "and every cell is a few words. Use only facts from the material, do not repeat the "
+    "same fact in every section, and let the length follow the question: if they asked "
+    "for detail, the sections may be longer."
+)
+
 
 OVERVIEW_FOCUS = (
     "FOCUS: the student wants a short conceptual OVERVIEW of the experiment before "
@@ -808,12 +836,15 @@ async def _phrase_with_llm(
     last_step = _last_guided_step(last_tutor)
     guided = last_step is not None and words <= GUIDED_MAX_WORDS
     show_last = bool(last_tutor) and (guided or words <= FOLLOWUP_MAX_WORDS)
-    overview = not followup_topic and is_overview_request(question)
+    comparison = is_comparison_request(question)
+    overview = not followup_topic and not comparison and is_overview_request(question)
 
     def dynamic_tail(focus: str | None) -> list[str]:
         parts: list[str] = []
         if focus:
             parts += [focus, ""]
+        if comparison:
+            parts += [COMPARISON_FORMAT, ""]
         if experiment_id == "exp07":
             # Exp7 has its own deterministic, verified walkthrough engine
             # now (backend/socratic_engine/walkthrough/); this override
