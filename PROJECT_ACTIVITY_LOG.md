@@ -5,6 +5,71 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-08 — Exp7: concise answers to broad concept-overview requests
+
+### Observation
+
+In manual Exp7 testing, "Explain the concepts involved in this experiment
+before I start" got a correct, grounded, but very long answer that restated
+most of the material (workflow, optimisation, single point, HOMO/LUMO, DFT,
+basis sets, orbital contributions, electron counts, methane/oxygen). Other
+Exp7 questions were sized fine.
+
+### Root cause
+
+The message is classified `switch_to_theory` and answered by
+`retrieval/pipeline.py`. For Exp7 the pipeline hands the model the whole
+experiment's material (about 62k characters, 67 passages; deliberate, for
+grounding and context caching). The per-message FOCUS line for this question
+was "lead with the official procedure", since it is not scope-level ADJACENT.
+The system prompt's length rules cover "what is X" (90-130 words) and
+"answer every part of a multi-part question", but nothing covers a broad
+overview, so the model treated all the supplied material as what to cover.
+
+### Fix
+
+- `is_overview_request` in `pipeline.py`: deterministic regex for broad
+  requests ("concepts involved/behind/before I start", "basic/key concepts",
+  "overview", "what is this experiment about", "theory behind this
+  experiment", Hinglish "concepts samjha do"). A request for detail, a
+  comparison or the procedure is never an overview, and nor is a short
+  follow-up.
+- When it matches, the per-message FOCUS becomes `OVERVIEW_FOCUS`: the
+  material is supporting evidence, not a checklist; one intro sentence, the
+  4-6 concepts that matter most at 1-2 sentences each, no procedure,
+  settings, numbers or output details, about 150-250 words (soft target),
+  and one closing sentence inviting detail. In phone-only mode that closing
+  sentence is allowed as the one exception to "do not end with an offer".
+- `SYSTEM_PROMPT` is unchanged, so every other question gets exactly the
+  prompt it had before and the cached Exp7 context fingerprint is
+  unaffected. No new model call, no truncation, the same material and
+  citations as before.
+
+### Tests
+
+New `backend/tests/test_concept_overview.py` (26 tests): 7 overview
+phrasings (including Hinglish) detected; 8 non-overview phrasings ("What is
+HOMO?", "Explain HOMO and LUMO in detail and compare them.", "Walk me through
+the complete Experiment 7 procedure.", "Explain all the concepts in detail.",
+etc.) not detected; the overview prompt still carries the full Exp7 material
+(>20k chars), citations, the English-only rule and the OVERVIEW focus, and
+drops "lead with the official procedure"; detailed, specific and follow-up
+questions do not get the overview focus; the rule is absent from the global
+system prompt; through the chat API an overview request reaches the model
+with the overview focus and a procedure request does not.
+
+### Results
+
+Run with the local `.env` moved aside. New tests plus theory-first, Exp7
+content, retrieval pipeline, walkthrough API, conversation flow,
+normalisation, English-only and golden QA suites: 923 passed. Full suite:
+2128 passed, 1 skipped, 16 failed: the same 16 pre-existing failures listed
+in the entry below, no new ones. The golden dataset and evaluation dataset
+were not changed. Tier 1, the answer gate, walkthrough grading and the
+English-only rule were not changed.
+
+---
+
 ## 2026-10-08 — Exp7: student-facing replies are English only
 
 ### Bug

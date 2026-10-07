@@ -442,6 +442,42 @@ MAX_TOKENS_ANSWER = 3072
 _STEP_MARKER_RE = re.compile(r"\bStep\s+(\d+)\s*:", re.IGNORECASE)
 
 
+#: A broad "what are the concepts / what is this experiment about" request.
+#: Detected in code, like every other mode decision; a request for detail or
+#: for the procedure is never an overview.
+_OVERVIEW_RE = re.compile(
+    r"\b(?:concepts?|theory|ideas|basics|fundamentals)\b[^.?!]{0,40}"
+    r"\b(?:involved|behind|needed|need|required|understand|know|before|first|begin|start|samjh\w*)\b"
+    r"|\b(?:basic|key|main|core|important|underlying|general)\s+(?:concepts?|ideas|theory)\b"
+    r"|\b(?:overview|big picture)\b"
+    r"|\bwhat\s+is\s+(?:this|the)\s+(?:experiment|exp(?:eriment)?\s*0?7|lab)\s+(?:about|for)\b"
+    r"|\btheory\s+(?:behind|of|for)\s+(?:this|the)\s+(?:experiment|exp|lab)\b",
+    re.IGNORECASE,
+)
+_NOT_OVERVIEW_RE = re.compile(
+    r"\b(?:in detail|in depth|detailed|fully|compare|procedure|steps?|walk me through|practical|perform)\b",
+    re.IGNORECASE,
+)
+
+
+def is_overview_request(message: str) -> bool:
+    return bool(_OVERVIEW_RE.search(message)) and not _NOT_OVERVIEW_RE.search(message)
+
+
+
+OVERVIEW_FOCUS = (
+    "FOCUS: the student wants a short conceptual OVERVIEW of the experiment before "
+    "starting, not a full explanation. The material above is supporting evidence, "
+    "not a checklist of things to repeat. Open with one sentence saying what the "
+    "experiment is about, then pick the 4 to 6 concepts from the material that "
+    "matter most for understanding it and give each 1 or 2 plain sentences, as a "
+    "short bulleted list. Leave out procedure, software settings, menu paths, "
+    "numerical values, output details and anything that only matters later. Aim "
+    "for about 150 to 250 words. End with one short sentence saying they can ask "
+    "about any of these concepts in more detail."
+)
+
+
 def _last_tutor_message(conversation_history: str) -> str:
     """The tutor's most recent message in the STUDENT:/TUTOR: history."""
     if not conversation_history:
@@ -772,6 +808,7 @@ async def _phrase_with_llm(
     last_step = _last_guided_step(last_tutor)
     guided = last_step is not None and words <= GUIDED_MAX_WORDS
     show_last = bool(last_tutor) and (guided or words <= FOLLOWUP_MAX_WORDS)
+    overview = not followup_topic and is_overview_request(question)
 
     def dynamic_tail(focus: str | None) -> list[str]:
         parts: list[str] = []
@@ -800,8 +837,14 @@ async def _phrase_with_llm(
                     "PHONE-ONLY: the student has only a phone and this chat, no computer and no software. "
                     "Explain ideas and reasons in prose. Do NOT give numbered or step-by-step software "
                     "instructions unless they explicitly ask how the practical is performed, and never ask them "
-                    "to look at, open, run, check, count or read anything outside this chat. Do not end with an "
-                    "offer or a question: the app adds one short follow-up question itself.",
+                    "to look at, open, run, check, count or read anything outside this chat. "
+                    + (
+                        "Apart from the one closing sentence the FOCUS asks for, do not end with an offer "
+                        "or a question: the app adds one short follow-up question itself."
+                        if overview
+                        else "Do not end with an offer or a question: the app adds one short follow-up "
+                        "question itself."
+                    ),
                     "",
                 ]
         elif experiment_id in QUALITATIVE_EXPERIMENTS:
@@ -863,7 +906,9 @@ async def _phrase_with_llm(
         # prompt (identical for every student, so it can live in a native
         # context cache) and only the small dynamic tail changes per message.
         focus = (
-            "FOCUS: this is mainly a conceptual question -- lead with the background "
+            OVERVIEW_FOCUS
+            if overview
+            else "FOCUS: this is mainly a conceptual question -- lead with the background "
             "explainer, then connect it to the experiment."
             if (decision.level is ScopeLevel.ADJACENT or followup_topic) and not guided
             else "FOCUS: lead with the official procedure; bring in the background explainer "
