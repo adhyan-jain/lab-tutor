@@ -134,11 +134,40 @@ _WH_START_RE = re.compile(
 )
 
 
+# A message that opens a NEW request instead of attempting the question just
+# asked, with or without a "?": a wh-word or an imperative ask at the start
+# ("Compare B3LYP and B3P", "can you explain...", "and how is it different..."),
+# or a Hinglish ask anywhere ("... compare kar", "mujhe HOMO samjha", "HOMO kya
+# hai"). Yes/no openers ("is it...?", "does...?", "kya ... hai?") are left out
+# on purpose: "is it the highest occupied orbital?" is usually a tentative
+# answer, so those are graded first (see is_side_question).
+_FILLER_LEAD = (
+    r"^\s*(?:(?:and|also|ok|okay|so|but|now|then|hey|bhai|bro|yaar|sir|ma.?am|please|pls|plz|acha|accha)"
+    r"\b[\s,]*)*"
+)
+_NEW_REQUEST_RE = re.compile(
+    _FILLER_LEAD
+    + r"(?:what|why|how|when|where|which|who|explain|compare|contrast|describe|define|differentiate|"
+    r"distinguish|elaborate|summari[sz]e|clarify|tell me|teach me|(?:can|could|would|will) you|"
+    r"kyu|kyun|kaise|kaun)\b"
+    r"|\b(?:compare|explain|define|describe|differentiate)\s+(?:kar\w*|kijiye)\b"
+    r"|\b(?:samjha|bata)(?:o|ao|iye|do|de|dena)\b|\bmujhe\b[^.?!]*\b(?:samjha|bata)\b"
+    r"|\bkya\s+(?:hai|hota|hoti|hote|matlab)\b|\bkaise\b|\bkyun?\b",
+    re.IGNORECASE,
+)
+
+
+def is_new_request(text: str) -> bool:
+    """Clearly a new question or request, not an attempt at the pending one.
+    "Just tell me" and "skip" are walkthrough controls, never new requests."""
+    return bool(_NEW_REQUEST_RE.search(text or "")) and not wants_answer(text) and not is_skip(text)
+
+
 def is_side_question(text: str) -> bool:
     """A real question, as opposed to a short answer that happens to end in
     "?" ("tetrahedral?"). Only these are handed to the grounded Q&A path."""
     text = (text or "").strip()
-    if _WH_START_RE.match(text):
+    if _WH_START_RE.match(text) or is_new_request(text):
         return True
     return "?" in text and len(_tokens(text)) >= 6
 

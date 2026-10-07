@@ -13,7 +13,7 @@ import {
   type UnifiedChatMessage,
 } from "@/lib/api";
 import { MessageBubble } from "./MessageBubble";
-import { ChatIcon, CloseIcon, EditIcon, LightbulbIcon, TrashIcon } from "./Icons";
+import { ChatIcon, CloseIcon, EditIcon, LightbulbIcon, MenuIcon, PlusIcon, SendIcon, TrashIcon } from "./Icons";
 import { ThemeToggle } from "./ThemeToggle";
 
 const STORAGE_KEY_CLASSROOM = "labtutor:active-classroom-id";
@@ -52,7 +52,12 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const [renameTitle, setRenameTitle] = useState("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Follow new text only while the student is already at the bottom, so
+  // scrolling up to re-read an answer is never yanked away by streaming.
+  const pinnedToBottom = useRef(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const narrow = useNarrow();
 
   // On narrow screens the sidebar is a drawer; close it once the student
   // has picked a chat or classroom so they land on the conversation.
@@ -60,10 +65,52 @@ export function ChatWorkspace({ me }: { me: Me }) {
     setSidebarOpen(false);
   }, [activeThreadId, activeClassroom]);
 
+  // Drawer: Escape closes it, and the page behind it does not scroll.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSidebarOpen(false);
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [sidebarOpen]);
+
+  // iOS Safari does not resize the layout viewport for the keyboard, so the
+  // app height follows the visual viewport to keep the composer in view.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const sync = () => {
+      if (Math.abs(vv.scale - 1) > 0.01) return; // pinch-zoom: leave the layout alone
+      root.style.setProperty("--app-h", `${Math.round(vv.height)}px`);
+      if (pinnedToBottom.current) scrollRef.current?.scrollIntoView({ block: "end" });
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      root.style.removeProperty("--app-h");
+    };
+  }, []);
+
   // Auto-scroll to bottom of messages
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (pinnedToBottom.current) {
+      scrollRef.current?.scrollIntoView({ behavior: sending ? "auto" : "smooth", block: "end" });
+    }
   }, [messages, sending]);
+
+  // Composer grows with its text up to a cap, then scrolls inside itself.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
 
   // Load classrooms on mount
   const loadClassrooms = async () => {
@@ -139,6 +186,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
   // clear the visible messages so nothing from the previous thread lingers
   // while the new thread's history loads.
   const activateThread = (id: string | null) => {
+    pinnedToBottom.current = true;
     if (activeThreadRef.current !== id) {
       activeThreadRef.current = id;
       setMessages([]);
@@ -313,6 +361,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
     setError("");
     setSendingKeys((prev) => ({ ...prev, [originKey]: true }));
     setInput("");
+    pinnedToBottom.current = true; // a new question always shows its answer
 
     // Optimistic user message
     const tempUserMsg: UnifiedChatMessage = {
@@ -429,12 +478,17 @@ export function ChatWorkspace({ me }: { me: Me }) {
         onClick={() => setSidebarOpen(false)}
         aria-hidden="true"
       />
-      {/* --- Sidebar --- */}
-      <aside className={`app-sidebar ${sidebarOpen ? "open" : ""}`}>
-        {/* User Header */}
-        <div style={{ padding: "16px", borderBottom: "1px solid var(--sidebar-border)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <strong style={{ fontSize: "1rem" }}>LabTutor</strong>
+      {/* --- Sidebar (desktop) / drawer (phone) --- */}
+      <aside
+        id="chat-drawer"
+        className={`app-sidebar ${sidebarOpen ? "open" : ""}`}
+        aria-label="Chats and settings"
+        inert={narrow && !sidebarOpen ? true : undefined}
+      >
+        {/* Brand + identity */}
+        <div className="sb-section sb-head">
+          <div className="sb-brand-row">
+            <strong className="sb-brand">LabTutor</strong>
             <span
               className={`pill ${
                 me.role === "admin" ? "pill-escalated" : me.role === "faculty" ? "pill-pass" : "pill-p1"
@@ -442,36 +496,35 @@ export function ChatWorkspace({ me }: { me: Me }) {
             >
               {me.role.toUpperCase()}
             </span>
+            <button
+              type="button"
+              className="icon-btn sb-close"
+              aria-label="Close menu"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <CloseIcon size={18} />
+            </button>
           </div>
-          <div style={{ fontSize: "0.8rem", color: "var(--sidebar-muted)", marginTop: "4px" }}>
-            {me.name || me.email}
-          </div>
+          <div className="sb-identity">{me.name || me.email}</div>
         </div>
 
         {/* Classroom Selector */}
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--sidebar-border)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--sidebar-muted)", fontWeight: 600 }}>CLASSROOM</span>
-            <button
-              onClick={() => setShowJoinModal(true)}
-              style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: "0.75rem" }}
-            >
-              + Join Code
+        <div className="sb-section">
+          <div className="sb-label-row">
+            <span className="sb-label">Classroom</span>
+            <button type="button" className="sb-link" onClick={() => setShowJoinModal(true)}>
+              + Join code
             </button>
           </div>
           {classrooms.length > 0 ? (
             <select
+              className="sb-select"
+              aria-label="Classroom"
               value={activeClassroom?.id || ""}
               onChange={(e) => {
                 const c = classrooms.find((x) => x.id === e.target.value);
                 if (c) setActiveClassroom(c);
                 setError("");
-              }}
-              style={{
-                backgroundColor: "var(--sidebar-surface)",
-                borderColor: "var(--sidebar-border)",
-                color: "var(--sidebar-text)",
-                fontSize: "0.85rem",
               }}
             >
               {classrooms.map((c) => (
@@ -481,15 +534,12 @@ export function ChatWorkspace({ me }: { me: Me }) {
               ))}
             </select>
           ) : (
-            <p style={{ fontSize: "0.8rem", color: "var(--sidebar-muted)", margin: 0 }}>
-              Not in any classroom yet.
-            </p>
+            <p className="sb-empty">Not in any classroom yet.</p>
           )}
 
           {(me.role === "faculty" || me.role === "admin") && (
             <button
-              className="btn btn-sm btn-secondary"
-              style={{ width: "100%", marginTop: "8px", fontSize: "0.775rem" }}
+              className="btn btn-sm btn-secondary sb-wide-btn"
               onClick={() => setShowCreateModal(true)}
             >
               + Create Classroom Section
@@ -498,51 +548,25 @@ export function ChatWorkspace({ me }: { me: Me }) {
         </div>
 
         {/* Experiment Selector */}
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--sidebar-border)" }}>
-          <span style={{ display: "block", fontSize: "0.75rem", color: "var(--sidebar-muted)", fontWeight: 600, marginBottom: "6px" }}>
-            IACHY102 EXPERIMENT
-          </span>
+        <div className="sb-section">
+          <span className="sb-label">IACHY102 experiment</span>
           {me.role === "student" ? (
             sessionInfo.active && sessionInfo.experiment_id ? (
-              <div
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: "6px",
-                  background: "var(--sidebar-surface)",
-                  border: "1px solid var(--sidebar-border)",
-                  color: "var(--sidebar-text)",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {sessionInfo.experiment_id.toUpperCase()}:{" "}
-                {experiments.find((e) => e.id === sessionInfo.experiment_id)?.title || "Experiment"}
+              <div className="sb-exp is-active">
+                <span className="exp-code">{sessionInfo.experiment_id.toUpperCase()}</span>
+                <span>{experiments.find((e) => e.id === sessionInfo.experiment_id)?.title || "Experiment"}</span>
               </div>
             ) : (
-              <div
-                style={{
-                  padding: "8px 10px",
-                  borderRadius: "6px",
-                  background: "var(--sidebar-surface)",
-                  border: "1px solid var(--sidebar-border)",
-                  color: "var(--sidebar-muted)",
-                  fontSize: "0.8rem",
-                }}
-              >
-                No active session. Ask your instructor to start one.
-              </div>
+              <div className="sb-exp is-muted">No active session. Ask your instructor to start one.</div>
             )
           ) : (
             <select
+              className="sb-select"
+              aria-label="Experiment"
               value={selectedExpId}
               onChange={(e) => {
                 setSelectedExpId(e.target.value);
                 setError("");
-              }}
-              style={{
-                backgroundColor: "var(--sidebar-surface)",
-                borderColor: "var(--sidebar-border)",
-                color: "var(--sidebar-text)",
-                fontSize: "0.85rem",
               }}
             >
               {[...experiments].sort((a, b) => a.id.localeCompare(b.id)).map((exp) => (
@@ -554,151 +578,158 @@ export function ChatWorkspace({ me }: { me: Me }) {
           )}
         </div>
 
-        {/* Chat Threads Header & New Chat */}
-        <div style={{ padding: "12px 16px 6px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: "0.75rem", color: "var(--sidebar-muted)", fontWeight: 600 }}>CHAT THREADS</span>
-          <button
-            onClick={handleNewChat}
-            disabled={!activeClassroom}
-            className="btn btn-sm btn-primary"
-            style={{ padding: "2px 8px", fontSize: "0.75rem" }}
-          >
-            + New Chat
+        {/* Chat threads */}
+        <div className="sb-threads-head">
+          <span className="sb-label">Chats</span>
+          <button onClick={handleNewChat} disabled={!activeClassroom} className="btn btn-primary sb-new-chat">
+            <PlusIcon size={14} /> New chat
           </button>
         </div>
 
-        {/* Chat Threads List */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 12px" }}>
+        <nav className="sb-threads" aria-label="Chat threads">
           {threads.length === 0 ? (
-            <p style={{ fontSize: "0.8rem", color: "var(--sidebar-muted)", padding: "12px", textAlign: "center" }}>
-              No chats for this experiment yet. Click "+ New Chat" to start.
-            </p>
+            <p className="sb-empty sb-empty-center">No chats for this experiment yet. Tap “New chat” to start.</p>
           ) : (
             threads.map((t) => {
               const isActive = t.id === activeThreadId;
               return (
-                <div
-                  key={t.id}
-                  onClick={() => activateThread(t.id)}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: "6px",
-                    marginBottom: "4px",
-                    cursor: "pointer",
-                    backgroundColor: isActive ? "var(--sidebar-surface)" : "transparent",
-                    color: isActive ? "#ffffff" : "var(--sidebar-muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
-                    <ChatIcon size={14} /> {t.title}
-                  </span>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      aria-label="Rename chat"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenameThreadId(t.id);
-                        setRenameTitle(t.title);
-                      }}
-                      style={{ background: "none", border: "none", color: "var(--sidebar-muted)", cursor: "pointer", padding: 0, display: "flex" }}
-                    >
-                      <EditIcon size={13} />
-                    </button>
-                    <button
-                      aria-label="Delete chat"
-                      onClick={(e) => handleDeleteThread(t.id, e)}
-                      style={{ background: "none", border: "none", color: "var(--sidebar-muted)", cursor: "pointer", padding: 0, display: "flex" }}
-                    >
-                      <TrashIcon size={13} />
-                    </button>
-                  </div>
+                <div key={t.id} className={`thread-item ${isActive ? "active" : ""}`}>
+                  <button
+                    type="button"
+                    className="thread-main"
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => activateThread(t.id)}
+                  >
+                    <ChatIcon size={14} />
+                    <span className="thread-title">{t.title}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn thread-action"
+                    aria-label={`Rename chat “${t.title}”`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenameThreadId(t.id);
+                      setRenameTitle(t.title);
+                    }}
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn thread-action"
+                    aria-label={`Delete chat “${t.title}”`}
+                    onClick={(e) => handleDeleteThread(t.id, e)}
+                  >
+                    <TrashIcon size={14} />
+                  </button>
                 </div>
               );
             })
           )}
-        </div>
+        </nav>
 
-        {/* Footer Admin/Faculty Buttons */}
-        <div style={{ padding: "12px", borderTop: "1px solid var(--sidebar-border)", display: "flex", flexDirection: "column", gap: "6px" }}>
+        {/* Footer */}
+        <div className="sb-footer">
           {canOpenSettings && (
             <a className="btn btn-secondary btn-sm settings-link-drawer" href={settingsHref}>
               Settings
             </a>
           )}
-          <button
-            onClick={async () => {
-              try {
-                await api.post("/api/auth/logout");
-              } finally {
-                window.location.href = "/";
-              }
-            }}
-            style={{ fontSize: "0.775rem", color: "var(--sidebar-muted)", textAlign: "center", background: "none", border: "none", padding: 0, marginTop: "4px", cursor: "pointer" }}
-          >
-            Sign out
-          </button>
+          <div className="sb-footer-row">
+            <span className="sb-theme">
+              <ThemeToggle />
+            </span>
+            <button
+              type="button"
+              className="sb-signout"
+              onClick={async () => {
+                try {
+                  await api.post("/api/auth/logout");
+                } finally {
+                  window.location.href = "/";
+                }
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* --- Main Chat Surface --- */}
       <main className="app-main">
-        {/* Top Header */}
-        <header className="bar">
+        <header className="bar chat-header">
           <button
-            className="btn btn-secondary btn-sm menu-btn"
+            type="button"
+            className="icon-btn menu-btn"
             aria-label="Open menu"
+            aria-expanded={sidebarOpen}
+            aria-controls="chat-drawer"
             onClick={() => setSidebarOpen(true)}
           >
-            ☰
+            <MenuIcon />
           </button>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h1 className="chat-title" style={{ fontSize: "1.1rem", margin: 0 }}>
-                {selectedExpId.toUpperCase()}: {selectedExp?.title || "Experiment"}
+          <div className="chat-heading">
+            <div className="chat-heading-row">
+              <span className="exp-code">{selectedExpId.toUpperCase()}</span>
+              <h1 className="chat-title" title={selectedExp?.title}>
+                <span className="title-full">{selectedExp?.title || "Experiment"}</span>
+                <span className="title-short">{shortTitle(selectedExp?.title)}</span>
               </h1>
               {selectedExp && (
-                <span className={`pill pill-${selectedExp.priority.toLowerCase().replace("+", "plus")}`}>
+                <span className={`pill hide-narrow pill-${selectedExp.priority.toLowerCase().replace("+", "plus")}`}>
                   {selectedExp.priority}
                 </span>
               )}
             </div>
-            <p className="muted" style={{ margin: "2px 0 0", fontSize: "0.8rem" }}>
+            <p className="muted chat-classroom hide-narrow">
               Classroom: <strong>{activeClassroom?.name || "None selected"}</strong>
             </p>
           </div>
 
-          <div className="bar-right" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            {/* Session Indicator */}
-            {sessionInfo.active ? (
-              <span className="pill pill-pass">● Session Active</span>
-            ) : (
-              <span className="pill pill-p1">○ No Session Active</span>
-            )}
+          <div className="bar-right">
+            <span className={`session-status ${sessionInfo.active ? "on" : "off"}`}>
+              <span className="session-dot" aria-hidden="true" />
+              {sessionInfo.active ? (
+                <>
+                  <span className="hide-narrow">Session&nbsp;</span>Active
+                </>
+              ) : (
+                <>
+                  No<span className="hide-narrow">&nbsp;active</span>&nbsp;session
+                </>
+              )}
+            </span>
 
             {canOpenSettings && (
               <a className="btn btn-sm btn-secondary settings-link-top" href={settingsHref}>
                 Settings
               </a>
             )}
-            <ThemeToggle />
+            <span className="hide-narrow">
+              <ThemeToggle />
+            </span>
           </div>
         </header>
 
         {/* Error Banner */}
         {error && (
-          <div className="error" style={{ margin: "12px 20px 0" }}>
+          <div className="error chat-error" role="alert">
             {error}
           </div>
         )}
 
         {/* Messages Container */}
-        <div className="chat-scroll" style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
+        <div
+          className="chat-scroll"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            pinnedToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+          }}
+        >
           {!activeClassroom ? (
-            <div className="card" style={{ maxWidth: "540px", margin: "40px auto", textAlign: "center" }}>
+            <div className="card empty-state">
               <h2>Welcome to LabTutor</h2>
               <p className="muted">You are not in a classroom section yet.</p>
               <button className="btn btn-primary" onClick={() => setShowJoinModal(true)}>
@@ -709,20 +740,20 @@ export function ChatWorkspace({ me }: { me: Me }) {
             // A fresh chat always starts here: no workflow, no step, no
             // history. The student picks a path; the server keeps this
             // thread in "initial" mode until they do (or ask something).
-            <div className="card" style={{ maxWidth: "620px", margin: "40px auto", textAlign: "center" }}>
-              <h2 style={{ marginTop: 0 }}>Hi! What would you like to do today?</h2>
+            <div className="card empty-state">
+              <h2>Hi! What would you like to do today?</h2>
               <p className="muted">
                 We&apos;re on <strong>{selectedExp?.title}</strong>. Study the theory behind it, or {selectedExpId === "exp07" ? "reason through its key ideas, one short question at a time." : "work through the experiment one step at a time."}
               </p>
-              <div style={{ display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap", marginTop: "14px" }}>
-                <button className="btn btn-primary" disabled={sending} onClick={() => handleSend("Theory / Study")}>
+              <div className="empty-actions">
+                <button className="btn btn-primary" disabled={sending || chatBlockedForStudent} onClick={() => handleSend("Theory / Study")}>
                   Theory / Study
                 </button>
-                <button className="btn btn-secondary" disabled={sending} onClick={() => handleSend("Practical / Experiment")}>
+                <button className="btn btn-secondary" disabled={sending || chatBlockedForStudent} onClick={() => handleSend("Practical / Experiment")}>
                   Practical / Experiment
                 </button>
               </div>
-              <p className="muted" style={{ fontSize: "0.8rem", marginTop: "14px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+              <p className="muted empty-hint">
                 <LightbulbIcon size={14} /> <em>Or just ask a question, or paste your readings (e.g. ecell=1.1) for a check.</em>
               </p>
             </div>
@@ -745,6 +776,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
                 <MessageBubble
                   key={m.id}
                   message={m}
+                  streaming={m.id.startsWith("temp-stream-")}
                   showStepHeader={showStepHeader}
                   onQuickReply={isLast && !sending ? (text) => handleSend(text) : undefined}
                   triggerText={m.author === "tutor" && prev?.author === "student" ? prev.content : undefined}
@@ -755,19 +787,24 @@ export function ChatWorkspace({ me }: { me: Me }) {
           <div ref={scrollRef} />
         </div>
 
-        {/* Composer Input Area */}
-        <div className="composer" style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+        {/* Composer */}
+        <div className="composer">
+          {activeClassroom && chatBlockedForStudent && (
+            <p className="composer-note">No active session. Chat opens when your instructor starts one.</p>
+          )}
           <form
+            className="composer-form"
             onSubmit={(e) => {
               e.preventDefault();
               handleSend();
             }}
-            style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}
           >
             <textarea
+              ref={inputRef}
               className="composer-input"
-              rows={2}
+              rows={1}
               enterKeyHint="send"
+              aria-label="Message"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -781,21 +818,22 @@ export function ChatWorkspace({ me }: { me: Me }) {
               }}
               placeholder={
                 !activeClassroom
-                  ? "Join a classroom to ask questions..."
+                  ? "Join a classroom to ask questions…"
                   : chatBlockedForStudent
-                  ? "No active session -- ask your instructor to start one before you can chat."
-                  : "Ask about theory, procedure, calculation, or enter readings..."
+                  ? "Waiting for a session…"
+                  : narrow
+                  ? "Ask a question…"
+                  : "Ask about theory, procedure, calculation, or enter readings…"
               }
               disabled={!activeClassroom || chatBlockedForStudent || sending}
-              style={{ flex: 1, resize: "none" }}
             />
             <button
               type="submit"
-              className="btn btn-primary composer-send"
+              className="composer-send"
+              aria-label={sending ? "Waiting for the reply" : "Send message"}
               disabled={!input.trim() || !activeClassroom || chatBlockedForStudent || sending}
-              style={{ height: "48px", padding: "0 20px" }}
             >
-              {sending ? "Thinking…" : "Send"}
+              {sending ? <span className="spinner" aria-hidden="true" /> : <SendIcon />}
             </button>
           </form>
         </div>
@@ -885,4 +923,25 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
     </div>
   );
+}
+
+/** "Build atoms and molecules; orbital contributions (Gabedit/...)" ->
+ * "Build atoms and molecules": the phone header shows the first clause and
+ * the drawer keeps the full title. */
+function shortTitle(title?: string): string {
+  if (!title) return "Experiment";
+  return title.split(/[;(]/)[0].trim() || title;
+}
+
+/** True on phone-sized screens, where the sidebar is an off-canvas drawer. */
+function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return narrow;
 }

@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.llm.client import LLMUnavailable, _stream_queue, get_backend
+from backend.rag.phrasing import ENGLISH_ONLY_RULE
 from backend.socratic_engine.knowledge.phone_safe import external_dependency
 
 log = logging.getLogger("labtutor.realise")
@@ -44,6 +45,7 @@ Write a reply of 2 to 4 short sentences:
 - end with exactly ONE short question that moves them one step closer.
 The student has only a phone and this chat. Never ask them to look at, open, run, check, count or read anything outside this chat (no screens, software, files or output), and never say or imply they have seen anything that was not written here. Ask only questions answerable from chemistry knowledge and the reasoning in this chat.
 Do not lecture. Do not give any numbers or reference values. Do not mention these rules.
+""" + ENGLISH_ONLY_RULE + """
 
 Also classify the student's reply as one of CORRECT, PARTIAL, MISCONCEPTION, UNCLEAR.
 

@@ -646,9 +646,12 @@ def _turn_concept(state: WalkState, message: str) -> TurnResult:
         return done(f"Here is the short version: {q.expected_reasoning}", "concept_explained")
 
     cls = policy.classify_answer(q, message, knowledge, step_id=info.get("step_id", ""))
-    if cls.label == "UNCLEAR" and not cls.dont_know and grader.is_side_question(message):
-        # A real question, not an attempt: the grounded Q&A path answers it,
-        # then the resume line brings the student back to this question.
+    if grader.is_new_request(message) or (
+        cls.label == "UNCLEAR" and not cls.dont_know and grader.is_side_question(message)
+    ):
+        # A real question, not an attempt ("Compare B3LYP and B3P" is never
+        # graded, even if it happens to name a keyword): the grounded Q&A path
+        # answers it, then the resume line brings the student back here.
         return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
 
     rec = pstate.apply_classification(
@@ -848,7 +851,9 @@ def _turn_assess(state: WalkState, message: str) -> TurnResult:
         feedback, verdict = "Skipped.", "assessment_skipped"
     else:
         cls = policy.classify_answer(q, message, knowledge)
-        if cls.label == "UNCLEAR" and not cls.dont_know and grader.is_side_question(message):
+        if grader.is_new_request(message) or (
+            cls.label == "UNCLEAR" and not cls.dont_know and grader.is_side_question(message)
+        ):
             return TurnResult(None, state, {**events, "verdict": "side_question"}, {}, resume_line=_resume_line(state))
         before = rec.state
         pstate.apply_classification(

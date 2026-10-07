@@ -5,6 +5,454 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-08 — Mobile-first redesign of the student chat UI
+
+Frontend only. No backend, prompt, retrieval, API or chemistry change.
+
+### Audit (baseline, rendered at 320-1280px)
+
+- Header crammed into a narrow column: title cut to "Build...", classroom
+  name over three lines, P0+ badge, session pill and Light button competing.
+- Drawer looked like a desktop sidebar; Escape did not close it; it stayed
+  focusable when closed; the theme toggle was only in the header.
+- Thinking state was an empty bubble containing only "Copy".
+- Composer: two-line textarea plus a separate text "Send" button.
+- Most chat styling was inline, so phone rules needed `!important`.
+- No page-level horizontal overflow at any width (kept that way).
+
+### Architecture
+
+One responsive layout, no second mobile app. Desktop keeps the fixed
+sidebar; at <=768px the same `<aside>` becomes an off-canvas drawer. The
+inline styles of `ChatWorkspace` and `MessageBubble` moved into classes in
+the "Chat workspace" section of `globals.css`, replacing the old chat
+`!important` overrides. `useNarrow()` (matchMedia) only picks the shorter
+placeholder and marks the closed drawer `inert`.
+
+### Changes
+
+- Header (phone): menu button, `EXP07` code chip over a short title (first
+  clause of the experiment title; the full title is on desktop and in the
+  drawer), compact "Active"/"No session" status with a dot and text (not
+  colour alone). P0+ badge, classroom line, Settings and theme toggle hidden
+  on phones. About 56px plus the top safe area.
+- Drawer: 86vw (max 340px), rounded right edge, blurred fading backdrop,
+  eased slide, close button, Escape and backdrop tap close it, body scroll
+  locked while open, own scroll, `inert` when closed. Order: brand, identity,
+  classroom, experiment, chats + New chat, theme toggle + Sign out. Active
+  chat has an accent bar and bold title; thread rows are real buttons.
+- Messages: tutor replies use the full width on phones, student bubbles at
+  most 84% and rounder; 0.97rem / 1.62 line height on phones; long words,
+  formulas and inline code wrap; code blocks and tables scroll inside the
+  bubble. Typing dots replace the empty streaming bubble; Copy is hidden
+  until the reply settles.
+- Sources: collapsed by default, chevron toggle with `aria-expanded`, 44px
+  tap height, cards wrap long titles and file names.
+- Composer: one rounded field with an integrated circular send button
+  (44px on phones, spinner while waiting), auto-grows to 160px, 16px text
+  (no iOS zoom), focus ring on the whole pill, short inline note when no
+  session is active. Enter-to-send on desktop and newline on touch kept.
+- iOS: `env(safe-area-inset-*)` on header, drawer and composer;
+  `--app-h` follows `visualViewport` height (skipped while pinch-zoomed) so
+  the keyboard shrinks the app instead of covering the composer.
+- Auto-scroll follows streaming text only while the reader is near the
+  bottom; sending a message always scrolls to its reply.
+- Touch targets: every control on the phone layout is >=40px and the drawer
+  and header controls are 44px (audited by script).
+- Reduced motion: drawer, backdrop, chevron and message transitions off.
+- `app/layout.tsx`: `suppressHydrationWarning` on `<html>`; the pre-paint
+  theme script sets `data-theme` before hydration, which logged a hydration
+  error in light mode (pre-existing).
+
+### Streaming (documented, not changed)
+
+The frontend shows streamed chunks in a temporary message and replaces it
+with the saved message from the `done` event. The server post-processes
+the saved text (see the comparison-format entry), so the two can differ by
+design. The UI change keeps that replacement exactly as before.
+
+### Validation
+
+Against a production build (`next build` + `next start`) with a mocked
+`/api`, Playwright (Chromium and WebKit, the latter as the iOS Safari
+engine):
+
+- 320, 360, 375, 390, 430, 768, 1280px; states: conversation, sources open,
+  drawer open, keyboard open (visual viewport halved), empty chat, session
+  inactive, thinking, error, sent. No horizontal overflow in any state in
+  either engine; composer visible with the keyboard open.
+- 39 functional checks pass at 390px and 1280px: load, sources, copy,
+  switch chat, drawer open/close (button, backdrop, Escape), scroll lock,
+  inert drawer, rename, delete, new chat, classroom switch, theme toggle,
+  greeting buttons, typed send, Enter sends on desktop, streamed draft
+  replaced by the saved reply, composer cleared, sign out, "Just tell me"
+  chip, no console errors.
+- `tsc --noEmit` clean, `next build` succeeds.
+
+Not tested on a physical iPhone; WebKit in Playwright does not reproduce
+the real iOS keyboard, so keyboard behaviour should be confirmed on a device.
+
+---
+
+## 2026-10-08 — Exp7: a new question during a reflection is answered, not graded
+
+### Observation
+
+With a reflection pending ("**Think about this:** In your own words, what do
+HOMO and LUMO stand for, and how do they differ?"), the student typed
+"Compare B3LYP and B3P." LabTutor graded it as an answer to the reflection
+(UNCLEAR, so a probe plus the advisory rephrasing call) and replied with
+another reflection prompt instead of answering the question.
+
+### Root cause
+
+A message is only treated as a new question while a reflection is pending if
+it starts with a wh/auxiliary word or contains "?" with 6+ words
+(`conversation.classify` USER_QUESTION in `theory.handle_pending`;
+`grader.is_side_question` in the walkthrough controller). An imperative
+request with no question mark ("Compare B3LYP and B3P", "bhai B3LYP aur B3P
+compare kar", "mujhe HOMO samjha") matched neither, so it fell through to
+grading. Two related problems in the theory path:
+
+1. A message that *was* recognised as a question deleted the pending
+   reflection (`conv_state.pending = None`), and the follow-up opened after
+   the answer then replaced it with a different question.
+2. The USER_QUESTION check ran before grading, so a tentative answer such as
+   "HOMO is the highest occupied molecular orbital, right?" (has "?", 6+
+   words) was never graded.
+
+### Routing design (deterministic, no new model call)
+
+- `grader.is_new_request`: a clear new request is a wh-word or imperative ask
+  at the start (what/why/how/..., explain, compare, contrast, describe,
+  define, differentiate, distinguish, elaborate, summarise, clarify, tell me,
+  teach me, can/could/would/will you), optionally after filler ("and", "so",
+  "bhai", "please", ...), or a Hinglish ask anywhere ("... compare kar",
+  "samjhao", "batao", "mujhe ... samjha", "kya hai/hota", "kaise", "kyun").
+  Yes/no openers ("is it...?", "does...?") are deliberately excluded because
+  they are usually tentative answers. "Just tell me" and "skip" are never new
+  requests. No list of exact sentences; no question-mark rule on its own.
+- Reflection pending, message arrives:
+  1. A change of direction (switch to theory/practice, key-ideas session,
+     procedure request) behaves exactly as before: the existing rule in
+     `chat_routes._conversation_turn_phone` drops the follow-up.
+  2. A clear new request is never graded. In theory mode
+     `theory.handle_pending` returns None, so the message continues to the
+     **existing** grounded Q&A branch (grounding, citations, English-only,
+     overview focus, comparison format, answer gate, scope, phone-safe guard
+     all unchanged). In a walkthrough concept moment or final reflection,
+     `_turn_concept` / `_turn_assess` return the existing `side_question`
+     result, which `chat_routes` already answers through the same Q&A path
+     plus the existing "Back to my question" line.
+  3. Anything else goes to the existing authored grading, unchanged. A
+     weaker question signal (aux opener, or "?" with 6+ words) is only treated
+     as a side question if grading matches nothing, so "HOMO is the highest
+     occupied molecular orbital, right?" is graded.
+- Preserving the reflection (theory mode): the pending reflection is no longer
+  deleted by a new question. `theory.open_followup`, which runs after the Q&A
+  answer, now sees the pending reflection and, instead of stacking a second
+  question, appends "*Back to my question:* ..." **once** (a `reminded` flag on
+  the pending dict); later unrelated questions get a plain answer. The
+  reflection stays pending until answered, skipped, "just tell me", or a
+  change of direction.
+
+### Safety constraints preserved
+
+- No model decides whether a message is an answer: routing is regex only, in
+  `grader.py`, which still imports no LLM or retrieval code
+  (`test_walkthrough_modules_import_no_model_or_retrieval_code` passes).
+- Reflection answers stay on the authored grading path and reach no Q&A
+  prompt; a correct answer costs zero model calls, as before.
+- Only messages classified as new questions reach Q&A, through the path that
+  already handled side questions; nothing new is sent to the realise/advisory
+  call. A new question no longer triggers that advisory call at all.
+- `test_student_text_stays_out_of_every_model_prompt` passes.
+- No change to `chat_routes.py`, retrieval, prompts, citations, English-only,
+  overview, comparison formatting, chemistry or Tier 1.
+
+### Tests added (`backend/tests/test_reflection_routing.py`, 67 tests)
+
+- Detector: 16 new-question phrasings (with/without "?", Hinglish, "And how is
+  it different from LUMO?") are new requests; 8 reflection answers (incl.
+  Hinglish and "..., right?") and 7 controls ("Just tell me", "Skip this
+  question", yes, no, okay, haan, theek hai) are not.
+- Theory follow-up: answers are graded against the pending question; new
+  questions return to Q&A with the pending reflection unchanged and no
+  grading evidence recorded; controls keep their verdicts; the reminder is
+  shown once and the reflection is never replaced; a change of direction still
+  drops it.
+- Walkthrough concept moment: "Compare B3LYP and B3P", Hinglish and a
+  HOMO/LUMO comparison are `side_question` with the moment kept; a real answer
+  is still `concept_correct`.
+- Real `/api/chat/messages` endpoint: a reflection answer follows the
+  reflection path with zero model calls; "Compare B3LYP and B3P." gets one Q&A
+  call, one "Back to my question", reflection preserved; a second question
+  gets no repeated reminder; the student can still answer it afterwards;
+  Hinglish request reaches Q&A with the English-only line; Fix #3 comparison
+  format and Fix #2 overview focus still apply to questions asked mid-reflection.
+
+### Validation
+
+| Check | Result |
+|---|---|
+| `test_reflection_routing.py` | 67 passed |
+| theory/walkthrough/phone-only/isolation/concept/pedagogy suites | all passed |
+| Full suite, clean copy without local `.env` (2250 tests) | 16 failures, the **identical** set with and without this change (router-default + OpenAI provider tests) |
+| Full suite in the working tree (local `.env` present) | same pre-existing env-dependent failures as before this change, plus `test_llm_unavailable_falls_back_to_extractive_answer`, which makes a live model call with the local key and does not touch the changed modules |
+
+### Limitations
+
+- Contextual follow-up: "And how is it different from LUMO?" is routed to Q&A
+  correctly, but for Exp7 the Q&A prompt omits conversation history when the
+  message is 7 words or fewer (`pipeline._generate_answer` `show_last`; the
+  LASTMSG block is only emitted for Exp8), so "it" is not resolved from the
+  previous turn. Left as is: changing prompt assembly is out of scope, and the
+  routing fix does not widen any context.
+- A clear new request is never graded, so an answer phrased as one ("what I
+  think is ...", "explain: HOMO is ...") would go to Q&A. Rare; the student
+  can re-answer and the reflection is still pending.
+- "Explain the concepts involved..." mid-reflection is a switch to theory, so
+  the existing change-of-direction rule drops the reflection (unchanged).
+- While a theory reflection stays pending, no new follow-up is asked after
+  later answers (one question at a time); answering or skipping it resumes
+  normal follow-ups.
+
+---
+
+## 2026-10-08 — Exp7: structured, mobile-friendly comparison answers
+
+### Observation
+
+"How is HOMO different from LUMO" got a correct answer as one dense
+paragraph (HOMO definition, behaviour, LUMO definition, behaviour, gap,
+methane details). Students use LabTutor on phones, where a long paragraph is
+hard to scan and the two things being compared blur together.
+
+### Root cause
+
+1. Nothing in the prompt asked for structure on a comparison; the system
+   prompt and the phone-only line ask for prose.
+2. `socratic_engine/theory.guard_answer` (Exp7 phone-only theory answers)
+   split the answer into sentences *and lines*, and when it dropped any
+   sentence naming software or a step it rejoined the rest with spaces. Any
+   heading, bullet or paragraph break the model produced was flattened into
+   one paragraph.
+
+### Fix
+
+- `is_comparison_request` in `retrieval/pipeline.py`: deterministic regex
+  ("compare", "difference", "differ", "X vs Y", "different from/than",
+  "how are ... different", Hinglish "fark"). A bare "different" ("why do
+  different methods give different values") is not a comparison.
+- When it matches, one `COMPARISON_FORMAT` line is added to the per-message
+  prompt: a short bold-labelled section per item (full name for an
+  abbreviation), 1-3 sentences or compact bullets each, then an
+  "**In short:**" one-sentence takeaway. Tables only for several short
+  attributes with few-word cells, so labelled sections are the default.
+  Facts only from the material; length follows the question (a request for
+  detail may be longer). No word limit. Nothing about HOMO/LUMO is hardcoded.
+- A comparison is never also treated as an overview (Fix #2).
+- `guard_answer` now filters line by line, keeping list markers, headings
+  and paragraph breaks. Which sentences it drops is unchanged.
+- `SYSTEM_PROMPT` is unchanged, so every non-comparison question gets
+  exactly the prompt it had before; no global length change.
+
+### Streaming vs final message (investigated, not changed)
+
+`/messages/stream` sends the model's raw tokens as they arrive, then a
+`done` event with the saved message, which the frontend shows in their
+place. The saved text is post-processed after streaming: `pipeline`
+strips leaked passage references and normalises markdown, `guard_answer`
+drops software/step sentences for phone-only Exp7, an authored concept
+explanation replaces it when the model reply was not usable, and a
+follow-up/invite suffix is appended. So the streamed and final text differ
+by design whenever any of those apply.
+
+### Found, not changed
+
+For Exp7, a message of `FOLLOWUP_MAX_WORDS` (7) words or fewer gets no
+conversation context in the prompt: the LASTMSG block is built only for other
+experiments, and HISTORY is skipped whenever LASTMSG would apply. Sending
+HISTORY in that case breaks
+`test_walkthrough_api::test_student_text_stays_out_of_every_model_prompt`,
+which relies on walkthrough replies never reaching the model. Left as is;
+it needs a decision on what history Exp7 may send.
+
+### Tests
+
+New `backend/tests/test_comparison_format.py` (38 tests): 11 comparison
+phrasings detected (HOMO/LUMO variants, B3LYP vs B3P, 6-31G vs 6-31G*,
+"how are these two basis sets different", Hinglish "bhai HOMO aur LUMO me
+kya difference hai", follow-up "And how is it different from LUMO?"); 6
+non-comparisons not detected ("What is HOMO?", "Explain HOMO in detail.",
+"Why is HOMO important?", procedure, overview, "Why do different methods
+give different values?"); comparison prompts carry the format line,
+citations and the English-only rule, and no overview focus; non-comparisons
+get no format line; the overview still gets its focus; the format line is
+not in the global system prompt and has no word limit; `guard_answer` drops
+a software sentence while keeping headings, bullets and breaks; a
+structured answer survives the full chat API.
+
+### Results
+
+Run with the local `.env` moved aside. New tests plus English-only,
+overview, theory-first, Exp7 content, retrieval pipeline, walkthrough API,
+conversation flow, normalisation and golden QA suites: 961 passed. Full
+suite: 2166 passed, 1 skipped, 16 failed, the same 16 pre-existing
+failures, no new ones. Tier 1, the answer gate, walkthrough grading,
+grounding, Fix #1 and Fix #2 behaviour unchanged.
+
+---
+
+## 2026-10-08 — Exp7: concise answers to broad concept-overview requests
+
+### Observation
+
+In manual Exp7 testing, "Explain the concepts involved in this experiment
+before I start" got a correct, grounded, but very long answer that restated
+most of the material (workflow, optimisation, single point, HOMO/LUMO, DFT,
+basis sets, orbital contributions, electron counts, methane/oxygen). Other
+Exp7 questions were sized fine.
+
+### Root cause
+
+The message is classified `switch_to_theory` and answered by
+`retrieval/pipeline.py`. For Exp7 the pipeline hands the model the whole
+experiment's material (about 62k characters, 67 passages; deliberate, for
+grounding and context caching). The per-message FOCUS line for this question
+was "lead with the official procedure", since it is not scope-level ADJACENT.
+The system prompt's length rules cover "what is X" (90-130 words) and
+"answer every part of a multi-part question", but nothing covers a broad
+overview, so the model treated all the supplied material as what to cover.
+
+### Fix
+
+- `is_overview_request` in `pipeline.py`: deterministic regex for broad
+  requests ("concepts involved/behind/before I start", "basic/key concepts",
+  "overview", "what is this experiment about", "theory behind this
+  experiment", Hinglish "concepts samjha do"). A request for detail, a
+  comparison or the procedure is never an overview, and nor is a short
+  follow-up.
+- When it matches, the per-message FOCUS becomes `OVERVIEW_FOCUS`: the
+  material is supporting evidence, not a checklist; one intro sentence, the
+  4-6 concepts that matter most at 1-2 sentences each, no procedure,
+  settings, numbers or output details, about 150-250 words (soft target),
+  and one closing sentence inviting detail. In phone-only mode that closing
+  sentence is allowed as the one exception to "do not end with an offer".
+- `SYSTEM_PROMPT` is unchanged, so every other question gets exactly the
+  prompt it had before and the cached Exp7 context fingerprint is
+  unaffected. No new model call, no truncation, the same material and
+  citations as before.
+
+### Tests
+
+New `backend/tests/test_concept_overview.py` (26 tests): 7 overview
+phrasings (including Hinglish) detected; 8 non-overview phrasings ("What is
+HOMO?", "Explain HOMO and LUMO in detail and compare them.", "Walk me through
+the complete Experiment 7 procedure.", "Explain all the concepts in detail.",
+etc.) not detected; the overview prompt still carries the full Exp7 material
+(>20k chars), citations, the English-only rule and the OVERVIEW focus, and
+drops "lead with the official procedure"; detailed, specific and follow-up
+questions do not get the overview focus; the rule is absent from the global
+system prompt; through the chat API an overview request reaches the model
+with the overview focus and a procedure request does not.
+
+### Results
+
+Run with the local `.env` moved aside. New tests plus theory-first, Exp7
+content, retrieval pipeline, walkthrough API, conversation flow,
+normalisation, English-only and golden QA suites: 923 passed. Full suite:
+2128 passed, 1 skipped, 16 failed: the same 16 pre-existing failures listed
+in the entry below, no new ones. The golden dataset and evaluation dataset
+were not changed. Tier 1, the answer gate, walkthrough grading and the
+English-only rule were not changed.
+
+---
+
+## 2026-10-08 — Exp7: student-facing replies are English only
+
+### Bug
+
+During manual Exp7 testing, the English question "Ok so for now I want to
+first understand the concept behind this experiment before starting it" got a
+reply in Romanized Hindi. The course deploys to students who should get
+English only.
+
+### Root cause
+
+`backend/retrieval/pipeline.py` told the model to mirror the student:
+`SYSTEM_PROMPT` said "reply in the language AND script the student wrote in
+... Hinglish ... reply in the same Roman-letter Hinglish", and the dynamic
+tail added "REPLY LANGUAGE: the same language AND script as the student
+question below (Roman-letter Hinglish stays in Roman letters)". That was the
+only instruction in any prompt that allowed a non-English reply; the exact
+reason it fired on an English question was not reproduced (the model applies
+"match the student" loosely). The other student-facing prompts
+(`rag/phrasing.py`, `socratic_engine/chat.py`, `socratic_engine/realise.py`)
+said nothing about language.
+
+### Fix
+
+- One shared `ENGLISH_ONLY_RULE` in `backend/rag/phrasing.py`: always reply
+  in English whatever the student's language or script; never Hindi, Hinglish,
+  Romanized Hindi or Devanagari; never mirror or switch on request; understand
+  mixed-language input and answer in English; chemistry terms, software names,
+  menu labels, file names and notation stay as the source writes them.
+- Appended to all four student-facing system prompts. In `pipeline.py` it
+  replaces the mirroring paragraph, and the tail line now reads "REPLY
+  LANGUAGE: English only, whatever language or script the student question
+  below uses." Grounding, scope, one-step, phone-only and injection rules are
+  unchanged.
+- Input handling is unchanged: `scope/normalize.py` still maps Hinglish to
+  English for routing, and the walkthrough grader still accepts "haan",
+  "theek hai", "kya" etc. as input. Only output language changed.
+- Professor-facing prompts (summaries, Exp8 demonstrator note) and the router
+  (classification only) were not changed.
+
+### Temperature
+
+Default `LABTUTOR_LLM_TEMPERATURE` 0.7 -> 0.3 (`config.py`, `.env.example`)
+for consistent, instruction-following tutoring. It does not enforce English;
+the prompt rule does. The OpenAI backend still never sends a temperature
+(reasoning models reject non-default values), so this affects the Vertex,
+hosted and Ollama paths only.
+
+### Datasets
+
+- `evaluation/exp07_dataset.json`: the 9 Hinglish cases (e07-02, -03, -05,
+  -07, -12, -13, -17, -18, -19) rewritten as natural English questions with the
+  same intent; language label `hinglish` -> `en_clean`. IDs, step index,
+  category, expected intent and expected page unchanged.
+- `golden_dataset/qa/exp07.json`: checked, all 170 questions already English
+  (`language: english`); not modified.
+
+### Tests
+
+New `backend/tests/test_english_only.py` (11 tests, mocked backend, no network):
+every student-facing prompt contains the rule and none of the old mirroring
+phrases; the rule names Hindi/Hinglish/Romanized Hindi/Devanagari and forbids
+switching; five Exp7 inputs (English, Hinglish, mixed, "Explain this in
+Hindi.", "mujhe hinglish me explain karo") all reach the model with the rule
+in the system prompt and "REPLY LANGUAGE: English only" in the user prompt,
+and the mocked English reply reaches the student unchanged; default
+temperature is 0.3. No word-list language validator was added.
+
+### Results
+
+Run with the local `.env` moved aside (it sets `GPT=true`, a real API key and
+a different admin email, which leak into tests that expect defaults):
+
+- English-only, Exp7 content, retrieval pipeline, theory-first,
+  normalisation, golden QA and walkthrough API suites: 842 passed.
+- Full suite: 2102 passed, 1 skipped, 16 failed. The same 16 fail on the
+  unmodified tree (router x11 incl. `TestConversationalRouter`, context cache
+  x4, OpenAI `max_completion_tokens` x1); none touch language.
+
+Tier 1 computation, signatures, tolerances, the answer gate and walkthrough
+grading were not changed.
+
+---
+
 ## 2026-10-05 — Conversation flow, intent priority and per-chat state
 
 Branch: `fix/conversation-flow` (worktree off `origin/master` @ `52b1d62`).
