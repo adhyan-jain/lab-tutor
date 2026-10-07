@@ -5,6 +5,131 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-08 — Exp7: a new question during a reflection is answered, not graded
+
+### Observation
+
+With a reflection pending ("**Think about this:** In your own words, what do
+HOMO and LUMO stand for, and how do they differ?"), the student typed
+"Compare B3LYP and B3P." LabTutor graded it as an answer to the reflection
+(UNCLEAR, so a probe plus the advisory rephrasing call) and replied with
+another reflection prompt instead of answering the question.
+
+### Root cause
+
+A message is only treated as a new question while a reflection is pending if
+it starts with a wh/auxiliary word or contains "?" with 6+ words
+(`conversation.classify` USER_QUESTION in `theory.handle_pending`;
+`grader.is_side_question` in the walkthrough controller). An imperative
+request with no question mark ("Compare B3LYP and B3P", "bhai B3LYP aur B3P
+compare kar", "mujhe HOMO samjha") matched neither, so it fell through to
+grading. Two related problems in the theory path:
+
+1. A message that *was* recognised as a question deleted the pending
+   reflection (`conv_state.pending = None`), and the follow-up opened after
+   the answer then replaced it with a different question.
+2. The USER_QUESTION check ran before grading, so a tentative answer such as
+   "HOMO is the highest occupied molecular orbital, right?" (has "?", 6+
+   words) was never graded.
+
+### Routing design (deterministic, no new model call)
+
+- `grader.is_new_request`: a clear new request is a wh-word or imperative ask
+  at the start (what/why/how/..., explain, compare, contrast, describe,
+  define, differentiate, distinguish, elaborate, summarise, clarify, tell me,
+  teach me, can/could/would/will you), optionally after filler ("and", "so",
+  "bhai", "please", ...), or a Hinglish ask anywhere ("... compare kar",
+  "samjhao", "batao", "mujhe ... samjha", "kya hai/hota", "kaise", "kyun").
+  Yes/no openers ("is it...?", "does...?") are deliberately excluded because
+  they are usually tentative answers. "Just tell me" and "skip" are never new
+  requests. No list of exact sentences; no question-mark rule on its own.
+- Reflection pending, message arrives:
+  1. A change of direction (switch to theory/practice, key-ideas session,
+     procedure request) behaves exactly as before: the existing rule in
+     `chat_routes._conversation_turn_phone` drops the follow-up.
+  2. A clear new request is never graded. In theory mode
+     `theory.handle_pending` returns None, so the message continues to the
+     **existing** grounded Q&A branch (grounding, citations, English-only,
+     overview focus, comparison format, answer gate, scope, phone-safe guard
+     all unchanged). In a walkthrough concept moment or final reflection,
+     `_turn_concept` / `_turn_assess` return the existing `side_question`
+     result, which `chat_routes` already answers through the same Q&A path
+     plus the existing "Back to my question" line.
+  3. Anything else goes to the existing authored grading, unchanged. A
+     weaker question signal (aux opener, or "?" with 6+ words) is only treated
+     as a side question if grading matches nothing, so "HOMO is the highest
+     occupied molecular orbital, right?" is graded.
+- Preserving the reflection (theory mode): the pending reflection is no longer
+  deleted by a new question. `theory.open_followup`, which runs after the Q&A
+  answer, now sees the pending reflection and, instead of stacking a second
+  question, appends "*Back to my question:* ..." **once** (a `reminded` flag on
+  the pending dict); later unrelated questions get a plain answer. The
+  reflection stays pending until answered, skipped, "just tell me", or a
+  change of direction.
+
+### Safety constraints preserved
+
+- No model decides whether a message is an answer: routing is regex only, in
+  `grader.py`, which still imports no LLM or retrieval code
+  (`test_walkthrough_modules_import_no_model_or_retrieval_code` passes).
+- Reflection answers stay on the authored grading path and reach no Q&A
+  prompt; a correct answer costs zero model calls, as before.
+- Only messages classified as new questions reach Q&A, through the path that
+  already handled side questions; nothing new is sent to the realise/advisory
+  call. A new question no longer triggers that advisory call at all.
+- `test_student_text_stays_out_of_every_model_prompt` passes.
+- No change to `chat_routes.py`, retrieval, prompts, citations, English-only,
+  overview, comparison formatting, chemistry or Tier 1.
+
+### Tests added (`backend/tests/test_reflection_routing.py`, 67 tests)
+
+- Detector: 16 new-question phrasings (with/without "?", Hinglish, "And how is
+  it different from LUMO?") are new requests; 8 reflection answers (incl.
+  Hinglish and "..., right?") and 7 controls ("Just tell me", "Skip this
+  question", yes, no, okay, haan, theek hai) are not.
+- Theory follow-up: answers are graded against the pending question; new
+  questions return to Q&A with the pending reflection unchanged and no
+  grading evidence recorded; controls keep their verdicts; the reminder is
+  shown once and the reflection is never replaced; a change of direction still
+  drops it.
+- Walkthrough concept moment: "Compare B3LYP and B3P", Hinglish and a
+  HOMO/LUMO comparison are `side_question` with the moment kept; a real answer
+  is still `concept_correct`.
+- Real `/api/chat/messages` endpoint: a reflection answer follows the
+  reflection path with zero model calls; "Compare B3LYP and B3P." gets one Q&A
+  call, one "Back to my question", reflection preserved; a second question
+  gets no repeated reminder; the student can still answer it afterwards;
+  Hinglish request reaches Q&A with the English-only line; Fix #3 comparison
+  format and Fix #2 overview focus still apply to questions asked mid-reflection.
+
+### Validation
+
+| Check | Result |
+|---|---|
+| `test_reflection_routing.py` | 67 passed |
+| theory/walkthrough/phone-only/isolation/concept/pedagogy suites | all passed |
+| Full suite, clean copy without local `.env` (2250 tests) | 16 failures, the **identical** set with and without this change (router-default + OpenAI provider tests) |
+| Full suite in the working tree (local `.env` present) | same pre-existing env-dependent failures as before this change, plus `test_llm_unavailable_falls_back_to_extractive_answer`, which makes a live model call with the local key and does not touch the changed modules |
+
+### Limitations
+
+- Contextual follow-up: "And how is it different from LUMO?" is routed to Q&A
+  correctly, but for Exp7 the Q&A prompt omits conversation history when the
+  message is 7 words or fewer (`pipeline._generate_answer` `show_last`; the
+  LASTMSG block is only emitted for Exp8), so "it" is not resolved from the
+  previous turn. Left as is: changing prompt assembly is out of scope, and the
+  routing fix does not widen any context.
+- A clear new request is never graded, so an answer phrased as one ("what I
+  think is ...", "explain: HOMO is ...") would go to Q&A. Rare; the student
+  can re-answer and the reflection is still pending.
+- "Explain the concepts involved..." mid-reflection is a switch to theory, so
+  the existing change-of-direction rule drops the reflection (unchanged).
+- While a theory reflection stays pending, no new follow-up is asked after
+  later answers (one question at a time); answering or skipping it resumes
+  normal follow-ups.
+
+---
+
 ## 2026-10-08 — Exp7: structured, mobile-friendly comparison answers
 
 ### Observation

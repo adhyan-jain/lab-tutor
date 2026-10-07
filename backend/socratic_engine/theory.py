@@ -25,6 +25,7 @@ from backend.socratic_engine.knowledge import get_knowledge, phone_safe
 from backend.socratic_engine.pedagogy import policy
 from backend.socratic_engine.pedagogy import state as pstate
 from backend.socratic_engine.walkthrough import controller as ctl
+from backend.socratic_engine.walkthrough import grader
 
 EXPERIMENT_ID = "exp07"
 
@@ -33,9 +34,8 @@ _STOP = frozenset(
     "want with for in on my we you can could would do does how why when who which then so but not no yes "
     "ok okay tell show give understand know learn explain teach help let".split()
 )
-_NOT_AN_ANSWER = frozenset({
-    conv.Intent.USER_QUESTION, conv.Intent.SWITCH_TO_THEORY, conv.Intent.SWITCH_TO_PRACTICE,
-    conv.Intent.GUIDED_CONCEPTS,
+_CHANGE_OF_DIRECTION = frozenset({
+    conv.Intent.SWITCH_TO_THEORY, conv.Intent.SWITCH_TO_PRACTICE, conv.Intent.GUIDED_CONCEPTS,
 })
 _STEP_RE = re.compile(r"\bstep\s*\d+\b|^\s*step\s*:", re.IGNORECASE | re.MULTILINE)
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -135,6 +135,19 @@ def open_followup(conv_state: conv.ConversationState, message: str) -> TheoryTur
     about, remember it as pending, and return its text. None if there is
     nothing worth asking (unknown concept, already understood, on cooldown, no
     phone-safe question left)."""
+    if conv_state.pending:
+        # The student asked something new while a follow-up was waiting: keep
+        # that follow-up, never stack a second question on it, and point back
+        # to it once -- not after every message.
+        if conv_state.pending.get("reminded"):
+            return None
+        conv_state.pending["reminded"] = True
+        ws = _walk_state(conv_state)
+        _, ui = ctl._concept_message(ws, "")
+        ui = {**ui, "kind": "theory_followup"}
+        return TheoryTurn(
+            ctl._resume_line(ws).strip(), ui, {"step_id": "theory", "verdict": "theory_followup_reminder"}
+        )
     cid = concept_for_message(message)
     if cid is None:
         return None
@@ -165,21 +178,26 @@ def open_followup(conv_state: conv.ConversationState, message: str) -> TheoryTur
 
 def handle_pending(conv_state: conv.ConversationState, message: str) -> TheoryTurn | None:
     """Grade the student's message against the pending follow-up. Returns the
-    authored reply, or None when the message is not an attempt at it (a new
-    question) -- in which case the follow-up is dropped and the new question is
-    answered normally."""
+    authored reply, or None when the message is not an attempt at it -- in
+    which case it is answered by the normal Q&A path. A new question keeps the
+    follow-up pending (open_followup points back to it once); a change of
+    direction drops it.
+
+    Deterministic, no model call: a clear new request ("Compare B3LYP and
+    B3P", "mujhe HOMO samjha") is never graded; a tentative one ("HOMO is the
+    highest occupied orbital, right?") is graded first and only treated as a
+    question if it matches nothing (controller._turn_concept)."""
     if not conv_state.pending:
         return None
-    # A new question, or a request to change mode, is never an attempt at the
-    # follow-up: drop the follow-up and let the message be answered on its own.
-    if conv.classify(message) in _NOT_AN_ANSWER:
+    if conv.classify(message) in _CHANGE_OF_DIRECTION:
         conv_state.pending = None
+        return None
+    if grader.is_new_request(message):
         return None
     ws = _walk_state(conv_state)
     result = ctl.take_turn(ws, message)
     conv_state.concepts = ws.concepts
     if result.reply is None:
-        conv_state.pending = None
         return None
     conv_state.pending = ws.concept if ws.phase == "concept" else None
     ui = {**result.ui, "kind": "theory_followup"}
