@@ -1364,7 +1364,15 @@ async def _process_message(
                     result = await answer_question(
                         qa_message, active_experiment=experiment_id, conversation_history=history_text
                     )
-                    answer_text = theory.guard_answer(result.text, body.message) if phone07 else result.text
+                    # Fixed refusal/fallback text is authored and shown verbatim; only a
+                    # generated answer is run through the phone-only guard.
+                    answer_text = (
+                        theory.guard_answer(
+                            result.text, body.message, strict=result.answer_source != "llm"
+                        )
+                        if phone07 and result.status.answerable
+                        else result.text
+                    )
                     authored = None
                     if phone07 and result.answer_source != "llm":
                         # No model answer (outage, quota, key problem): an authored

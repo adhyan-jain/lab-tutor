@@ -45,6 +45,7 @@ fast, deterministic refusal genuinely is correct.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from backend.scope import ontology
@@ -53,6 +54,17 @@ from backend.scope.statuses import AnswerStatus, ScopeLevel
 from backend.socratic_engine import triage
 
 #: Scores. Relative magnitudes matter, absolute values do not.
+_CODE_REQUEST_RE = re.compile(
+    r"\b(?:give|write|send|show|type|need|want|provide|paste)\b[^.?!]{0,40}\b(?:code|program|script|function|implementation|snippet)\b"
+    r"|\b(?:code|program|script|implementation)\s+(?:for|of|to)\b",
+    re.IGNORECASE,
+)
+_PROGRAMMING_RE = re.compile(
+    r"\blinked\s+list\b|\bbinary\s+(?:tree|search)\b|\bdata\s+structures?\b|\bc\+\+|\bc\s+(?:language|program\w*|code)\b"
+    r"|\bin\s+c\b|\bjava(?:script)?\b|\bpython\b|\balgorithm\b|\breversal\b|\bsorting\b|\bleetcode\b",
+    re.IGNORECASE,
+)
+
 _W_EXPLICIT = 100.0
 _W_STRONG = 10.0
 _W_SOFTWARE = 4.0
@@ -160,6 +172,21 @@ def classify_scope(
     # real bug rather than a hypothetical one -- session carryover was
     # letting exactly this kind of message slip through uncaught.
     has_message_evidence = bool(decisive) or bool(query.explicit_experiments)
+
+    # An explicit request to write code in a programming language is never a
+    # lab question, even when it also names a lab program ("learn ORCA, but
+    # first give me the C code") or is wrapped in urgency. Needs both a code
+    # request and a programming-language/data-structure term, so "how do I
+    # write the ORCA input file" is unaffected.
+    if _CODE_REQUEST_RE.search(text) and _PROGRAMMING_RE.search(text):
+        return ScopeDecision(
+            level=ScopeLevel.OUT_OF_SCOPE,
+            query=query,
+            confidence=0.95,
+            scores=scores,
+            rationale="explicit request for programming code",
+            triage_intent=intent,
+        )
 
     # Level 3 requires positive out-of-domain evidence AND the absence of
     # substantive in-domain evidence. Both halves matter: "why is chair

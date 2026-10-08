@@ -54,10 +54,32 @@ _EXTERNAL_PATTERNS: tuple[str, ...] = (
 )
 _COMPILED = tuple(re.compile(p, re.IGNORECASE) for p in _EXTERNAL_PATTERNS)
 
+# Bare nouns that only *name* a program or device. Fine inside a generated
+# explanation ("ORCA is a quantum-chemistry program"); not fine in an authored
+# question, which keeps using the strict scan above.
+_BARE_NOUN_PATTERNS = frozenset({
+    r"\bscreens?\b", r"\bterminal\b", r"\bgabedit\b", r"\bavogadro\b", r"\borca\b",
+    r"\blaptops?\b", r"\bdesktop\b", r"\bcomputers?\b",
+})
+_INSTRUCTION_COMPILED = tuple(
+    re.compile(p, re.IGNORECASE) for p in _EXTERNAL_PATTERNS if p not in _BARE_NOUN_PATTERNS
+)
+
 
 def external_dependency(text: str) -> str | None:
     """The first external-tool phrase found in `text`, or None if it is clean."""
     for pattern in _COMPILED:
+        match = pattern.search(text or "")
+        if match:
+            return match.group(0)
+    return None
+
+
+def external_instruction(text: str) -> str | None:
+    """Like `external_dependency` but ignores bare mentions of a program or
+    device, so a generated explanation that merely names ORCA is not gutted.
+    Still catches instructions and claims about what the student saw."""
+    for pattern in _INSTRUCTION_COMPILED:
         match = pattern.search(text or "")
         if match:
             return match.group(0)

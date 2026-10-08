@@ -50,6 +50,7 @@ from backend.retrieval.stable_context import (
     experiment_chunks,
 )
 from backend.llm.client import LLMReply
+from backend.rag.language import looks_non_english
 from backend.rag.phrasing import ENGLISH_ONLY_RULE, sanitise_student_text
 from backend.retrieval.chunks import Chunk
 from backend.retrieval.grounding import overlap_terms
@@ -460,6 +461,28 @@ _NOT_OVERVIEW_RE = re.compile(
 )
 
 
+#: "what model/llm are you", "are you chatgpt", "who made you". Answered with
+#: fixed text, never by the model, so it cannot guess or claim a vendor.
+_IDENTITY_RE = re.compile(
+    r"\b(?:what|which)\s+(?:llm|ai|model|gpt|chatbot|bot)\b[^.?!]{0,30}\b(?:you|this|is\s+this|are\s+you|using|running|behind)\b"
+    r"|\b(?:what|which)\s+(?:llm|model)\s+(?:is\s+this|are\s+you)\b"
+    r"|\bare\s+you\s+(?:chat\s?gpt|gpt|gemini|claude|openai|an?\s+(?:ai|llm|bot|robot))\b"
+    r"|\bwho\s+(?:made|built|created|trained|developed)\s+(?:you|this)\b"
+    r"|\bwhich\s+company\b[^.?!]{0,30}\byou\b",
+    re.IGNORECASE,
+)
+
+IDENTITY_REPLY = (
+    "I'm LabTutor, the lab assistant for this course. I can't share details about "
+    "the system behind me, but I can help you understand this experiment: its "
+    "concepts, the formulas, and how to think through your results."
+)
+
+
+def is_identity_question(message: str) -> bool:
+    return bool(_IDENTITY_RE.search(message))
+
+
 def is_overview_request(message: str) -> bool:
     return bool(_OVERVIEW_RE.search(message)) and not _NOT_OVERVIEW_RE.search(message)
 
@@ -534,6 +557,16 @@ async def answer_question(
     conversation_history: str = "",
 ) -> AnswerResult:
     """Run the full pipeline for one student message."""
+    if is_identity_question(message):
+        decision = classify_scope(message, active_experiment=active_experiment)
+        result = AnswerResult(
+            status=AnswerStatus.OUT_OF_SCOPE,
+            decision=decision,
+            text=IDENTITY_REPLY,
+        )
+        _validate(result)
+        return result
+
     topic = (
         _followup_topic(message, conversation_history)
         if active_experiment in QUALITATIVE_EXPERIMENTS
@@ -803,9 +836,15 @@ async def _generate_answer(
                 question=question,
                 followup_topic=followup_topic,
             )
-            if reply.text:
+            if reply.text and looks_non_english(reply.text):
+                # English-only is enforced in code as well as in the prompt: a
+                # Hindi/Hinglish reply is dropped for the English fallback.
+                telemetry.record_fallback("non_english_output")
+                log.warning("Model reply was not English; using the English fallback instead")
+            elif reply.text:
                 return (reply.text, "llm", reply)
-            telemetry.record_fallback("empty_model_reply")
+            else:
+                telemetry.record_fallback("empty_model_reply")
         except LLMUnavailable as exc:
             telemetry.record_fallback("llm_unavailable")
             log.warning("Answer phrasing unavailable, using extractive fallback: %s", exc)

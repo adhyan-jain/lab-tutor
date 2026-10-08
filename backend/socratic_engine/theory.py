@@ -70,15 +70,19 @@ def has_substance(text: str) -> bool:
     return len(tokens) >= 2 or concept_for_message(rest) is not None
 
 
-def guard_answer(text: str, message: str) -> str:
+def guard_answer(text: str, message: str, *, strict: bool = False) -> str:
     """Theory answers must not send a phone-only student to external software.
     Unless they asked how the practical is performed, drop any sentence that
     names software/screens/files or numbers a step; if little is left, fall back
     to the authored concept description. Deterministic; no model call."""
     if not text or conv.is_procedure_request(message):
         return text
+    # A model-written answer may name ORCA or a computer; raw manual excerpts
+    # (no model available) may not, so those keep the strict scan.
+    scan = phone_safe.external_dependency if strict else phone_safe.external_instruction
+
     def bad(s: str) -> bool:
-        return bool(phone_safe.external_dependency(s) or _STEP_RE.search(s))
+        return bool(scan(s) or _STEP_RE.search(s))
 
     if not any(bad(s) for s in _SENTENCE_SPLIT.split(text) if s.strip()):
         return text
@@ -96,9 +100,15 @@ def guard_answer(text: str, message: str) -> str:
     if len(cleaned) >= 60:
         return cleaned
     cid = concept_for_message(message)
-    knowledge = get_knowledge(EXPERIMENT_ID)
-    base = knowledge.concept_by_id[cid].description if cid else "I can explain the idea behind that."
-    return f"{base} The practical software steps are normally done on a lab computer, so here we will stick to the ideas."
+    if cid:
+        base = get_knowledge(EXPERIMENT_ID).concept_by_id[cid].description
+        return f"{base} The practical software steps are normally done on a lab computer, so here we will stick to the ideas."
+    if cleaned:
+        return cleaned
+    return (
+        "I can help with the ideas behind this experiment: HOMO and LUMO, geometry "
+        "optimisation, basis sets, and what the results mean. Which of those would you like to start with?"
+    )
 
 
 def fallback_explanation(message: str) -> str | None:

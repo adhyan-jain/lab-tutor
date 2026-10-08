@@ -24,6 +24,7 @@ from backend.answer_gate import (
 )
 from backend.llm import LLMUnavailable, get_backend, telemetry
 from backend.rag import templates
+from backend.rag.language import looks_non_english
 from backend.rag.phrasing import ENGLISH_ONLY_RULE
 from backend.rag.retrieval import retrieve
 from backend.socratic_engine import triage
@@ -292,6 +293,9 @@ async def tutor_reply(
         text, source, reply_meta = _fallback()
 
     if not text.strip():
+        text, source, reply_meta = _fallback()
+    elif source == "llm" and looks_non_english(text):
+        log.warning("Rejected a tutor reply that was not English; using the hint template")
         text, source, reply_meta = _fallback()
     elif source == "llm" and _looks_like_meta_commentary(text):
         log.warning("Rejected a tutor reply that narrated its own task; using the hint template")

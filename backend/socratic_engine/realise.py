@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from backend.llm.client import LLMUnavailable, _stream_queue, get_backend
+from backend.rag.language import looks_non_english
 from backend.rag.phrasing import ENGLISH_ONLY_RULE
 from backend.socratic_engine.knowledge.phone_safe import external_dependency
 
@@ -131,4 +132,7 @@ async def realise_turn(ctx: dict[str, Any]) -> RealisedTurn | None:
         log.warning("Realisation reply unusable, using the authored reply")
         return None
     response, suggested = parsed
+    if looks_non_english(response):
+        log.warning("Realisation reply was not English, using the authored reply")
+        return None
     return RealisedTurn(response, suggested, reply.latency_ms, reply.prompt_tokens, reply.completion_tokens)

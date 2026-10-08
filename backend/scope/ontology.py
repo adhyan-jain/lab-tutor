@@ -417,6 +417,9 @@ OUT_OF_DOMAIN_TERMS: frozenset[str] = frozenset(
         "differentiation", "physics assignment", "history", "geography",
         "economics", "recipe", "weather", "joke", "poem", "essay",
         "biology", "anatomy", "medicine", "stock", "crypto", "bitcoin",
+        "linked list", "binary tree", "data structure", "data structures",
+        "c language", "c program", "c programming", "c++", "programming",
+        "coding", "python", "llm", "chatgpt", "openai", "gemini", "claude",
     }
 )
 
