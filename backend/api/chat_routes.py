@@ -430,6 +430,10 @@ async def _conversation_turn_phone(
 
     # 4. Everything else is theory, unless a key-ideas session is running.
     if state.mode == Mode.INITIAL.value:
+        if conversation.is_help_opener(message):
+            return _mode_reply(
+                conversation.help_opener_text(title, conceptual=True), state, ["theory", "practice"], "help opener"
+            ), False
         if len(grader._tokens(message)) <= 3 and intent is Intent.ANSWER:
             state.clarify_count += 1
             text = (
@@ -488,6 +492,13 @@ async def _conversation_turn(
                 ), False
             state.switch(Mode.PRACTICE, "user chose practice")
             return None, True
+        if conversation.is_help_opener(message):
+            return _mode_reply(
+                conversation.help_opener_text(
+                    title, conceptual=experiment_id == "exp07" and get_settings().phone_only
+                ),
+                state, ["theory", "practice"], "help opener",
+            ), False
         if len(grader._tokens(message)) <= 3 and intent is Intent.ANSWER:
             # "hi", "ok": nothing to act on yet -- greet, but never repeat
             # the exact same menu twice in a row.

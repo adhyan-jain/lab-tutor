@@ -425,3 +425,29 @@ GREETING_DETAIL_CONCEPTUAL = (
 def greeting_text(experiment_title: str = "", *, conceptual: bool = False) -> str:
     head = GREETING if not experiment_title else f"{GREETING} We're on **{experiment_title}**."
     return f"{head}\n\n{GREETING_DETAIL_CONCEPTUAL if conceptual else GREETING_DETAIL}"
+
+
+# "can you help me?" on its own is an opener, not a question. Answering it with
+# a flat "Yes" reads cold; a student should hear a friend say "of course, I'm
+# right here". Authored text chosen by code, never a model call.
+_HELP_OPENER = re.compile(
+    r"^\W*(?:hey\W+|hi\W+|hello\W+)?(?:please\W+)?"
+    r"(?:can|could|will|would)\s+(?:you|u)\s+(?:please\s+)?help(?:\s+me)?(?:\s+out)?"
+    r"(?:\s+(?:please|pls|plz))?\W*$"
+    r"|^\W*(?:i\s+)?need\s+(?:some\s+)?help(?:\s+please)?\W*$"
+    r"|^\W*help(?:\s+me)?(?:\s+(?:please|pls|plz))?\W*$",
+    re.IGNORECASE,
+)
+
+
+def is_help_opener(message: str) -> bool:
+    return bool(_HELP_OPENER.match(message or ""))
+
+
+def help_opener_text(experiment_title: str = "", *, conceptual: bool = False) -> str:
+    on = f" with **{experiment_title}**" if experiment_title else ""
+    return (
+        f"Of course, I'm right here and happy to help{on}! Tell me what's going on and "
+        "we'll sort it out together, no question is too small.\n\n"
+        f"{GREETING_DETAIL_CONCEPTUAL if conceptual else GREETING_DETAIL}"
+    )
