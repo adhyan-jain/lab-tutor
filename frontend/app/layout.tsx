@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Serif } from "next/font/google";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 // One type family (IBM Plex), two of its own sub-faces: Serif for the

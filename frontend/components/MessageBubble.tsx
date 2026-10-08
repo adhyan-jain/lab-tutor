@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import type { UnifiedChatMessage } from "@/lib/api";
 import { BookIcon, CheckIcon, WarningIcon } from "@/components/Icons";
 
@@ -52,13 +54,27 @@ const cleanMarkdownComponents = Object.fromEntries(
   }),
 );
 
+// Models write formulas as \[ ... \], \( ... \) or a bare "[ \Delta E ... ]"
+// (the backslash before the bracket gets lost). Normalise all three to the
+// $ / $$ form remark-math understands.
+function normalizeMath(text: string): string {
+  return text
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_m, body: string) => `\n\n$$${body.trim()}$$\n\n`)
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_m, body: string) => `$${body.trim()}$`)
+    .replace(/\[\s+(\\[A-Za-z][^\]\n]*?)\s+\]/g, (_m, body: string) => `$$${body.trim()}$$`);
+}
+
 function renderFormattedContent(content: string) {
   if (!content) return null;
   // react-markdown does not render raw HTML by default, so model output
   // cannot inject markup.
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={cleanMarkdownComponents}>
-      {content}
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+      components={cleanMarkdownComponents}
+    >
+      {normalizeMath(content)}
     </ReactMarkdown>
   );
 }
