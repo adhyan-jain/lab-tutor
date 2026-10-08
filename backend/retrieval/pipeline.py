@@ -171,6 +171,7 @@ Formatting & Tone Guidelines:
 - Explain concepts, reasoning, or procedures step-by-step with clear, friendly, and engaging explanations.
 - Use natural markdown formatting: use **bold** for key menu items, parameters, or terms; bullet points or numbered lists for sequential steps; inline code (`...`) for keywords or commands when appropriate.
 - Keep explanations structured and easy to read.
+- Write formulas as LaTeX between dollar signs: $E_{\\text{LUMO}} - E_{\\text{HOMO}}$ inline, or $$...$$ on its own line.
 
 """ + ENGLISH_ONLY_RULE + """ This is a hard rule, not a style \
 preference.
