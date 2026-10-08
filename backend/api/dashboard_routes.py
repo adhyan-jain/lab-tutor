@@ -40,7 +40,13 @@ from backend.models import (
     Submission,
     SummaryJob,
     User,
+    WalkthroughProgress,
 )
+
+# Any single login session longer than this is treated as a forgotten tab and
+# capped so it does not skew aggregate time-on-system figures. Faculty can
+# correct individual sessions in the DB with the SQL snippet in the admin docs.
+_MAX_SESSION_SECONDS = 4 * 3600  # 4 hours
 from backend.summaries import run_job, start_job_for_session, track_background_task
 from backend.summaries.coverage import compute_topic_coverage
 from backend.summaries.trajectory import build_trajectory
@@ -580,6 +586,7 @@ async def classroom_activity(
         login_at = _aware(row.login_at)
         end = _aware(row.logout_at) or _aware(row.last_seen_at)
         duration = max(0, int((end - login_at).total_seconds())) if end else 0
+        duration = min(duration, _MAX_SESSION_SECONDS)
         stat = per_student[row.user_id]
         stat["logins"] += 1
         stat["active_seconds"] += duration
@@ -599,8 +606,9 @@ async def classroom_activity(
                 "login_at": login_at.isoformat(),
                 "logout_at": _aware(row.logout_at).isoformat() if row.logout_at else None,
                 "last_seen_at": seen.isoformat() if seen else None,
-                "duration_seconds": duration,
+                "duration_seconds": min(duration, _MAX_SESSION_SECONDS),
                 "end_reason": row.end_reason or "inferred timeout",
+                "capped": duration > _MAX_SESSION_SECONDS,
             }
         )
 
@@ -821,9 +829,72 @@ async def research_export(
             [user.name, user.email, user.reg_no, membership.joined_at.isoformat()]
         )
 
-    sessions_sheet = workbook.create_sheet("Sessions")
+    # --- Activity summary sheet (per-student aggregate, mirrors the Activity page) ---
+    activity_data = await classroom_activity(
+        classroom_id=classroom_id, role="student", principal=principal, scope=scope, db=db
+    )
+    activity_sheet = workbook.create_sheet("Activity summary")
+    activity_sheet.append(
+        [
+            "Student name", "Student email", "Reg no",
+            "Sign-ins", "Total time (min)", "Last sign-in",
+            "Prompts", "Experiments",
+            "Prompt tokens", "Completion tokens", "Thinking tokens", "Cached tokens",
+            "LLM calls", "Retries", "Fallback replies",
+            "Avg model latency (ms)", "Avg response (ms)",
+            "Est. cost (USD)",
+        ]
+    )
+    for person in activity_data["students"]:
+        activity_sheet.append(
+            [
+                person["name"], person["email"], person.get("reg_no"),
+                person["logins"],
+                round(person["active_seconds"] / 60, 1),
+                person["last_login_at"],
+                person["prompts_total"],
+                ", ".join(person["experiments"]),
+                person["prompt_tokens"], person["completion_tokens"],
+                person["thinking_tokens"], person["cached_tokens"],
+                person["llm_calls"], person["retries"], person["fallback_replies"],
+                person["avg_llm_latency_ms"], person["avg_response_ms"],
+                person["estimated_cost_usd"],
+            ]
+        )
+
+    # --- Class sessions sheet (one row per lab meeting) ---
+    class_sessions_sheet = workbook.create_sheet("Class sessions")
+    class_sessions_sheet.append(
+        ["Session ID", "Experiment", "Status", "Started at", "Ended at", "Duration (min)"]
+    )
+    all_class_sessions = list(
+        (
+            await db.scalars(
+                select(ClassSession)
+                .where(ClassSession.classroom_id == classroom_id)
+                .order_by(ClassSession.started_at)
+            )
+        ).all()
+    )
+    for cs in all_class_sessions:
+        cs_dur = None
+        if cs.ended_at:
+            cs_dur = round(
+                (_aware(cs.ended_at) - _aware(cs.started_at)).total_seconds() / 60, 1
+            )
+        class_sessions_sheet.append(
+            [cs.id, cs.experiment_id, cs.status.value,
+             cs.started_at.isoformat(), cs.ended_at.isoformat() if cs.ended_at else None, cs_dur]
+        )
+
+    # --- Login sessions sheet (one row per sign-in event) ---
+    sessions_sheet = workbook.create_sheet("Login sessions")
     sessions_sheet.append(
-        ["Student name", "Student email", "Login at", "Logout at", "Last seen at", "End reason"]
+        [
+            "Student name", "Student email", "Reg no",
+            "Login at", "Logout at", "Last seen at",
+            "Duration (s)", "Duration (min)", "End reason", "Capped?",
+        ]
     )
     login_sessions = list(
         (
@@ -836,14 +907,22 @@ async def research_export(
     )
     for row in login_sessions:
         user = users_by_id.get(row.user_id)
+        login_at = _aware(row.login_at)
+        end = _aware(row.logout_at) or _aware(row.last_seen_at)
+        raw_dur = max(0, int((end - login_at).total_seconds())) if end else 0
+        capped_dur = min(raw_dur, _MAX_SESSION_SECONDS)
         sessions_sheet.append(
             [
                 user.name if user else row.user_id,
                 user.email if user else "",
-                row.login_at.isoformat(),
-                row.logout_at.isoformat() if row.logout_at else None,
-                row.last_seen_at.isoformat(),
+                user.reg_no if user else "",
+                login_at.isoformat(),
+                _aware(row.logout_at).isoformat() if row.logout_at else None,
+                _aware(row.last_seen_at).isoformat() if row.last_seen_at else None,
+                capped_dur,
+                round(capped_dur / 60, 1),
                 row.end_reason or "inferred timeout",
+                "yes" if raw_dur > _MAX_SESSION_SECONDS else "no",
             ]
         )
 
@@ -897,6 +976,135 @@ async def research_export(
                 traj.submissions,
                 traj.diagnoses_failed,
                 traj.diagnoses_escalated,
+            ]
+        )
+
+    # --- Submissions + diagnoses sheet ---
+    submissions_sheet = workbook.create_sheet("Submissions")
+    submissions_sheet.append(
+        [
+            "Student name", "Student email", "Reg no",
+            "Experiment", "Class session", "Submitted at",
+            "Reported value", "Expected value",
+            "Status", "Tier", "Signature", "Low confidence?",
+            "Phrased explanation",
+        ]
+    )
+    all_submissions = list(
+        (
+            await db.scalars(
+                select(Submission)
+                .where(
+                    Submission.classroom_id == classroom_id,
+                    Submission.actor_type == ActorType.STUDENT,
+                )
+                .order_by(Submission.created_at)
+            )
+        ).all()
+    )
+    all_diagnoses = {
+        d.submission_id: d
+        for d in (
+            await db.scalars(
+                select(Diagnosis).where(Diagnosis.classroom_id == classroom_id)
+            )
+        ).all()
+    }
+    for sub in all_submissions:
+        user = users_by_id.get(sub.student_id)
+        diag = all_diagnoses.get(sub.id)
+        submissions_sheet.append(
+            [
+                user.name if user else sub.student_id,
+                user.email if user else "",
+                user.reg_no if user else "",
+                sub.experiment_id,
+                sub.class_session_id,
+                sub.created_at.isoformat(),
+                sub.reported_value,
+                diag.expected_value if diag else None,
+                diag.status.value if diag else "pending",
+                diag.tier if diag else None,
+                diag.signature_code if diag else None,
+                "yes" if diag and diag.low_confidence else "no",
+                diag.phrased_text if diag else "",
+            ]
+        )
+
+    # --- Escalations sheet ---
+    escalations_sheet = workbook.create_sheet("Escalations")
+    escalations_sheet.append(
+        [
+            "Student name", "Student email", "Reg no",
+            "Experiment", "Class session", "Reason",
+            "Resolved?", "Resolution note", "Created at",
+        ]
+    )
+    all_escalations = list(
+        (
+            await db.scalars(
+                select(Escalation)
+                .where(Escalation.classroom_id == classroom_id)
+                .order_by(Escalation.created_at)
+            )
+        ).all()
+    )
+    all_diag_by_id: dict[str, Diagnosis] = {d.id: d for d in all_diagnoses.values()}
+    for esc in all_escalations:
+        user = users_by_id.get(esc.student_id)
+        diag = all_diag_by_id.get(esc.diagnosis_id) if esc.diagnosis_id else None
+        escalations_sheet.append(
+            [
+                user.name if user else esc.student_id,
+                user.email if user else "",
+                user.reg_no if user else "",
+                diag.detail.get("experiment") if diag else None,
+                diag.class_session_id if diag else None,
+                esc.reason,
+                "yes" if esc.resolved else "no",
+                getattr(esc, "resolution_note", None),
+                esc.created_at.isoformat(),
+            ]
+        )
+
+    # --- Walkthrough progress sheet (Exp7 step-by-step data) ---
+    walkthrough_sheet = workbook.create_sheet("Walkthrough progress")
+    walkthrough_sheet.append(
+        [
+            "Student name", "Student email", "Reg no",
+            "Experiment", "Class session", "Status",
+            "Current step", "All steps complete?", "Revealed?",
+            "Created at", "Updated at",
+        ]
+    )
+    all_walkthrough = list(
+        (
+            await db.scalars(
+                select(WalkthroughProgress)
+                .where(
+                    WalkthroughProgress.classroom_id == classroom_id,
+                    WalkthroughProgress.actor_type == ActorType.STUDENT,
+                )
+                .order_by(WalkthroughProgress.created_at)
+            )
+        ).all()
+    )
+    for wp in all_walkthrough:
+        user = users_by_id.get(wp.student_id)
+        state = wp.state or {}
+        walkthrough_sheet.append(
+            [
+                user.name if user else wp.student_id,
+                user.email if user else "",
+                user.reg_no if user else "",
+                wp.experiment_id,
+                wp.class_session_id,
+                wp.status,
+                state.get("step", wp.status),
+                "yes" if state.get("complete") else "no",
+                "yes" if state.get("revealed") else "no",
+                wp.created_at.isoformat(),
+                wp.updated_at.isoformat(),
             ]
         )
 
