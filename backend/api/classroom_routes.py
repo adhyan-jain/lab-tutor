@@ -143,6 +143,7 @@ async def list_experiments(
     students to populate their experiment selector.
     """
     from backend.scope.ontology import PRIORITY
+    from backend.socratic_engine.suggestions import guided_learning_available, starter_questions
 
     plugins = sorted(
         all_plugins(),
@@ -157,6 +158,8 @@ async def list_experiments(
                 "ready": p.is_ready,
                 "manual_reference": p.manual_reference,
                 "priority": PRIORITY.get(p.id, "P1"),
+                "suggestions": starter_questions(p.id),
+                "guided_learning": guided_learning_available(p.id),
             }
             for p in plugins
         ]

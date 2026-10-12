@@ -218,3 +218,42 @@ def next_after_answer(
 def summarise_state(states: ConceptStates) -> dict[str, str]:
     """Compact concept -> state map for telemetry."""
     return {cid: rec.state for cid, rec in states.records.items() if RANK[rec.state] > 0}
+
+
+#: A four-level ladder over the authored question types: recall what was
+#: seen, understand why, apply it to predict a consequence, analyse a pattern
+#: or a new case. A framework for choosing the next question, not a track
+#: every student is pushed through.
+LEVEL: dict[str, int] = {
+    "OBSERVATION": 1,  # recall
+    "WHY": 2,  # understanding
+    "PREDICTION": 3,  # application
+    "CONSEQUENCE": 3,
+    "INTERPRETATION": 4,  # analysis
+    "TRANSFER": 4,
+}
+LEVEL_NAMES = {1: "recall", 2: "understanding", 3: "application", 4: "analysis"}
+
+
+def deeper_question(
+    knowledge: ExperimentKnowledge,
+    question: ConceptQuestion,
+    rec: ConceptRecord,
+    available: "Callable[[ConceptQuestion], bool] | None" = None,
+) -> ConceptQuestion | None:
+    """After a CORRECT answer (all required ideas present, not just a keyword
+    or an option), the next unasked question on the same concept one level
+    up, lowest level first. None when there is nothing harder authored, so a
+    student is never re-asked or pushed past what exists."""
+    level = LEVEL.get(question.qtype, 1)
+    candidates = [
+        q
+        for q in knowledge.questions
+        if q.concept_id == question.concept_id
+        and q.id != question.id
+        and q.id not in rec.asked
+        and LEVEL.get(q.qtype, 1) > level
+        and (available is None or available(q))
+    ]
+    candidates.sort(key=lambda q: LEVEL.get(q.qtype, 1))
+    return candidates[0] if candidates else None

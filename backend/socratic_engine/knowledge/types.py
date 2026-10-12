@@ -125,6 +125,10 @@ class ExperimentKnowledge:
     # Final reasoning/transfer assessment, question ids in order.
     assessment: tuple[str, ...] = ()
     stages: tuple[Stage, ...] = ()
+    # Authored example questions shown in an empty chat so a student can see
+    # what to ask. Every one is a normal message: it goes through the same
+    # routing, scope and grounding as anything typed.
+    starter_questions: tuple[str, ...] = ()
     concept_by_id: dict[str, Concept] = field(default_factory=dict, compare=False)
     step_by_id: dict[str, StepKnowledge] = field(default_factory=dict, compare=False)
     misconception_by_id: dict[str, Misconception] = field(default_factory=dict, compare=False)
@@ -201,6 +205,7 @@ def build(
     questions: tuple[ConceptQuestion, ...],
     assessment: tuple[str, ...] = (),
     stages: tuple[Stage, ...] = (),
+    starter_questions: tuple[str, ...] = (),
 ) -> ExperimentKnowledge:
     # A stage is probed through the same policy as a checkpoint step, so it is
     # registered as one (not listed in `steps`, which map to the software script).
@@ -216,6 +221,7 @@ def build(
         questions=questions,
         assessment=assessment,
         stages=stages,
+        starter_questions=starter_questions,
         concept_by_id={c.id: c for c in concepts},
         step_by_id={**{s.step_id: s for s in steps}, **stage_steps},
         misconception_by_id={m.id: m for m in misconceptions},

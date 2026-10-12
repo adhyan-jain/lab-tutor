@@ -5,6 +5,472 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-11 — Compassionate tutoring, struggle-aware teaching, concise steps, temperature 0.5
+
+### Inspection findings
+
+- Student-facing generation goes through four system prompts (Q&A pipeline,
+  diagnosis phrasing, Socratic hints, Exp7 concept tutoring); quiz feedback
+  is authored text in `walkthrough/controller.py`. None described a tutoring
+  personality.
+- In a quiz, "I don't know" / "no idea" matched the "just tell me" pattern
+  and revealed the answer at once (`Here is the short version: ...`): the
+  exact behaviour the brief calls bad.
+- Struggle was only partly recognised (my earlier `is_confused`); the Q&A
+  path had no strategy change for "I still don't get it", and for Exp7 a
+  short follow-up reaches the model with no context, so it could not avoid
+  repeating itself.
+- Temperature: config 0.3; Vertex, hosted and Ollama send it; the OpenAI
+  backend sent no temperature at all. The configured model `gpt-5.6-luna` is a
+  reasoning family, whose API rejects a non-default temperature.
+- Practical steps: the one-step rule said "2 to 4 short sentences" and "give
+  all [dialog settings] in that one step", which invited inline explanations of
+  every ORCA keyword.
+
+### Changes
+
+- `rag/phrasing.py`: shared `TUTOR_PERSONA` (patient senior-to-junior
+  voice; warmth matched to the moment, none on ordinary factual questions;
+  change approach instead of repeating; varied wording; honest, never calling
+  a wrong answer right or claiming unshown mastery; direct answer when asked;
+  pausing respected; emojis at most rarely). Appended to all four prompts,
+  next to the English-only rule. No extra model call.
+- `socratic_engine/conversation.py`: `difficulty_kind` (uncertain /
+  confused / repeat / overwhelmed / frustrated) for short messages about the
+  student, English, Hinglish and Devanagari; ordinary questions, answers and
+  "thanks" are not matched, and messages over 14 words never are.
+  `is_pause_request` ("I want to pause", "can we stop for now", "let's take a
+  break") pauses like the Pause chip.
+- `retrieval/pipeline.py`: a per-message `SUPPORT` line per difficulty kind
+  (e.g. "repeat": do not repeat your last explanation, use a different
+  approach; "overwhelmed": one manageable starting point only). For anything
+  but plain uncertainty, the tutor's own last message is supplied so it can
+  avoid repeating itself (tutor text only, no student turn added). Practical
+  steps: the action in 1-3 short sentences, no inline explanation of
+  keywords, a required keyword line once in its own code block and not
+  repeated, keywords explained when asked or when a mistake is likely.
+- `walkthrough/controller.py`: struggle (including "I don't know") is
+  handled before the reveal: first a reassuring opener, the concept in simple
+  terms and an easier way into the same question, ungraded; if it still has
+  not clicked, the reasoning worked through. Explicit "just tell me" still
+  reveals. Openers are authored, honest and rotated (`_UNSURE_OPENERS`,
+  `_MISCONCEPTION_OPENERS`, `_PARTIAL_OPENERS`, `_STRUGGLE_OPENERS`); a
+  concept's lab note is added only if it passes the phone-safety gate.
+  Pinned phrases ("come at it another way", "Here is the short version") are
+  kept inside the new wording.
+- `api/chat_routes.py`: a pause request gets "Of course, let's pause here"
+  and keeps the session (Resume chip); a struggling student in theory Q&A gets
+  help and two support chips ("Explain <concept> more simply", "... with a
+  simple example") instead of another reflection question.
+- `socratic_engine/theory.py`: `support_chips`.
+- `llm/client.py`, `config.py`, `.env.example` (and the local `.env`):
+  temperature 0.5 from `LABTUTOR_LLM_TEMPERATURE`. OpenAI now sends it, in
+  both the streaming and non-streaming request, unless the model is a
+  reasoning family (o1/o3/o4/gpt-5*), via `openai_accepts_temperature`.
+  Vertex, hosted and Ollama already sent it.
+- `tests/test_english_only.py`: the default-temperature assertion follows the
+  new product setting (0.3 -> 0.5).
+
+No frontend change was needed: chips use the existing rendering.
+
+### Tests
+
+New `backend/tests/test_compassionate_tutoring.py` (77): the persona is in
+all four prompts with the English rule; 19 difficulty phrasings (English,
+Hinglish, Devanagari) recognised and 8 ordinary messages not; pause wishes;
+cases 1-20 of the brief: "I don't know" normalised with a next step, wrong
+answers corrected without praise, partial acknowledged, repeated confusion
+switches to a worked explanation, overwhelm/frustration slow down ungraded
+with Pause offered, direct answer respected, repeated wrong answers change
+strategy, unrelated question keeps the quiz, plain factual question gets no
+SUPPORT line, each struggle kind gets its strategy, "explain again" sees the
+last explanation and no student turn, manual grounding and general-knowledge
+labelling intact, supportive replies streamed and saved in English for
+English/Hinglish/Devanagari/"in Hindi" (Hinglish first draft), no reflection
+stacked on a struggling student, pause keeps and resumes the session, help
+during an Exp8 practical never advances it, concise-step rules, OpenAI
+temperature sent for gpt-4o and not for gpt-5.6-luna (streaming and not),
+central setting used, no overpraise of a correct answer.
+
+### Results
+
+Backend via the guarded `.env` wrapper: full suite 2490 passed, 1 skipped, 17
+failed: the same 17 as clean `master`. (An intermediate run showed 4 new
+failures from tests that build `OpenAIBackend` without `__init__`; the helper
+now falls back to the central setting.) Related suites: 1006 passed before
+the last wording fix, then the affected files re-run green. Frontend
+unchanged this round.
+
+Representative authored replies were printed and read: "I don't know" ->
+"No problem at all, that's what we're here for." + simple terms + easier way
+in, then the worked reasoning; "This is too difficult." -> "That's fair, there
+is a lot here. Let's take just one small piece."; repeated wrong answers ->
+scaffold, then "Let's walk through it together".
+
+### Limitations
+
+- The configured OpenAI model (gpt-5.6-luna) is a reasoning family, so it
+  receives no temperature; 0.5 reaches gpt-4o-style models, Vertex, hosted and
+  Ollama. Tone there rests on the prompt, as intended.
+- Model-written tone was not sampled live (no paid calls); its behaviour is
+  steered by the persona and SUPPORT lines and checked by prompt contract,
+  while authored quiz feedback was checked directly.
+- Difficulty detection is a pattern list; unusual phrasings fall through to
+  normal handling.
+- "I give up" counts as frustration first (support, then the worked answer on
+  a second struggle message), not an immediate reveal.
+
+---
+
+## 2026-10-11 — Practical wording, stricter English check, adaptive follow-ups, practical tracker
+
+Builds on the entry below (same day, same uncommitted tree).
+
+### Inspection findings
+
+- The "the manual does not specify the exact Avogadro menu path" wording (an
+  Exp8 chair-conformer step) came from two answering-prompt rules in
+  `retrieval/pipeline.py` that told the model to "say plainly what the lab
+  material does not spell out" and, when a control's location is unknown, to
+  "say so once, plainly". Two authored lines in `walkthrough/exp07_script.py`
+  said the same ("The manual does not say ...").
+- The language backstop needed two distinct Roman-Hindi words, so natural
+  Hinglish such as "Geometry optimization karne se molecule ki energy minimum
+  hoti hai" (one such word plus particles) passed.
+- An adaptive engine already exists and is deterministic: authored questions
+  with regex answer keys, CORRECT/PARTIAL/MISCONCEPTION/UNCLEAR, a concept
+  state machine (UNKNOWN..MASTERED), question type chosen from the state,
+  probe/scaffold/explain follow-ups, skip, "just tell me", side questions
+  answered by Q&A with the question kept, pause (switching to theory) and
+  resume. It has authored content for Exp7 only. Gaps: no harder question after
+  a correct answer, confusion graded as a wrong answer, no hint or example
+  handling inside a question, pause/resume not offered as actions.
+- Practical state: numeric experiments advance a SocraticSession only on
+  verified data. Exp7/Exp8's step machine never advances by design
+  (ARCHITECTURE 2.1.1); Exp8's practical is taught by the model counting
+  "Step N" in its own text, with no backend progress. Exp7 in phone-only mode
+  (the default) has no practical steps. No tracker existed.
+
+### Changes
+
+Practical wording (no change to sequence or grading):
+
+- `pipeline.SYSTEM_PROMPT`: a gap is now handled as guidance ("you will read
+  this from your output", or one natural line pointing to the lab
+  instructor), with an explicit ban on saying "the manual does not specify";
+  for an unknown control location the step is still given as far as the
+  material supports, then "If you need help finding the right tool, ask your
+  lab instructor." The bans on inventing menu paths, button names, numbers or
+  facts are unchanged.
+- `exp07_script.py`: the two authored lines now point to the lab instructor
+  without mentioning the manual.
+
+English-only:
+
+- `rag/language.py`: unambiguous Roman-Hindi words (list extended), plus the
+  particles ka/ki/ke/se/ko/ne, which count only next to such a word (so "Ka",
+  "Ne" and "se" in English chemistry are never enough). Flagged: Devanagari,
+  two distinct words, or one word plus two particles. Checked against all 114
+  paragraphs of the manual and the Exp7 material: no false positive. The same
+  function drives the stream gate, the corrective retry and the fallbacks, so
+  every path gets the stricter check.
+
+Adaptive follow-ups (existing engine, still no model decision):
+
+- `pedagogy/policy.py`: `LEVEL` maps the authored question types onto
+  recall (OBSERVATION) -> understanding (WHY) -> application (PREDICTION,
+  CONSEQUENCE) -> analysis (INTERPRETATION, TRANSFER); `deeper_question`
+  picks the next unasked question on the same concept one level up.
+- `walkthrough/controller.py` (`_turn_concept`): a full CORRECT answer (all
+  required ideas, not a keyword or an option) in the guided key-ideas session
+  earns one harder question on the same idea, once per moment, never during
+  software steps or theory follow-ups; a hint request gives the authored
+  scaffold once without counting a miss; "I'm confused / I don't understand /
+  I'm stuck / samajh nahi aaya" gives the concept's authored description and
+  an easier way into the same question, ungraded; "Show an example" is
+  answered by grounded Q&A with a concept-named question (`side_query`) and
+  the question stays pending. Chips are contextual: hint (until used),
+  example, just tell me, skip, and Pause in a guided session.
+- `walkthrough/grader.py`: `is_confused`, `is_example_request` (requests,
+  not answers that say "for example").
+- `conversation.py`: Pause / "pause the quiz" / "end the session" pause the
+  session (never complete it); "Resume the key ideas" / "resume quiz" resume
+  it. Bare "stop" and "exit" are unchanged.
+- `api/chat_routes.py`: the paused reply offers "Resume the key ideas";
+  side questions and theory-mode example requests use the concept-named
+  query (`theory.example_query`).
+
+Practical progress tracker:
+
+- `socratic_engine/practical.py` (new): steps come from each experiment's own
+  authored, manual-confirmed StepSpecs. "verified" experiments (numeric):
+  progress is read from the thread's SocraticSession and moves only when the
+  engine verifies data. "self_report" (Exp8, and Exp7 outside phone-only):
+  the backend records a completion for the current step only, in the thread's
+  `ConversationState.practical_done`; a duplicate, stale or out-of-order
+  request is refused (409) and changes nothing. Exp7 in phone-only mode has
+  no tracker.
+- `api/chat_routes.py`: `GET /api/chat/threads/{id}/practical` and
+  `POST .../practical/complete` (owner-only; verified experiments refuse a
+  self-reported completion). No new table.
+- `frontend/components/PracticalTracker.tsx` (new), `ChatWorkspace.tsx`,
+  `lib/api.ts`, `globals.css`: a compact strip ("Step 2 of 4 · Ethane
+  energies") that expands to done / now / next with three actions. "I've
+  completed this step" posts (self-report) or sends the message through chat
+  (verified); "Explain this step" and "I'm stuck" are chat messages naming
+  the step. The strip shows only what the backend returns, re-reads after
+  every reply, and is per thread.
+
+Quiz state (`walkthrough_progress`, `ConversationState.pending`) and
+practical state (`practical_done`, SocraticSession) are separate fields; no
+code path writes both.
+
+### Tests
+
+- `backend/tests/test_adaptive_and_practical.py` (new, 38): ladder covers
+  all types; deeper questions are same-concept, higher, unasked; a full
+  session answered well completes, goes deeper at least once and never twice
+  in a row; partial -> scaffold, no mastery; wrong -> probe, then explain;
+  hint once, then a second attempt; five confusion phrasings simplified and
+  ungraded; example -> Q&A with the question kept; unrelated question not
+  graded; contextual chips; theory follow-ups never chain; pause/resume
+  phrasings; all authored adaptive text English; pause -> unrelated question
+  -> resume returns to the same question (API); tracker steps per experiment,
+  states, accept/duplicate/out-of-order/complete, refresh, thread scope,
+  ownership (404), experiment switch, chat messages never advance it,
+  verified experiments refuse self-report, quiz and practical independent,
+  tracker text English.
+- `backend/tests/test_student_feedback.py` (+16 since the entry below): the
+  practical wording rules, no "manual does not" in authored text, the five
+  language cases streamed and saved English for Exp7 and Exp8 (Exp8 asserts
+  the retry ran), an English practical step unchanged, natural Hinglish and
+  "ka ... se" flagged, "Ka"/"Ne" and B3LYP/B3P/CH4/O2 text not flagged.
+
+### Results
+
+Backend (local `.env` moved aside by a wrapper that refuses to start without
+it and always restores it; see "Note" below): full suite 2413 passed, 1
+skipped, 17 failed -- the same 17 that fail on clean `master` (router x4,
+chat_routes router-default x7, context cache x4, OpenAI provider x1,
+research export x1). No new failures. Tutoring suites (concept moments,
+realise, walkthrough controller/API, conversation flow, reflection routing,
+theory-first, phone-only, pedagogy): 413 passed before the new file.
+
+Frontend: `tsc --noEmit` clean, `next build` succeeds. Playwright against the
+production build, Chromium and WebKit: tracker 130 checks pass (320-1280px,
+no overflow, collapsed by default, states, accept, refusal leaves it
+unchanged, verified completion goes through chat, re-read after a reply,
+explain/stuck, hidden without a practical, quiz chips); the earlier 122
+feedback checks and 39 functional checks still pass.
+
+Note: an interrupted test run had left `.env` moved into the session's
+scratch folder; it was restored byte-identical to the last known-good copy
+before any further work, and all later runs use the guarded wrapper.
+
+### Limitations and follow-up
+
+- Adaptive questions exist only where questions are authored (Exp7). Exp8
+  has no knowledge module, so no Exp8 quiz; adding one means authoring
+  concepts, questions, answer keys and misconceptions for ethane/cyclohexane
+  and making the controller experiment-generic (it loads Exp7 directly).
+- Exp8 "completed" is the student's report, not verification; the model's
+  own "Step N" wording in Exp8 replies is not tied to the tracker.
+- Tracker step titles are the authored step keys ("Ethane energies",
+  "Delta g"), not separately written titles.
+- The tracker appears once a thread exists (after the first message).
+- A completion tapped while a reply is being generated could be overwritten
+  by that turn's state save; the UI disables the button while sending.
+- The language check is still a heuristic, not a guarantee.
+
+---
+
+## 2026-10-11 — Live-demo feedback: English output, discoverability, interactivity
+
+### Student feedback (first live demo, about 70 students)
+
+1. Replies sometimes appeared in Hindi/Hinglish, "particularly when network
+   issues occur".
+2. Students did not know what they could ask.
+3. They wanted the tutor to feel more interactive.
+
+### Findings (audit of the current tree, branch `master` @ `6533db8`)
+
+Already present and working: a shared `ENGLISH_ONLY_RULE` on the four
+student-facing prompts (Q&A pipeline, diagnosis phrasing, Socratic hints,
+Exp7 concept tutoring); a deterministic backstop `rag/language.looks_non_english`
+on the pipeline, Socratic hints and concept tutoring; temperature 0.3;
+overview, comparison and reflection-routing fixes with their tests; the mobile
+UI. No language-mirroring instruction remains anywhere.
+
+Gaps found:
+
+- **Root cause of "Hinglish with network issues".** The English check ran on
+  the *final* text only. With streaming, the student watched a Hinglish draft
+  arrive token by token; the server then replaced it with the extractive
+  fallback, whose lead is "I couldn't put together a full explanation just
+  now ... Please ask again in a moment". The student saw Hinglish followed by
+  what reads as a network failure. Real provider failures fall back to English
+  text (extractive or authored), so the network was not the cause; the
+  correlation came from that wording. No demo data is in the local database
+  (19 local messages), so this is established from the code path, not from
+  logs of the demo.
+- Diagnosis phrasing (`rag/phrasing.validate_output`) had no English check.
+- An internal stream error sent `str(exception)` to the student.
+- A phone that loses signal mid-stream can hang the request forever; a
+  dropped connection showed raw browser text ("Load failed") and restored the
+  question even when the server had already saved the reply (resending it
+  duplicated the Q&A).
+- A Devanagari question in a new Exp7 chat got the greeting: the "too short,
+  greet" check counted Latin tokens only.
+- Discoverability: the empty chat offered only Theory/Practical buttons.
+- General chemistry: a real-world question ("Where is methane commonly used?")
+  reached the model, but the system prompt forbids any fact not in the
+  passages, so it could only say the manual does not cover it.
+- Interactivity: Exp7 theory answers already end with one authored reflection
+  question (`theory.open_followup`); "quiz me" / "test my understanding"
+  already start the deterministic key-ideas session. Neither was visible.
+
+### Changes
+
+Language (no extra model call on a normal answer):
+
+- `rag/language.py`: more unambiguous Roman-Hindi function words;
+  `EnglishStreamGate` holds back the first 48 characters of a stream, then
+  forwards text until the text so far looks non-English, after which nothing
+  more is forwarded and one `reset` event is sent if anything was shown.
+- `api/chat_routes.py`: the SSE endpoint runs every stream through the gate;
+  internal errors become a fixed English `STREAM_ERROR_DETAIL` (the exception
+  is logged).
+- `retrieval/pipeline.py`: a non-English reply gets one corrective retry
+  (not streamed, "LANGUAGE CORRECTION" line); if that also fails, the English
+  extractive fallback with a neutral lead ("Here is the most relevant part of
+  the lab material for your question.") instead of the "just now" outage text.
+- `rag/phrasing.py`: `validate_output` rejects a non-English diagnosis
+  (template used); the shared rule now names headings, labels, summaries and
+  follow-up questions.
+- `api/chat_routes.py`: the new-chat greeting check counts words in any script.
+
+Reliability (frontend, existing retry framework untouched):
+
+- `lib/api.ts`: 90 s inactivity watchdog on the reply stream (AbortController,
+  reset on every chunk); network failures become `ApiError(0, ...)` with plain
+  English text; `reset` event type.
+- `ChatWorkspace.tsx`: `reset` clears the draft back to the typing indicator;
+  after a connection error the thread is reloaded and, if the server saved
+  the question and its reply, they are shown instead of offering a resend.
+
+Discoverability and interactivity:
+
+- `knowledge/types.py`, `knowledge/exp07.py`: authored `starter_questions`
+  (7 for Exp7). `socratic_engine/suggestions.py`: per-experiment starters
+  (generic ones where none are authored) and whether the guided key-ideas
+  session exists. `api/classroom_routes.py`: both returned with the
+  experiment catalogue (no extra request).
+- `ChatWorkspace.tsx` empty state: "What would you like to learn?", four
+  starter questions (full-width rows on phones, chips on desktop), then
+  "Or choose how to learn": Theory/Study, Practical/Experiment and, where
+  supported, "Test my understanding". Every button sends a normal message.
+- `theory.next_step_chips` + `chat_routes`: an Exp7 theory answer that
+  carries no reflection offers "Explain <concept> with a simple example",
+  "How does this experiment use <concept>?" and "Test my understanding". Each
+  names the concept (short Exp7 follow-ups reach the model without history)
+  and reads as a new request, so it is never graded against a pending
+  reflection. An answer with a reflection keeps only the reflection.
+
+General chemistry knowledge:
+
+- `pipeline.is_general_knowledge_request`: real-world / everyday / uses /
+  applications / "example of" questions, excluding anything about this
+  experiment's own software, steps, settings or output. Those get a
+  `GENERAL_KNOWLEDGE` line: established textbook knowledge allowed, labelled
+  once as general knowledge, never attributed to the manual, no uncertain
+  numbers. The system prompt's grounding rule is unchanged except for naming
+  this one exception. `AnswerResult.general_knowledge` -> message metadata ->
+  a small "Includes general chemistry knowledge, not from the lab manual"
+  note in `MessageBubble.tsx`. Citations still list only the material
+  actually supplied.
+
+No new dependency. No change to Tier 1, grading tolerances, the answer gate,
+walkthrough grading, authentication, rate limits or idempotency.
+
+### Datasets
+
+- `evaluation/exp07_dataset.json`: 14 cases added (e07-35..e07-48), same
+  schema plus the existing optional `notes`: Hinglish, Devanagari and mixed
+  inputs (kept on purpose: the rule is about output), explicit requests for a
+  Hindi/Hinglish reply, direct, detailed, comparison, real-world, guided,
+  understanding-check and follow-up-chip wording. Existing cases untouched.
+- `golden_dataset/category6_student_questions/cases.json`: new group
+  `c6j-multilingual-and-learning-requests` (11 questions), registered in
+  `test_student_questions.GROUP_EXPECTATIONS`, so every question runs through
+  the existing reply/outage/triage invariants.
+
+### Tests
+
+New `backend/tests/test_student_feedback.py` (60 tests, scripted model, no
+network): chemistry English and the whole Exp7 material are not flagged;
+Hindi/Hinglish/Devanagari are; the stream gate passes English through
+byte-for-byte, resets a draft that turns Hinglish, never shows Devanagari,
+flushes a short reply; a Hinglish reply is retried once and the English one
+wins; English costs one call; two violations give the neutral English
+fallback; a real outage still says so; six multilingual inputs end in
+English; diagnosis phrasing rejects Hinglish; end to end over SSE: reset sent
+and the draft never continues, Devanagari never shown, English stream
+unchanged, a mid-stream failure still ends in an English saved reply, an
+internal error shows the fixed English text and no exception detail;
+catalogue carries starters and guided availability; every Exp7 starter is
+answered through the normal path (comparison format and general-knowledge
+flag where expected); generic starters work for exp01; next-step chips are
+new requests, keep a pending reflection, appear only when no reflection is
+attached; a direct question is not turned into a quiz; "Test my
+understanding" starts the existing session with no model call; general-
+knowledge detection, prompt line, flag, unchanged grounding rule, no label
+without a model answer.
+
+### Results
+
+Backend, with the local `.env` moved aside (it sets `GPT=true` and a real
+key, which leak into tests that expect defaults):
+
+- Full suite: 2355 passed, 1 skipped, 17 failed. The unmodified `master`
+  (fresh worktree, same command) gives 2262 passed, 1 skipped and the same
+  17 failures: `test_chat_routes` x7 and `test_router` x4 (router default),
+  `test_context_cache` x4, `test_openai_provider` x1, and
+  `test_research_export` x1 (new on master since the last entry). No new
+  failures.
+- Related suites (English-only, overview, comparison, reflection routing,
+  theory-first, Exp7 content, retrieval pipeline, walkthrough API,
+  conversation flow): 317 passed before the new tests were added;
+  `test_student_questions.py`: 401 passed.
+
+Frontend: `tsc --noEmit` clean, `next build` succeeds. Playwright against the
+production build with a mocked `/api`, Chromium and WebKit: 122 checks pass
+(empty state at 320-1280px with no overflow, 44px starters, composer visible,
+light theme, starter click sends, exp01 generic starters, `reset` handling,
+dropped connection with and without a saved reply, server error text,
+general-knowledge note, chips send their text) and the earlier 39 functional
+checks still pass.
+
+### Limitations
+
+- The language check is a heuristic: Devanagari, or two distinct
+  unambiguous Roman-Hindi function words. A Hinglish reply avoiding those
+  words would pass; it is not a guarantee.
+- The first 48 characters of every streamed reply are held back (a fraction
+  of a second). A violation found after text was shown causes one visible
+  reset back to the typing indicator.
+- A corrective retry adds one model call, only when a reply fails the check.
+- General-knowledge answers rely on the model keeping to established facts;
+  they are labelled, never cited to the manual, and only enabled for
+  real-world/application questions.
+- Exp7 still sends no conversation history for messages of 7 words or fewer
+  (see the comparison-format entry); the chips name their concept for that
+  reason.
+- Not tested on a physical phone; the 90 s watchdog was tested by aborting
+  requests, not by a real signal loss.
+
+---
+
 ## 2026-10-08 — Mobile-first redesign of the student chat UI
 
 Frontend only. No backend, prompt, retrieval, API or chemistry change.

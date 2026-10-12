@@ -366,7 +366,7 @@ _OXYGEN = (
     ),
     WalkStep(
         id="x4_spin", chapter="oxygen", title="Charge, spin and SCF type for O2",
-        do="Keep **Charge** at 0. Now decide the **Spin multiplicity** yourself. If the dialog offers an unrestricted **SCF Type**, choose it. The manual does not say what to enter for oxygen, so confirm your choice with your demonstrator.",
+        do="Keep **Charge** at 0. Now decide the **Spin multiplicity** yourself. If the dialog offers an unrestricted **SCF Type**, choose it. Check your choice for oxygen with your lab instructor before you run it.",
         why="Ground-state O2 has two unpaired electrons with parallel spins, which is a triplet (multiplicity 3). A restricted setting pairs every electron, so it cannot describe those two.",
         evidence=_num("x4_e", "How many unpaired electrons does ground-state O2 have?", 2.0,
                       hint="Its two highest electrons occupy two different antibonding pi orbitals, one each.",
@@ -437,7 +437,7 @@ _TABLES = (
         why="Electrons cannot appear or disappear: added up over all atoms and shells, they must equal the molecule's electron count ({n_elec}). Plain 6-31G has no d functions, so a d of zero there is correct.",
         evidence=_report("t4_e", "What do all the s, p, d and f figures add up to?", "shells_total",
                          hint="Add every atom's s, p, d and f entries together."),
-        stuck="Not sure which block to read? The manual does not say which column; ask your demonstrator, and tell me what you are looking at.",
+        stuck="Not sure which block to read? Ask your lab instructor to point out the right column, and tell me what you are looking at.",
         ack="Row complete.",
     ),
 )

@@ -13,6 +13,7 @@ import {
   type UnifiedChatMessage,
 } from "@/lib/api";
 import { MessageBubble } from "./MessageBubble";
+import { PracticalTracker } from "./PracticalTracker";
 import { ChatIcon, CloseIcon, EditIcon, LightbulbIcon, MenuIcon, PlusIcon, SendIcon, TrashIcon } from "./Icons";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -40,6 +41,8 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const activeThreadRef = useRef<string | null>(null);
   const loadSeq = useRef(0);
   const sending = Boolean(sendingKeys[activeThreadId ?? "__new__"]);
+  // Bumped after each reply so the practical tracker re-reads the backend.
+  const [progressKey, setProgressKey] = useState(0);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   const [error, setError] = useState("");
@@ -402,6 +405,11 @@ export function ChatWorkspace({ me }: { me: Me }) {
               m.id === tempTutorId ? { ...m, content: m.content + event.text } : m
             )
           );
+        } else if (event.type === "reset") {
+          // The server dropped a draft it will not keep (e.g. not English);
+          // show "thinking" again until the saved reply arrives.
+          if (!isCurrent()) continue;
+          setMessages((prev) => prev.map((m) => (m.id === tempTutorId ? { ...m, content: "" } : m)));
         } else if (event.type === "done") {
           finalResult = {
             thread_id: event.thread_id,
@@ -443,7 +451,26 @@ export function ChatWorkspace({ me }: { me: Me }) {
       }
     } catch (e) {
       if (isCurrent()) {
-        setError(e instanceof ApiError ? e.message : String(e));
+        // A dropped connection can still mean the server finished and saved
+        // the reply. Check before offering a resend, so the same question is
+        // never answered (and stored) twice.
+        if (e instanceof ApiError && e.status === 0 && originThread) {
+          try {
+            const saved = await api.get<{ messages: UnifiedChatMessage[] }>(
+              `/api/chat/threads/${originThread}/messages`
+            );
+            const last = saved.messages[saved.messages.length - 1];
+            const asked = saved.messages[saved.messages.length - 2];
+            if (isCurrent() && last?.author === "tutor" && asked?.author === "student" && asked.content.trim() === text) {
+              setMessages(saved.messages);
+              return;
+            }
+          } catch {
+            // Still offline: fall through to the normal retry path.
+          }
+        }
+        if (!isCurrent()) return;
+        setError(e instanceof ApiError ? e.message : "Something went wrong. Please try again.");
         setMessages((prev) =>
           prev.filter((m) => m.id !== tempUserMsg.id && m.id !== tempTutorId)
         );
@@ -455,6 +482,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
         delete next[originKey];
         return next;
       });
+      setProgressKey((k) => k + 1);
     }
   };
 
@@ -465,6 +493,9 @@ export function ChatWorkspace({ me }: { me: Me }) {
     ? `/settings/classroom?classroom=${encodeURIComponent(activeClassroom.id)}`
     : "/settings/classroom";
   const selectedExp = experiments.find((e) => e.id === selectedExpId);
+  // Example questions for an empty chat, from the experiment catalogue (no
+  // extra request). Four fit a phone screen without pushing the actions away.
+  const starters = (selectedExp?.suggestions ?? []).slice(0, 4);
   // Faculty/admin test traffic is intentionally allowed without a live
   // session (backend/api/chat_routes.py resolves it as actor_type
   // FACULTY_TEST/ADMIN_TEST, not tied to a class session) -- only
@@ -720,6 +751,13 @@ export function ChatWorkspace({ me }: { me: Me }) {
           </div>
         )}
 
+        <PracticalTracker
+          threadId={activeThreadId}
+          refreshKey={progressKey}
+          disabled={sending || chatBlockedForStudent}
+          onSend={(text) => handleSend(text)}
+        />
+
         {/* Messages Container */}
         <div
           className="chat-scroll"
@@ -741,10 +779,29 @@ export function ChatWorkspace({ me }: { me: Me }) {
             // history. The student picks a path; the server keeps this
             // thread in "initial" mode until they do (or ask something).
             <div className="card empty-state">
-              <h2>Hi! What would you like to do today?</h2>
+              <h2>Hi! What would you like to learn?</h2>
               <p className="muted">
-                We&apos;re on <strong>{selectedExp?.title}</strong>. Study the theory behind it, or {selectedExpId === "exp07" ? "reason through its key ideas, one short question at a time." : "work through the experiment one step at a time."}
+                I can explain ideas, compare concepts
+                {selectedExp?.guided_learning ? " and test your understanding" : ""}. Ask in your own
+                words, or try one of these:
               </p>
+              {starters.length > 0 && (
+                <ul className="starter-list" aria-label="Suggested questions">
+                  {starters.map((q) => (
+                    <li key={q}>
+                      <button
+                        type="button"
+                        className="starter-btn"
+                        disabled={sending || chatBlockedForStudent}
+                        onClick={() => handleSend(q)}
+                      >
+                        {q}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="empty-label">Or choose how to learn</p>
               <div className="empty-actions">
                 <button className="btn btn-primary" disabled={sending || chatBlockedForStudent} onClick={() => handleSend("Theory / Study")}>
                   Theory / Study
@@ -752,10 +809,17 @@ export function ChatWorkspace({ me }: { me: Me }) {
                 <button className="btn btn-secondary" disabled={sending || chatBlockedForStudent} onClick={() => handleSend("Practical / Experiment")}>
                   Practical / Experiment
                 </button>
+                {selectedExp?.guided_learning && (
+                  <button className="btn btn-secondary" disabled={sending || chatBlockedForStudent} onClick={() => handleSend("Test my understanding")}>
+                    Test my understanding
+                  </button>
+                )}
               </div>
-              <p className="muted empty-hint">
-                <LightbulbIcon size={14} /> <em>Or just ask a question, or paste your readings (e.g. ecell=1.1) for a check.</em>
-              </p>
+              {!selectedExp?.guided_learning && (
+                <p className="muted empty-hint">
+                  <LightbulbIcon size={14} /> <em>You can also paste your readings (e.g. ecell=1.1) for a check.</em>
+                </p>
+              )}
             </div>
           ) : (
             messages.map((m, i) => {

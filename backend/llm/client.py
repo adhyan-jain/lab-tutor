@@ -524,6 +524,16 @@ def _is_retryable_openai_error(exc: BaseException) -> bool:
     return False
 
 
+#: Model families whose Chat Completions API rejects a non-default temperature
+#: (reasoning models). Every other OpenAI chat model receives the configured
+#: LABTUTOR_LLM_TEMPERATURE.
+_OPENAI_FIXED_TEMPERATURE_PREFIXES = ("o1", "o3", "o4", "gpt-5")
+
+
+def openai_accepts_temperature(model: str) -> bool:
+    return not (model or "").lower().startswith(_OPENAI_FIXED_TEMPERATURE_PREFIXES)
+
+
 class OpenAIBackend(LLMBackend):
     """OpenAI Chat Completions -- selected when `GPT=true`.
 
@@ -542,9 +552,9 @@ class OpenAIBackend(LLMBackend):
     prompt this backend receives is byte-identical to what Vertex would
     get -- prompt parity by construction, nothing OpenAI-specific in the
     content itself. `max_completion_tokens` replaces `max_tokens` and
-    `temperature` is left at the API default (reasoning-family models
-    reject a non-default value); `reasoning_effort` is passed only if
-    configured.
+    `temperature` is sent (LABTUTOR_LLM_TEMPERATURE) unless the model is a
+    reasoning family that rejects a non-default value (o1/o3/o4/gpt-5*);
+    `reasoning_effort` is passed only if configured.
     """
 
     name = "openai"
@@ -557,6 +567,7 @@ class OpenAIBackend(LLMBackend):
         self._timeout = settings.llm_timeout_seconds
         self._default_max_tokens = settings.llm_max_tokens
         self._reasoning_effort = settings.openai_reasoning_effort
+        self._temperature = settings.llm_temperature
         self._client = AsyncOpenAI(
             api_key=settings.openai_api_key or None, max_retries=0, timeout=self._timeout
         )
@@ -564,15 +575,25 @@ class OpenAIBackend(LLMBackend):
     def _configured(self) -> bool:
         return bool(self._client.api_key) and bool(self._model)
 
+    def _request_options(self) -> dict:
+        """Optional request parameters, each sent only where the model takes
+        it: reasoning_effort when configured, temperature unless the model is
+        a reasoning family that rejects a non-default value."""
+        kwargs: dict = {}
+        if getattr(self, "_reasoning_effort", ""):
+            kwargs["reasoning_effort"] = self._reasoning_effort
+        if openai_accepts_temperature(self._model):
+            temperature = getattr(self, "_temperature", None)
+            kwargs["temperature"] = get_settings().llm_temperature if temperature is None else temperature
+        return kwargs
+
     async def _generate(self, *, system: str, user: str, max_tokens: int):
         """The ONE place an OpenAI generation is retried -- mirrors
         `VertexBackend._generate`'s attempt/backoff/budget discipline."""
         settings = get_settings()
         started = time.monotonic()
         attempt = 0
-        kwargs: dict = {}
-        if self._reasoning_effort:
-            kwargs["reasoning_effort"] = self._reasoning_effort
+        kwargs = self._request_options()
         while True:
             attempt += 1
             telemetry.record_attempt(retry=attempt > 1)
@@ -613,9 +634,7 @@ class OpenAIBackend(LLMBackend):
         acquire a fresh slot here because _complete_streaming IS complete() for
         this request -- the slot keeps the stream counted against the cap.
         """
-        kwargs: dict = {}
-        if self._reasoning_effort:
-            kwargs["reasoning_effort"] = self._reasoning_effort
+        kwargs = self._request_options()
 
         started = time.monotonic()
         telemetry.record_call()

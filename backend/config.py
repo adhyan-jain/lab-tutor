@@ -89,10 +89,12 @@ class Settings(BaseSettings):
     llm_model: str = Field("", alias="LABTUTOR_LLM_MODEL")
     llm_timeout_seconds: float = Field(30.0, alias="LABTUTOR_LLM_TIMEOUT_SECONDS")
     llm_max_tokens: int = Field(1200, alias="LABTUTOR_LLM_MAX_TOKENS")
-    #: Low for consistent, instruction-following tutoring. It does not
-    #: control output language (the English-only prompt rule does), and the
-    #: OpenAI backend never sends it (reasoning models reject non-defaults).
-    llm_temperature: float = Field(0.3, alias="LABTUTOR_LLM_TEMPERATURE")
+    #: Moderate: some natural variation in the tutor's wording, still
+    #: consistent and instruction-following. It controls neither language nor
+    #: tone (the prompt rules do). Sent to every backend whose model accepts
+    #: it; OpenAI reasoning families (o1/o3/o4/gpt-5*) reject a non-default
+    #: value, so they never receive it (llm/client.py).
+    llm_temperature: float = Field(0.5, alias="LABTUTOR_LLM_TEMPERATURE")
     #: Caps how many LLM calls run at once, across every caller
     #: (Socratic chat, diagnostic phrasing, the Exp8 qualitative note).
     #: Found missing this session: nothing previously bounded this, so

@@ -1007,3 +1007,140 @@ button, a, summary, [role="button"] { touch-action: manipulation; } /* no double
 }
 .composer-input:focus-visible { outline: none; } /* the pill shows focus instead */
 .thread-main svg { flex-shrink: 0; }
+
+/* Empty chat: example questions and ways to learn (ChatWorkspace) ---------- */
+.starter-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.starter-btn {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-weak);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.starter-btn:hover:not(:disabled) { border-color: var(--accent); }
+.starter-btn:active:not(:disabled) { transform: scale(0.98); }
+.starter-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.empty-label {
+  margin: 18px 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.empty-label + .empty-actions { margin-top: 8px; }
+
+/* An answer that drew on general chemistry, not only the lab material. */
+.gk-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+@media (max-width: 768px) {
+  /* One question per row: easy to read and to tap on a narrow screen. */
+  .starter-list { flex-direction: column; align-items: stretch; }
+  .starter-btn { width: 100%; min-height: 44px; border-radius: 12px; font-size: 0.92rem; }
+  .empty-label { margin-top: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starter-btn { transition: none; }
+}
+
+/* Practical progress tracker (PracticalTracker) ------------------------------ */
+.practical {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.practical-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 20px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+.practical-summary:hover { background: var(--surface-hover); }
+.practical-label {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-weak);
+  border: 1px solid var(--accent-border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.practical-count { flex-shrink: 0; font-weight: 600; }
+.practical-now { min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.practical-chevron { margin-left: auto; color: var(--muted); transition: transform 0.15s ease; }
+.practical-summary[aria-expanded="true"] .practical-chevron { transform: rotate(180deg); }
+.practical-body { padding: 4px 20px 14px; max-height: 45vh; overflow-y: auto; }
+.practical-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.practical-step { display: flex; align-items: flex-start; gap: 10px; font-size: 0.85rem; }
+.practical-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.practical-step.is-completed .practical-mark { background: var(--success-weak); border-color: var(--success); color: var(--success); }
+.practical-step.is-current .practical-mark { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+.practical-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; padding-top: 2px; }
+.practical-title { font-weight: 500; }
+.practical-step.is-upcoming .practical-title { color: var(--muted); }
+.practical-step.is-current .practical-title { font-weight: 600; }
+.practical-state { font-size: 0.72rem; color: var(--muted); }
+.practical-step.is-current .practical-state { color: var(--accent-hover); font-weight: 600; }
+:root[data-theme="light"] .practical-step.is-current .practical-state { color: var(--accent); }
+.practical-detail { flex-basis: 100%; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+.practical-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.practical-actions .btn { min-height: 32px; padding: 6px 12px; }
+.practical-note { margin: 10px 0 0; font-size: 0.8rem; color: var(--warn); }
+
+@media (max-width: 768px) {
+  .practical-summary { padding: 8px 14px; }
+  .practical-label { display: none; }
+  .practical-body { padding: 4px 14px 12px; }
+  .practical-actions { flex-direction: column; }
+  .practical-actions .btn { width: 100%; min-height: 44px; font-size: 0.9rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practical-chevron { transition: none; }
+}

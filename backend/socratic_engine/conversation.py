@@ -95,7 +95,18 @@ _EXIT_RE = re.compile(
 
 _GUIDED_RE = re.compile(
     r"\b(?:guide|walk|take)\s+me\s+through\s+(?:the\s+)?(?:key\s+|main\s+)?(?:ideas|concepts)\b"
-    r"|\b(?:quiz|test)\s+me\b|\btest\s+my\s+understanding\b",
+    r"|\b(?:quiz|test)\s+me\b|\btest\s+my\s+understanding\b"
+    r"|\b(?:resume|continue)\s+(?:the\s+|my\s+)?(?:key[- ]ideas|quiz)(?:\s+session)?\b",
+    re.IGNORECASE,
+)
+
+# Pausing or ending the guided key-ideas session (or quiz) without answering
+# more. Handled exactly like leaving it for theory: the session is paused,
+# never marked complete, and "resume the key ideas" brings it back.
+_PAUSE_RE = re.compile(
+    r"^\s*pause(?:\s+(?:the\s+|this\s+|my\s+)?(?:quiz|session|key[- ]ideas(?:\s+session)?))?\s*[.!]*\s*$"
+    r"|\b(?:pause|stop|end|exit|quit)\s+(?:the\s+|this\s+|my\s+)?(?:quiz|key[- ]ideas(?:\s+session)?)\b"
+    r"|\b(?:pause|end)\s+(?:the\s+|this\s+)?session\b",
     re.IGNORECASE,
 )
 
@@ -213,6 +224,67 @@ def is_missing_ui(text: str) -> bool:
     return bool(_MISSING_UI_RE.search(text or ""))
 
 
+# --------------------------------------------------- learning difficulty
+
+# The student telling us how the learning is going, as opposed to asking a
+# chemistry question or attempting an answer. Deterministic; English, Hinglish
+# and Devanagari input (replies are always English). Only short messages that
+# are ABOUT the student count, so an attempt such as "I don't know exactly, but
+# staggered is lower because the bonds are further apart" is still graded.
+_LEAD = r"^\s*(?:(?:and|also|ok|okay|so|but|sorry|hmm+|umm*|bhai|bro|yaar|sir|ma.?am|honestly|actually)\b[\s,.!]*)*"
+_DIFFICULTY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("frustrated", re.compile(
+        r"(?:getting|got|get)\s+(?:everything|it all|all of (?:it|this|them)|every(?:thing| one| question))\s+wrong"
+        r"|keep\s+getting\s+(?:it|this|them|everything)\s+wrong|\bi\s+can'?t\s+do\s+(?:this|it|anything)\b"
+        r"|\bi\s+give\s+up\b|\bi'?m\s+(?:so\s+|really\s+)?(?:bad|terrible|hopeless|useless|stupid|dumb)\s+at\b"
+        r"|\b(?:mujhse|mujh\s*se)\s+nahi\s+ho(?:ga|ta)\b", re.I)),
+    ("overwhelmed", re.compile(
+        r"(?:not|don'?t|do not|can'?t)\s+understand(?:ing)?\s+anything|understand\s+nothing"
+        r"|\b(?:this|it|the)\s+(?:experiment\s+|topic\s+|chapter\s+)?(?:is\s+)?(?:way\s+|too\s+|so\s+)(?:difficult|hard|complicated|much)\b"
+        r"|\btoo\s+(?:difficult|hard|complicated)\b|\boverwhelm(?:ed|ing)\b|\bkuch\s+(?:bhi\s+)?samajh\s+nahi"
+        r"|कुछ\s+(?:भी\s+)?समझ\s+नहीं", re.I)),
+    ("repeat", re.compile(
+        _LEAD + r"(?:(?:can|could)\s+you\s+)?(?:explain|say|go\s+(?:through|over))\s+(?:it|that|this)\s+again\b"
+        r"|\bstill\s+(?:don'?t|do not|can'?t)\s+(?:get|understand|follow)\b|\bone\s+more\s+time\b"
+        r"|\b(?:dobara|phir\s+se)\s+(?:samjha|bata|explain)\w*|^\s*again\s*\??\s*$", re.I)),
+    ("confused", re.compile(
+        _LEAD + r"(?:i'?m|i\s+am)\s+(?:so\s+|really\s+|a\s+bit\s+|kind\s+of\s+|totally\s+)?(?:confused|lost|stuck)\b"
+        r"|" + _LEAD + r"i\s+(?:don'?t|do\s+not|didn'?t|did\s+not)\s+(?:get|understand|follow)\b"
+        r"|\bsam\w*\s+nahi(?:\s+a+ya)?\b|समझ\s+नहीं|^\s*(?:what|huh)\s*\?+\s*$"
+        r"|\b(?:explain|say)\s+(?:[\w-]+\s+){0,4}?(?:more\s+)?simpl(?:y|er)\b|\bin\s+simpler\s+words\b", re.I)),
+    ("uncertain", re.compile(
+        _LEAD + r"(?:i\s+|i'?m\s+|i\s+am\s+)?(?:(?:really\s+|honestly\s+)?(?:don'?t|do\s+not|dont)\s+know|not\s+sure|no\s+idea|idk|dunno|have\s+no\s+(?:idea|clue))\b"
+        r"|\b(?:pata\s+nahi|nahi\s+pata|malum\s+nahi)\b|पता\s+नहीं|नहीं\s+पता|मालूम\s+नहीं", re.I)),
+)
+#: Longer messages are questions or attempts, not statements about the student.
+DIFFICULTY_MAX_WORDS = 14
+
+
+def difficulty_kind(text: str) -> str | None:
+    """"frustrated" | "overwhelmed" | "repeat" | "confused" | "uncertain", or
+    None. A short message only: never every short message, never a question
+    about chemistry ("What is a basis set?") or an attempted answer."""
+    t = (text or "").strip()
+    if not t or len(t.split()) > DIFFICULTY_MAX_WORDS:
+        return None
+    for kind, pattern in _DIFFICULTY_PATTERNS:
+        if pattern.search(t):
+            return kind
+    return None
+
+
+_PAUSE_WISH_RE = re.compile(
+    r"\b(?:i\s+(?:want|would like|wanna|need)\s+to|can\s+we|could\s+we|let'?s|lets)\s+"
+    r"(?:pause|stop(?:\s+(?:now|here|for\s+now))?|take\s+a\s+break|continue\s+later|finish\s+later)\b",
+    re.IGNORECASE,
+)
+
+
+def is_pause_request(text: str) -> bool:
+    """Asking to stop for now: honoured, never treated as failure."""
+    return bool(_PAUSE_RE.search(text or "") or _PAUSE_WISH_RE.search(text or ""))
+
+
 def classify(text: str) -> Intent:
     """One intent per message, most specific first. A message that names a
     destination ("...I want to study theory") is a switch even when it also
@@ -220,6 +292,8 @@ def classify(text: str) -> Intent:
     t = (text or "").strip()
     if not t:
         return Intent.ANSWER
+    if _PAUSE_RE.search(t) or _PAUSE_WISH_RE.search(t):
+        return Intent.SWITCH_TO_THEORY
     if _GUIDED_RE.search(t):
         return Intent.GUIDED_CONCEPTS
     if _THEORY_RE.search(t) or _EXIT_RE.search(t):
@@ -266,6 +340,9 @@ ACTIONS: dict[str, str] = {
     "skip_concept": "Skip this question",
     "resume": "Resume",
     "resume_previous": "Resume previous session",
+    "example": "Show an example",
+    "pause_session": "Pause",
+    "resume_key_ideas": "Resume the key ideas",
 }
 
 #: Which intent each action expresses. Two actions with the same intent are
@@ -282,6 +359,8 @@ ACTION_INTENT: dict[str, Intent] = {
     "why": Intent.USER_REQUESTED_EXPLANATION,
     "different": Intent.TROUBLESHOOTING,
     "skip": Intent.STEP_SKIPPED,
+    "pause_session": Intent.SWITCH_TO_THEORY,
+    "resume_key_ideas": Intent.GUIDED_CONCEPTS,
 }
 
 
@@ -373,6 +452,10 @@ class ConversationState:
     #: a new chat starts with neither.
     concepts: dict[str, Any] = field(default_factory=dict)
     pending: dict[str, Any] | None = None
+    #: Self-reported practical progress for THIS thread (socratic_engine/
+    #: practical.py): how many of the experiment's steps the student has
+    #: marked done, in order. Separate from the quiz state above.
+    practical_done: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

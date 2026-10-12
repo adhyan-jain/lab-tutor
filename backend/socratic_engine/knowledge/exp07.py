@@ -425,4 +425,18 @@ ASSESSMENT = (
     "q_transfer_opt", "q_transfer_orbitals",
 )
 
-KNOWLEDGE = build("exp07", CONCEPTS, STEPS, MISCONCEPTIONS, QUESTIONS, ASSESSMENT, STAGES)
+# Shown in an empty chat. Theory first (the class has phones, not lab PCs),
+# one comparison and one real-world question so students see those work too.
+STARTER_QUESTIONS = (
+    "Why do we optimize molecular geometry?",
+    "What are HOMO and LUMO?",
+    "How do B3LYP and B3P differ?",
+    "Where is methane commonly used in real life?",
+    "What is a basis set?",
+    "What does the HOMO-LUMO gap tell us?",
+    "What is Gabedit used for?",
+)
+
+KNOWLEDGE = build(
+    "exp07", CONCEPTS, STEPS, MISCONCEPTIONS, QUESTIONS, ASSESSMENT, STAGES, STARTER_QUESTIONS
+)

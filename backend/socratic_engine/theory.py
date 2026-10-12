@@ -111,6 +111,45 @@ def guard_answer(text: str, message: str, *, strict: bool = False) -> str:
     )
 
 
+def next_step_chips(message: str) -> list[str]:
+    """Next steps offered after a theory answer that carries no reflection:
+    a worked example, the concept's role in the experiment, and an explicit
+    understanding check. Each names the concept, so it is a self-contained
+    question when tapped (short follow-ups reach the model without history),
+    and each reads as a new request, so it is never graded as an answer to a
+    reflection that is still pending.
+    "Test my understanding" starts the existing key-ideas session; nothing
+    starts on its own. Empty if the message maps to no known concept."""
+    cid = concept_for_message(message)
+    if cid is None:
+        return []
+    name = get_knowledge(EXPERIMENT_ID).concept_by_id[cid].name
+    # "Geometry optimization" -> "geometry optimization"; "HOMO", "DFT" stay.
+    first = name.split()[0]
+    term = name if first.isupper() else name[0].lower() + name[1:]
+    return [
+        f"Explain {term} with a simple example",
+        f"How does this experiment use {term}?",
+        "Test my understanding",
+    ]
+
+
+def _term(cid: str) -> str:
+    name = get_knowledge(EXPERIMENT_ID).concept_by_id[cid].name
+    # "Geometry optimization" -> "geometry optimization"; "HOMO", "DFT" stay.
+    return name if name.split()[0].isupper() else name[0].lower() + name[1:]
+
+
+def support_chips(message: str) -> list[str]:
+    """For a student who said they are struggling: two other ways into the
+    same idea, each naming the concept so it stands on its own when tapped."""
+    cid = concept_for_message(message)
+    if cid is None:
+        return []
+    term = _term(cid)
+    return [f"Explain {term} more simply", f"Explain {term} with a simple example"]
+
+
 def fallback_explanation(message: str) -> str | None:
     """A short, authored, phone-safe explanation of the concept the student
     asked about, for when no model answer is available. Better than showing an
@@ -212,6 +251,19 @@ def handle_pending(conv_state: conv.ConversationState, message: str) -> TheoryTu
     conv_state.pending = ws.concept if ws.phase == "concept" else None
     ui = {**result.ui, "kind": "theory_followup"}
     return TheoryTurn(result.reply, ui, result.events, result.realise)
+
+
+def example_query(conv_state: conv.ConversationState, message: str) -> str | None:
+    """"Show an example" while a follow-up is pending names no topic of its
+    own: the self-contained question to answer instead, about the pending
+    question's concept. The follow-up stays pending. None otherwise."""
+    pending = conv_state.pending or {}
+    if not pending or not grader.is_example_request(message):
+        return None
+    concept = get_knowledge(EXPERIMENT_ID).concept_by_id.get(pending.get("concept_id", ""))
+    if concept is None:
+        return None
+    return f"Give a simple example of {concept.name} and how it relates to this experiment."
 
 
 def apply_advisory(conv_state: conv.ConversationState, concept_id: str, suggested: str) -> str:

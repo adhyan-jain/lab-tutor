@@ -104,5 +104,5 @@ async def test_any_input_language_gets_an_english_only_prompt_and_reply(backend,
     assert not _DEVANAGARI.search(result.text)
 
 
-def test_default_temperature_is_low_for_consistent_tutoring():
-    assert Settings.model_fields["llm_temperature"].default == 0.3
+def test_default_temperature_is_moderate_for_consistent_but_natural_tutoring():
+    assert Settings.model_fields["llm_temperature"].default == 0.5

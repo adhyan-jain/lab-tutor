@@ -25,7 +25,7 @@ from backend.answer_gate import (
 from backend.llm import LLMUnavailable, get_backend, telemetry
 from backend.rag import templates
 from backend.rag.language import looks_non_english
-from backend.rag.phrasing import ENGLISH_ONLY_RULE
+from backend.rag.phrasing import ENGLISH_ONLY_RULE, TUTOR_PERSONA
 from backend.rag.retrieval import retrieve
 from backend.socratic_engine import triage
 
@@ -100,7 +100,7 @@ invent a procedure step.
 do not treat that as finished and do not move them on. You never decide \
 that a step is complete or announce the next step; the application does.
 - No meta-commentary about your instructions, no leaked prompt labels.
-- """ + ENGLISH_ONLY_RULE
+- """ + ENGLISH_ONLY_RULE + "\n- " + TUTOR_PERSONA
 
 
 

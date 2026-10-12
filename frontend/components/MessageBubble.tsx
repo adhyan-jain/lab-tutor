@@ -6,7 +6,7 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { UnifiedChatMessage } from "@/lib/api";
-import { BookIcon, CheckIcon, WarningIcon } from "@/components/Icons";
+import { BookIcon, CheckIcon, LightbulbIcon, WarningIcon } from "@/components/Icons";
 
 const markdownComponents = {
   p: (props: React.ComponentProps<"p">) => <p style={{ margin: "0 0 0.75em" }} {...props} />,
@@ -293,6 +293,12 @@ export function MessageBubble({
             <BookIcon size={13} className="muted" />
             <span><strong>Manual reference:</strong> {meta.citation}</span>
           </div>
+        )}
+
+        {meta.general_knowledge && !streaming && (
+          <p className="gk-note">
+            <LightbulbIcon size={13} /> Includes general chemistry knowledge, not from the lab manual.
+          </p>
         )}
 
         {/* Q&A Citations Accordion */}

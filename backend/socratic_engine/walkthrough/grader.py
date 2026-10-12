@@ -163,6 +163,38 @@ def is_new_request(text: str) -> bool:
     return bool(_NEW_REQUEST_RE.search(text or "")) and not wants_answer(text) and not is_skip(text)
 
 
+# The student says they are lost, rather than attempting an answer. Matched as
+# a statement about themselves, so an answer that merely contains "confusing"
+# ("the boat is confusing to build but the chair is lower") is still graded.
+_CONFUSED_RE = re.compile(
+    _FILLER_LEAD
+    + r"(?:i(?:'m| am)\s+(?:so\s+|really\s+|a bit\s+|kind of\s+)?(?:confused|lost|stuck)"
+    r"|i\s+(?:still\s+)?(?:don'?t|do not|didn'?t|did not)\s+(?:get|understand|follow)(?:\s+(?:it|this|that|the question))?"
+    r"|(?:this|that|it)(?:'s| is)\s+(?:too\s+)?(?:confusing|hard|difficult)"
+    r"|(?:can you\s+)?(?:explain|say)\s+(?:it|that|this)\s+(?:more\s+)?simpl(?:y|er)"
+    r"|(?:make it|in)\s+simpler(?:\s+words)?|sam\w*\s+nahi(?:\s+a+ya)?)"
+    r"\b[\s.!?]*$",
+    re.IGNORECASE,
+)
+
+# A request for an example, as a request (not an answer that uses "for example").
+_EXAMPLE_RE = re.compile(
+    _FILLER_LEAD
+    + r"(?:(?:can|could) you\s+)?(?:give|show|tell)\s+(?:me\s+)?(?:an?|another|one more|some)?\s*"
+    r"(?:simple\s+|real[- ]world\s+|everyday\s+)?examples?\b"
+    r"|^\s*(?:an?\s+|another\s+)?(?:simple\s+)?examples?\s*(?:please|pls)?\s*[?.!]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def is_confused(text: str) -> bool:
+    return bool(_CONFUSED_RE.search(text or ""))
+
+
+def is_example_request(text: str) -> bool:
+    return bool(_EXAMPLE_RE.search(text or ""))
+
+
 def is_side_question(text: str) -> bool:
     """A real question, as opposed to a short answer that happens to end in
     "?" ("tetrahedral?"). Only these are handed to the grounded Q&A path."""

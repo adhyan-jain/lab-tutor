@@ -57,7 +57,7 @@ from backend.models import (
 from backend.config import get_settings
 from backend.pipeline import run_diagnosis
 from backend.socratic_engine import conversation
-from backend.socratic_engine import procedure, theory
+from backend.socratic_engine import practical, procedure, theory
 from backend.socratic_engine.realise import realise_turn
 from backend.socratic_engine.walkthrough import controller as walkthrough_controller
 from backend.socratic_engine.walkthrough import grader
@@ -65,6 +65,7 @@ from backend.socratic_engine.walkthrough import service as walkthrough_service
 from backend.retrieval.pipeline import QUALITATIVE_EXPERIMENTS, answer_question
 from backend.llm import telemetry as llm_telemetry
 from backend.llm.client import _stream_queue
+from backend.rag.language import EnglishStreamGate
 from backend.router import RouterMode, route_message
 from backend.scope import ontology
 from backend.socratic_engine import (
@@ -81,6 +82,12 @@ from backend.tier1_compute.experiments import (
 )
 
 log = logging.getLogger(__name__)
+
+#: What a student sees when the reply could not be produced for an internal
+#: reason. Plain English, no exception text (that goes to the log).
+STREAM_ERROR_DETAIL = (
+    "Something went wrong while preparing the reply. Please send your question again."
+)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
@@ -393,13 +400,24 @@ async def _conversation_turn_phone(
         if row is not None and row.status == "active":
             wstate = walkthrough_service.pause(row)
             _, label = walkthrough_controller.topic_for(wstate)
-            paused = f' I have paused the key-ideas session at **{label}**; say "guide me through the key ideas" to carry on from there.'
+            paused = f' I have paused the key-ideas session at **{label}**; tap "Resume the key ideas" (or say so) to carry on from there.'
         state.switch(Mode.THEORY, "student asked for theory")
+        if conversation.is_pause_request(message):
+            # Stopping for now is the student's call: no pressure, nothing lost.
+            back = (
+                f"I have saved where you were (**{label}**); tap \"Resume the key ideas\" whenever you're ready."
+                if paused
+                else "Whenever you're ready, just ask me anything."
+            )
+            return _mode_reply(
+                f"Of course, let's pause here. {back}",
+                state, ["resume_key_ideas"] if paused else [], "pause",
+            ), False
         if theory.has_substance(message):
             return None, False  # "forget the steps, explain why X": answer X now
         return _mode_reply(
             f"Sure, let's work on the ideas.{paused}\n\nWhat would you like to understand?",
-            state, ["guide_concepts"], "to theory",
+            state, ["resume_key_ideas" if paused else "guide_concepts"], "to theory",
         ), False
 
     # 2. A guided key-ideas session, only when asked for.
@@ -434,7 +452,9 @@ async def _conversation_turn_phone(
             return _mode_reply(
                 conversation.help_opener_text(title, conceptual=True), state, ["theory", "practice"], "help opener"
             ), False
-        if len(grader._tokens(message)) <= 3 and intent is Intent.ANSWER:
+        # Words in any script: a Devanagari question has few Latin tokens but
+        # is still a question, not a "hi".
+        if len(message.split()) <= 3 and intent is Intent.ANSWER:
             state.clarify_count += 1
             text = (
                 conversation.greeting_text(title, conceptual=True)
@@ -499,7 +519,7 @@ async def _conversation_turn(
                 ),
                 state, ["theory", "practice"], "help opener",
             ), False
-        if len(grader._tokens(message)) <= 3 and intent is Intent.ANSWER:
+        if len(message.split()) <= 3 and intent is Intent.ANSWER:
             # "hi", "ok": nothing to act on yet -- greet, but never repeat
             # the exact same menu twice in a row.
             state.clarify_count += 1
@@ -598,6 +618,67 @@ async def create_thread(
         "created_at": thread.created_at.isoformat(),
         "updated_at": thread.updated_at.isoformat(),
     }
+
+
+async def _owned_thread(db: AsyncSession, principal: Principal, thread_id: str) -> ChatThread:
+    """A thread the caller owns, or 404 (never another user's thread)."""
+    thread = (
+        await db.scalars(
+            select(ChatThread).where(ChatThread.id == thread_id, ChatThread.user_id == principal.id)
+        )
+    ).first()
+    if thread is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat thread not found")
+    return thread
+
+
+async def _practical_payload(db: AsyncSession, principal: Principal, thread: ChatThread) -> dict:
+    state = conversation.ConversationState.from_dict(thread.state)
+    session = await _thread_socratic_session(db, principal, state)
+    return practical.tracker(
+        thread.experiment_id,
+        practical_done=state.practical_done,
+        session_step=session.current_step if session is not None else None,
+        session_complete=bool(session is not None and session.all_steps_complete),
+    )
+
+
+@router.get("/threads/{thread_id}/practical")
+async def get_practical_progress(
+    thread_id: str,
+    principal: Principal = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """This thread's practical progress (read-only; see socratic_engine/practical.py)."""
+    thread = await _owned_thread(db, principal, thread_id)
+    return await _practical_payload(db, principal, thread)
+
+
+class PracticalCompleteRequest(BaseModel):
+    #: The step the student is completing, as shown to them. Must be the
+    #: current step, so a double tap or a stale page cannot advance twice.
+    step_index: int = Field(ge=0)
+
+
+@router.post("/threads/{thread_id}/practical/complete")
+async def complete_practical_step(
+    thread_id: str,
+    body: PracticalCompleteRequest,
+    principal: Principal = Depends(current_user),
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Record a self-reported step completion (Exp8-style experiments only).
+    Verified experiments advance only through the chat, when the engine has
+    checked the reported data; this endpoint refuses them."""
+    thread = await _owned_thread(db, principal, thread_id)
+    state = conversation.ConversationState.from_dict(thread.state)
+    try:
+        practical.record_completion(state, thread.experiment_id, body.step_index)
+    except practical.CompletionRejected as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    thread.state = state.to_dict()
+    await db.commit()
+    return await _practical_payload(db, principal, thread)
 
 
 @router.get("/threads/{thread_id}/messages")
@@ -1220,7 +1301,7 @@ async def _process_message(
         # answer, then a code-written line that brings the student back.
         side_history = f"{history_text}\n[{walkthrough_controller.step_context(wt_turn.state)}]".strip()
         result = await answer_question(
-            body.message, active_experiment=experiment_id, conversation_history=side_history
+            wt_turn.side_query or body.message, active_experiment=experiment_id, conversation_history=side_history
         )
         reply_text = result.text + wt_turn.resume_line
         msg_kind = ChatMessageKind.QA
@@ -1231,6 +1312,7 @@ async def _process_message(
                 {"text": c.text, "page": c.page, "tier": c.tier.value} for c in result.citations
             ],
             "answer_source": result.answer_source,
+            **({"general_knowledge": True} if result.general_knowledge else {}),
             "intent": intent.value,
             "walkthrough": wt_turn.events,
             **_llm_meta(result.latency_ms, result.prompt_tokens, result.completion_tokens),
@@ -1260,6 +1342,9 @@ async def _process_message(
             socratic_session = await _thread_socratic_session(db, principal, conv_state)
         # A bare "explain this" after leaving a step is about that step.
         qa_message = body.message
+        if phone07 and theory_mode:
+            # "Show an example" during a pending follow-up: about that concept.
+            qa_message = theory.example_query(conv_state, body.message) or qa_message
         if theory_mode and conv_state.topic and _DEICTIC_RE.search(qa_message) and len(qa_message.split()) <= 12:
             qa_message = f"{qa_message} (about: {conv_state.topic})"
 
@@ -1402,6 +1487,7 @@ async def _process_message(
                             for c in result.citations
                         ],
                         "answer_source": result.answer_source,
+                        **({"general_knowledge": True} if result.general_knowledge else {}),
                         "intent": intent.value,
                         **_llm_meta(
                             result.latency_ms, result.prompt_tokens, result.completion_tokens
@@ -1414,11 +1500,23 @@ async def _process_message(
                     ):
                         # Theory stays Socratic: ONE authored, state-aware, phone-safe
                         # question about the concept just discussed (no extra model call).
-                        follow = theory.open_followup(conv_state, body.message)
+                        # A struggling student gets help, not another question.
+                        struggling = conversation.difficulty_kind(body.message) is not None
+                        follow = None if struggling else theory.open_followup(conv_state, body.message)
                         if follow is not None:
                             reply_text = f"{reply_text}\n\n{follow.reply}"
                             meta["ui"] = follow.ui
                             meta["walkthrough"] = follow.events
+                        elif result.answer_source == "llm":
+                            # No reflection this turn: offer next steps about the same
+                            # concept instead (authored text, sent like typed input).
+                            chips = (
+                                theory.support_chips(body.message)
+                                if struggling
+                                else theory.next_step_chips(body.message)
+                            )
+                            if chips:
+                                meta["ui"] = {"kind": "theory", "chips": chips}
             elif (
                 router_decision.mode is RouterMode.DIAGNOSTIC
                 and plugin is not None
@@ -1491,6 +1589,7 @@ async def _process_message(
                         for c in result.citations
                     ],
                     "answer_source": result.answer_source,
+                    **({"general_knowledge": True} if result.general_knowledge else {}),
                     "intent": intent.value,
                     "router_mode": router_decision.mode.value,
                     **_llm_meta(result.latency_ms, result.prompt_tokens, result.completion_tokens),
@@ -1622,6 +1721,7 @@ async def send_message_stream(
         except HTTPException as exc:
             result_holder["http_err"] = exc
         except Exception as exc:
+            log.exception("Chat stream worker failed")
             result_holder["err"] = exc
         finally:
             await queue.put(None)  # sentinel — signals end of token stream
@@ -1629,12 +1729,23 @@ async def send_message_stream(
     task = asyncio.create_task(worker())
 
     async def events():
+        # A non-English draft is never shown while it is being replaced: the
+        # gate holds the stream, and a `reset` tells the browser to drop what it
+        # already displayed and wait for the saved reply in `done`.
+        gate = EnglishStreamGate()
         try:
             while True:
                 chunk = await queue.get()
                 if chunk is None:
                     break
-                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                text, reset = gate.feed(chunk)
+                if reset:
+                    yield f"data: {json.dumps({'type': 'reset'})}\n\n"
+                if text:
+                    yield f"data: {json.dumps({'type': 'chunk', 'text': text})}\n\n"
+            rest = gate.flush()
+            if rest:
+                yield f"data: {json.dumps({'type': 'chunk', 'text': rest})}\n\n"
 
             await task  # ensure worker has fully committed before sending done
 
@@ -1642,7 +1753,8 @@ async def send_message_stream(
                 exc = result_holder["http_err"]
                 yield f"data: {json.dumps({'type': 'error', 'status': exc.status_code, 'detail': exc.detail})}\n\n"
             elif "err" in result_holder:
-                yield f"data: {json.dumps({'type': 'error', 'status': 500, 'detail': str(result_holder['err'])})}\n\n"
+                # Internal error text is logged, never shown to the student.
+                yield f"data: {json.dumps({'type': 'error', 'status': 500, 'detail': STREAM_ERROR_DETAIL})}\n\n"
             else:
                 r = result_holder["ok"]
                 yield f"data: {json.dumps({'type': 'done', 'thread_id': r['thread_id'], 'thread_title': r['thread_title'], 'message': r['message']})}\n\n"

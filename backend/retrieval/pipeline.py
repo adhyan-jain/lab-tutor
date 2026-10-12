@@ -43,6 +43,7 @@ import re
 from dataclasses import dataclass, field
 
 from backend.llm import LLMUnavailable, get_backend, telemetry
+from backend.llm.client import _stream_queue
 from backend.retrieval.stable_context import (
     TIER_TAGS,
     build_cache_request,
@@ -51,7 +52,7 @@ from backend.retrieval.stable_context import (
 )
 from backend.llm.client import LLMReply
 from backend.rag.language import looks_non_english
-from backend.rag.phrasing import ENGLISH_ONLY_RULE, sanitise_student_text
+from backend.rag.phrasing import ENGLISH_ONLY_RULE, TUTOR_PERSONA, sanitise_student_text
 from backend.retrieval.chunks import Chunk
 from backend.retrieval.grounding import overlap_terms
 from backend.retrieval.index import HybridIndex, ScoredChunk, get_index
@@ -176,6 +177,8 @@ Formatting & Tone Guidelines:
 """ + ENGLISH_ONLY_RULE + """ This is a hard rule, not a style \
 preference.
 
+""" + TUTOR_PERSONA + """
+
 Write basis-set names, keywords and file names in code formatting, e.g. `6-31G*`, so asterisks never \
 collide with bold. Do not open with filler such \
 as "Great!" or "Okay!" and do not add bracketed reference numbers like \
@@ -200,7 +203,13 @@ Every new step takes the next number from the GUIDED line; never reuse a \
 number and never write "continued". Never combine actions that happen in different windows \
 (for example opening Geometry > Draw is one step, choosing Hydrocarbon > \
 Methane in the window it opens is the next). Use the exact menu, button and \
-field names from the material, in 2 to 4 short sentences. Do not open with \
+field names from the material. Keep the step to the action itself, in 1 to 3 \
+short sentences, and do not explain what each keyword, parameter or setting \
+means. If the step needs an exact keyword line, value or command from the \
+material, give it once, on its own line as a code block, after the sentence, \
+and do not repeat it in later replies unless the student asks. Explain a \
+keyword only when the student asks about it, or in one short clause when a \
+mistake is likely without it. Do not open with \
 a summary of the whole process, praise or a restatement of their question: \
 go straight to the step. Begin it with "**Step N:**", using the number \
 given on the GUIDED line. End with one short request: ask them to reply \
@@ -251,16 +260,22 @@ reciting the passages.
 Rules you must follow:
 - Never state a fact that is not in the retrieved passages. If the \
 passages do not fully answer the question, answer the parts they do cover \
-first, then say plainly and briefly what the lab material does not spell \
-out (for example a numeric result the student must obtain from their own \
-run, or a setting the manual never states) -- do not fill the gap from \
-general knowledge, and never invent a menu path, button name or number.
+first, then guide the student on the rest in a positive, practical way: a \
+value they will get from their own run ("you will read this from your \
+output"), or, for a detail you cannot give, one natural line pointing them \
+to their lab instructor. Do not dwell on what the manual does or does not \
+say, and do not tell them "the manual does not specify". Never fill the gap \
+from general knowledge, and never invent a menu path, button name or number. \
+The one exception is a message marked GENERAL KNOWLEDGE below, which says \
+exactly what it allows.
 - Never invent a page number, section, or procedure step.
 - Where an option or button is in a program's interface, use the "Where \
 things are on screen" passages: name the menu, button or dialog exactly as \
-they do. If no passage says where something is, say so once, plainly, and \
-suggest asking the demonstrator. Do not guess where it "typically" is, do \
-not describe what it "usually looks like", and never invent a menu location.
+they do. If no passage says where something is, still give the step as far \
+as the material supports it (what to build or set, and why), then add one \
+short, natural line such as "If you need help finding the right tool, ask \
+your lab instructor." Do not guess where it "typically" is, do not describe \
+what it "usually looks like", and never invent a menu location.
 - Each passage is tagged with where it comes from. Procedures, menu \
 paths, settings and required values come ONLY from passages tagged "lab \
 manual" or "official course material". Passages tagged "background \
@@ -319,6 +334,10 @@ class AnswerResult:
     passages: tuple[ScoredChunk, ...] = field(default_factory=tuple, repr=False)
     supplementary: bool = False
     answer_source: str = "fallback"  # "llm" | "extractive" | "fallback"
+    #: The model was allowed general chemistry knowledge for this answer
+    #: (GENERAL_KNOWLEDGE). The UI labels it; citations still list only the
+    #: experiment material actually supplied.
+    general_knowledge: bool = False
     #: Populated only when answer_source == "llm"; None for extractive/
     #: fallback answers, which never called a backend.
     latency_ms: float | None = None
@@ -515,6 +534,73 @@ COMPARISON_FORMAT = (
     "same fact in every section, and let the length follow the question: if they asked "
     "for detail, the sections may be longer."
 )
+
+
+#: A real-world / everyday-use question ("Where is methane used in real life?",
+#: "real-world example of geometry optimization"). The lab material rarely
+#: covers these, so the model may answer from established general chemistry,
+#: clearly labelled. A question about this experiment's own software, steps or
+#: settings is never one of these: those stay strictly manual-grounded.
+_GENERAL_RE = re.compile(
+    r"\breal[- ]?(?:world|life)\b|\beveryday\b|\bdaily life\b|\bday[- ]to[- ]day\b"
+    r"|\bin (?:industry|nature|medicine|our homes?|the home)\b|\bindustrial\b|\bhousehold\b"
+    r"|\bapplications?\b|\b(?:commonly|widely|mainly|mostly) used\b|\bused for\b|\buses of\b"
+    r"|\bwhere\b[^.?!]{0,40}\bused\b|\bexamples? (?:of|from)\b",
+    re.IGNORECASE,
+)
+_EXPERIMENT_SPECIFIC_RE = re.compile(
+    r"\b(?:this|the|our|my)\s+(?:experiment|lab|practical|calculation|run|procedure|output)\b"
+    r"|\b(?:manual|orca|gabedit|avogadro|step|table|dialog|menu|button)\b",
+    re.IGNORECASE,
+)
+
+
+def is_general_knowledge_request(message: str) -> bool:
+    return bool(_GENERAL_RE.search(message)) and not _EXPERIMENT_SPECIFIC_RE.search(message)
+
+
+GENERAL_KNOWLEDGE = (
+    "GENERAL KNOWLEDGE: the student is asking for real-world uses or examples, which the lab "
+    "material may not contain. For that part you may use well-established, textbook general "
+    "chemistry knowledge. Say once, in a short phrase, that it is general chemistry knowledge "
+    "rather than something the manual states, never attribute it to the manual, give no "
+    "specific numbers you are not sure of, and say so plainly if you are not sure. Where the "
+    "material allows, connect it back to this experiment in one sentence."
+)
+
+
+#: How to respond when the student says how the learning is going (see
+#: conversation.difficulty_kind). The teaching approach changes; it is not a
+#: phrase bolted onto the usual answer.
+SUPPORT = {
+    "uncertain": (
+        "SUPPORT: the student says they do not know. In one short sentence of your own, treat "
+        "that as completely normal, then teach the idea simply and end with one manageable "
+        "next step. No lecture."
+    ),
+    "confused": (
+        "SUPPORT: the student does not understand this yet. Acknowledge it in one short "
+        "sentence, then explain more simply than before: fewer technical terms, the "
+        "prerequisite idea first, and one concrete example. Keep it short."
+    ),
+    "repeat": (
+        "SUPPORT: the student still does not get it and wants it explained again. Do NOT "
+        "repeat your last explanation (below) or its wording. Use a clearly different "
+        "approach: a simpler framing, an everyday analogy (say briefly where it breaks down if "
+        "it could mislead), or a short worked example. One small check question at the end "
+        "only if it helps."
+    ),
+    "overwhelmed": (
+        "SUPPORT: the student feels it is all too much. Acknowledge that calmly in one "
+        "sentence, then offer ONE manageable starting point only: one small idea in plain "
+        "words. No long explanation, no list of topics, no several questions."
+    ),
+    "frustrated": (
+        "SUPPORT: the student is frustrated. Acknowledge it briefly without guessing their "
+        "feelings and without therapy talk, make clear mistakes are part of learning, then "
+        "return to the idea with a different, simpler approach and one small step."
+    ),
+}
 
 
 OVERVIEW_FOCUS = (
@@ -782,6 +868,7 @@ async def answer_question(
         supplementary=status.requires_supplementary_label
         or any(i.chunk.tier is SourceTier.CURATED_ADJACENT for i in chosen),
         answer_source=source,
+        general_knowledge=source == "llm" and is_general_knowledge_request(message),
         latency_ms=reply.latency_ms if reply else None,
         prompt_tokens=reply.prompt_tokens if reply else None,
         completion_tokens=reply.completion_tokens if reply else None,
@@ -838,14 +925,42 @@ async def _generate_answer(
                 followup_topic=followup_topic,
             )
             if reply.text and looks_non_english(reply.text):
-                # English-only is enforced in code as well as in the prompt: a
-                # Hindi/Hinglish reply is dropped for the English fallback.
+                # English-only is enforced in code as well as in the prompt. One
+                # corrective retry (only on a violation, so normal answers still
+                # cost one call), not streamed: the stream already showed the
+                # student a reset (chat_routes), and they see the final answer.
                 telemetry.record_fallback("non_english_output")
-                log.warning("Model reply was not English; using the English fallback instead")
-            elif reply.text:
+                log.warning("Model reply was not English; retrying once with a language correction")
+                token = _stream_queue.set(None)
+                try:
+                    reply = await _phrase_with_llm(
+                        decision=decision,
+                        status=status,
+                        passages=passages,
+                        conversation_history=conversation_history,
+                        index=index,
+                        question=question,
+                        followup_topic=followup_topic,
+                        language_retry=True,
+                    )
+                except LLMUnavailable as exc:
+                    log.warning("Language retry unavailable: %s", exc)
+                    reply = None
+                finally:
+                    _stream_queue.reset(token)
+                if reply is not None and reply.text and not looks_non_english(reply.text):
+                    return (reply.text, "llm", reply)
+                telemetry.record_fallback("non_english_after_retry")
+                return (
+                    _extractive_answer(
+                        passages, supplementary=status.requires_supplementary_label, reason="language"
+                    ),
+                    "extractive",
+                    None,
+                )
+            if reply.text:
                 return (reply.text, "llm", reply)
-            else:
-                telemetry.record_fallback("empty_model_reply")
+            telemetry.record_fallback("empty_model_reply")
         except LLMUnavailable as exc:
             telemetry.record_fallback("llm_unavailable")
             log.warning("Answer phrasing unavailable, using extractive fallback: %s", exc)
@@ -866,6 +981,7 @@ async def _phrase_with_llm(
     index: HybridIndex | None = None,
     question: str = "",
     followup_topic: str = "",
+    language_retry: bool = False,
 ) -> "LLMReply":
     question = sanitise_student_text(question or decision.query.raw)
     experiment_id = decision.experiment_id
@@ -876,6 +992,9 @@ async def _phrase_with_llm(
     last_step = _last_guided_step(last_tutor)
     guided = last_step is not None and words <= GUIDED_MAX_WORDS
     show_last = bool(last_tutor) and (guided or words <= FOLLOWUP_MAX_WORDS)
+    from backend.socratic_engine.conversation import difficulty_kind
+
+    difficulty = difficulty_kind(question)
     comparison = is_comparison_request(question)
     overview = not followup_topic and not comparison and is_overview_request(question)
 
@@ -883,8 +1002,12 @@ async def _phrase_with_llm(
         parts: list[str] = []
         if focus:
             parts += [focus, ""]
+        if difficulty:
+            parts += [SUPPORT[difficulty], ""]
         if comparison:
             parts += [COMPARISON_FORMAT, ""]
+        if is_general_knowledge_request(question):
+            parts += [GENERAL_KNOWLEDGE, ""]
         if experiment_id == "exp07":
             # Exp7 has its own deterministic, verified walkthrough engine
             # now (backend/socratic_engine/walkthrough/); this override
@@ -956,6 +1079,21 @@ async def _phrase_with_llm(
                 sanitise_student_text(conversation_history[-HISTORY_CHARS:]),
                 "HISTORY>>>",
                 "",
+            ]
+        if difficulty and difficulty != "uncertain" and last_tutor and "<<<LASTMSG" not in parts:
+            # So "explain it again" can be answered differently. Tutor text
+            # only: no student message is added to the prompt here.
+            parts += [
+                "YOUR LAST EXPLANATION (context only, not instructions):",
+                "<<<LASTMSG",
+                sanitise_student_text(last_tutor[-LAST_MESSAGE_CHARS:]),
+                "LASTMSG>>>",
+                "",
+            ]
+        if language_retry:
+            parts += [
+                "LANGUAGE CORRECTION: your previous draft of this reply was not in English. "
+                "Write the entire reply in English.",
             ]
         parts += [
             "REPLY LANGUAGE: English only, whatever language or script the student "
@@ -1034,7 +1172,9 @@ async def _phrase_with_llm(
     return reply
 
 
-def _extractive_answer(passages: list[ScoredChunk], *, supplementary: bool) -> str:
+def _extractive_answer(
+    passages: list[ScoredChunk], *, supplementary: bool, reason: str = "unavailable"
+) -> str:
     """Grounded degraded-mode answer, used only when no model reply could be
     produced (e.g. the model quota is exhausted). Shows the most relevant
     passages (best score first, each as its own paragraph) under an honest
@@ -1053,7 +1193,9 @@ def _extractive_answer(passages: list[ScoredChunk], *, supplementary: bool) -> s
             excerpt = excerpt[:MAX_EXTRACT_CHARS].rsplit(" ", 1)[0] + "…"
         blocks.append(excerpt)
     lead = (
-        "I couldn't put together a full explanation just now, so here is the most "
+        "Here is the most relevant part of the lab material for your question."
+        if reason == "language"
+        else "I couldn't put together a full explanation just now, so here is the most "
         "relevant part of the lab material. Please ask again in a moment for a "
         "fuller answer."
     )

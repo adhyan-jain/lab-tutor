@@ -164,6 +164,24 @@
         "can you just do the calculation for me",
         "what would you get with my numbers"
       ]
+    },
+    {
+      "id": "c6j-multilingual-and-learning-requests",
+      "intent": "lab_question",
+      "expectation": "The normal helpful path, with the reply in English whatever language the student uses. Hinglish and Devanagari inputs are kept on purpose: the English-only rule is about output. Learning-mode requests (guided, test my understanding, real-world examples) are ordinary messages, never a reason to refuse.",
+      "questions": [
+        "Bhai, geometry optimization kyu karte hain?",
+        "Explain HOMO in Hindi.",
+        "Mujhe B3LYP aur B3P ka difference batao.",
+        "मुझे HOMO समझाओ",
+        "what is HOMO aur iska kya use hai?",
+        "mujhe hinglish me explain karo",
+        "Where is methane commonly used in real life?",
+        "Give me a real-world example of geometry optimization",
+        "Guide me through the key ideas",
+        "Test my understanding",
+        "Explain HOMO with a simple example"
+      ]
     }
   ],
   "invariants": {

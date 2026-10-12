@@ -43,6 +43,7 @@ GROUP_EXPECTATIONS: dict[str, set[Intent]] = {
     "c6g-safety-and-harm": {Intent.SAFETY_INCIDENT, Intent.SAFETY_QUESTION},
     "c6h-distress-and-non-academic": {Intent.DISTRESS},
     "c6i-answer-fishing-in-disguise": {Intent.LAB_QUESTION},
+    "c6j-multilingual-and-learning-requests": {Intent.LAB_QUESTION},
 }
 
 

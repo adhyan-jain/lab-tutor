@@ -129,6 +129,10 @@ class TurnResult:
     # model-phrased reply (socratic_engine/realise.py); the controller never
     # calls a model itself.
     realise: dict[str, Any] | None = None
+    # For a side question (verdict "side_question") that names no topic of its
+    # own ("Show an example"): the self-contained question the grounded Q&A
+    # path should answer instead of the raw message. Authored text.
+    side_query: str = ""
 
 
 def topic_for(state: WalkState) -> tuple[str, str]:
@@ -460,6 +464,56 @@ def _save_cs(state: WalkState, cs: pstate.ConceptStates) -> None:
     state.concepts = cs.to_dict()
 
 
+def _available(state: WalkState):
+    """Which authored questions may be asked now. In phone-only mode a question
+    must pass the phone-safety gate (source metadata AND wording scan); a
+    question about the student's own recorded results is also unavailable,
+    since there are none."""
+    rows = _rows_recorded(state)
+    phone_only = state.mode == "concept"
+    return lambda q: (
+        q.min_rows <= rows
+        and (phone_only or not q.phone_only)  # phone-only stand-ins never appear at software steps
+        and (not phone_only or phone_safe.is_phone_safe(q))
+    )
+
+
+def _concept_chips(state: WalkState, q) -> tuple[list[str], dict[str, Any]]:
+    """Only the actions that fit this question now: a hint while one is unused,
+    an example, the two ways out, and pause in a guided session."""
+    info = state.concept or {}
+    ids = ["just_tell", "skip_concept"]
+    if q.scaffold and not info.get("hinted"):
+        ids.insert(0, "hint")
+    ids.insert(1 if "hint" in ids else 0, "example")
+    if state.mode == "concept" and info.get("resume") == "stage":
+        ids.append("pause_session")
+    return conv.actions(ids)
+
+
+# Authored, honest feedback openers (never "correct" for a wrong answer),
+# rotated so the same words do not open every reply.
+_UNSURE_OPENERS = (
+    "That's completely okay, you don't need to know this already.",
+    "No problem at all, that's what we're here for.",
+    "That's fine, we can work it out together.",
+)
+_MISCONCEPTION_OPENERS = (
+    "That is a very common way to think about it, and it needs one adjustment.",
+    "Good attempt: lots of people see it that way at first, but one part needs a rethink.",
+)
+_PARTIAL_OPENERS = (
+    "You're on the right track: part of that is right.",
+    "Nice, you have part of it already.",
+)
+_STRUGGLE_OPENERS = {
+    "confused": "That's okay, this one can take a moment to click.",
+    "repeat": "Sure, let's try it a different way.",
+    "overwhelmed": "That's fair, there is a lot here. Let's take just one small piece.",
+    "frustrated": "Mistakes are part of learning this, so let's slow down and take one small step.",
+}
+
+
 def _concept_moment(
     state: WalkState, when: str, lead: str, *, resume: str, step_id: str | None = None
 ) -> tuple[str, dict[str, Any]] | None:
@@ -471,16 +525,9 @@ def _concept_moment(
     if when != "stage" and key in state.intervened:
         return None
     cs = _cs(state)
-    rows = _rows_recorded(state)
-    phone_only = state.mode == "concept"
     decision = policy.decide(
         knowledge, sid, cs, blocked=state.troubleshooting, allowed=_WHEN_TYPES[when],
-        # In phone-only mode a question must pass the phone-safety gate (source
-        # metadata AND wording scan); a question about the student's own
-        # recorded results is also unavailable, since there are none.
-        available=lambda q: q.min_rows <= rows
-        and (phone_only or not q.phone_only)  # phone-only stand-ins never appear at software steps
-        and (not phone_only or phone_safe.is_phone_safe(q)),
+        available=_available(state),
     )
     if decision.action == "none" or decision.question is None:
         return None
@@ -569,7 +616,7 @@ def _concept_message(state: WalkState, lead: str = "") -> tuple[str, dict[str, A
     if view:
         parts.append(view)
     parts.append(f"**{label}:** {q.ask}")
-    chips, ctx = conv.actions(["just_tell", "skip_concept"])
+    chips, ctx = _concept_chips(state, q)
     ui = {
         **_base_ui(state),
         "kind": "concept",
@@ -640,10 +687,66 @@ def _turn_concept(state: WalkState, message: str) -> TurnResult:
         pedagogy["classification"] = "SKIPPED"
         return done("No problem, we'll carry on.", "concept_skipped")
 
+    concept = knowledge.concept_by_id[cid]
+
+    def stay(note: str, verdict: str) -> TurnResult:
+        """Answer on the same question without grading anything."""
+        chips, ctx = _concept_chips(state, q)
+        ui = {
+            **_base_ui(state), "kind": "concept", "step_id": state.step_id, "concept_id": cid,
+            "question_type": q.qtype, "chips": chips, "action_context": ctx,
+        }
+        return TurnResult(note, state, {**events, "verdict": verdict}, ui)
+
+    if intent is Intent.USER_REQUESTED_HINT or message.strip().lower() == conv.ACTIONS["hint"].lower():
+        if q.scaffold and not info.get("hinted"):
+            info["hinted"] = True
+            return stay(f"**Hint:** {q.scaffold}", "concept_hint")
+        return stay(
+            'That is the only hint I have for this one. Have a go, or say "just tell me" to see the idea.',
+            "concept_hint_repeated",
+        )
+
+    struggle = conv.difficulty_kind(message)
+    if struggle is not None or grader.is_confused(message):
+        # Not an attempt, so nothing is graded. The approach changes each time:
+        # first a simpler explanation and an easier way into the same question;
+        # if it still has not clicked, the full reasoning, worked through.
+        times = int(info.get("simplified", 0))
+        info["simplified"] = times + 1
+        if times == 0:
+            opener = (
+                _pick(_UNSURE_OPENERS, state)
+                if struggle == "uncertain"
+                else _STRUGGLE_OPENERS.get(struggle or "confused", _STRUGGLE_OPENERS["confused"])
+            )
+            simple = f"{opener}\n\n**{concept.name}**, in simple terms: {concept.description}"
+            # The lab note may name software; a phone-only student must never be
+            # sent to it, so it is added only when it passes the phone gate.
+            if concept.experiment_relevance and not phone_safe.external_dependency(concept.experiment_relevance):
+                simple += f" {concept.experiment_relevance}"
+            easier = q.scaffold or q.ask
+            return stay(f"{simple}\n\n**An easier way in:** {easier}", "concept_simplified")
+        pstate.apply_classification(cs, cid, "UNCLEAR", question_id=q.id, question_type=q.qtype, reason="asked_for_answer")
+        pedagogy["classification"] = "UNCLEAR"
+        return done(
+            f"No problem, let's walk through it together. Here is the short version: {q.expected_reasoning}",
+            "concept_explained",
+        )
+
     if grader.wants_answer(message):
         pstate.apply_classification(cs, cid, "UNCLEAR", question_id=q.id, question_type=q.qtype, reason="asked_for_answer")
         pedagogy["classification"] = "UNCLEAR"
         return done(f"Here is the short version: {q.expected_reasoning}", "concept_explained")
+
+    if grader.is_example_request(message):
+        # An example is a normal question about this concept: the grounded Q&A
+        # path answers it, and the question stays pending.
+        return TurnResult(
+            None, state, {**events, "verdict": "side_question"}, {},
+            resume_line=_resume_line(state),
+            side_query=f"Give a simple example of {concept.name} and how it relates to this experiment.",
+        )
 
     cls = policy.classify_answer(q, message, knowledge, step_id=info.get("step_id", ""))
     if grader.is_new_request(message) or (
@@ -664,19 +767,39 @@ def _turn_concept(state: WalkState, message: str) -> TurnResult:
     pedagogy["followup"] = follow.kind
 
     if follow.kind == "advance":
+        # A full answer in a guided session earns one harder question on the
+        # same idea (recall -> understanding -> application -> analysis), if one
+        # is authored. Once per moment, and never during software steps or
+        # theory follow-ups, so a student is not drilled.
+        if info.get("resume") == "stage" and not info.get("deeper"):
+            nxt = policy.deeper_question(knowledge, q, rec, _available(state))
+            if nxt is not None:
+                pedagogy["state_after"] = cs.get(cid).state
+                pedagogy["next_level"] = policy.LEVEL_NAMES[policy.LEVEL.get(nxt.qtype, 1)]
+                _save_cs(state, cs)
+                state.concept = {**info, "question_id": nxt.id, "deeper": True, "card": False, "hinted": False}
+                text, ui = _concept_message(state, f"**Yes.** {q.expected_reasoning}\n\nLet's go one level deeper.")
+                return TurnResult(text, state, {**events, "verdict": "concept_deeper"}, ui)
         return done(f"**Yes.** {q.expected_reasoning}", "concept_correct")
     if follow.kind == "explain":
-        return done(f"Here is the short version: {follow.text or q.expected_reasoning}", "concept_explained")
+        # Repeated misses: stop asking, show the reasoning (a different strategy,
+        # not "try again" a third time).
+        return done(
+            f"Let's walk through it together. Here is the short version: {follow.text or q.expected_reasoning}",
+            "concept_explained",
+        )
 
     pedagogy["state_after"] = cs.get(cid).state
     _save_cs(state, cs)
     if follow.kind == "probe":
-        note = f"That is a common way to think about it. {follow.text}"
+        note = f"{_pick(_MISCONCEPTION_OPENERS, state)} {follow.text}"
     elif cls.label == "PARTIAL":
-        note = f"You are part of the way there. {follow.text}"
+        note = f"{_pick(_PARTIAL_OPENERS, state)} {follow.text}"
+    elif cls.dont_know:
+        note = f"{_pick(_UNSURE_OPENERS, state)} Let's come at it another way. {follow.text}"
     else:
-        note = f"Let's come at it another way. {follow.text}"
-    chips, ctx = conv.actions(["just_tell", "skip_concept"])
+        note = f"Good attempt. Let's come at it another way. {follow.text}"
+    chips, ctx = _concept_chips(state, q)
     ui = {
         **_base_ui(state), "kind": "concept", "step_id": state.step_id, "concept_id": cid,
         "question_type": q.qtype, "chips": chips, "action_context": ctx,

@@ -45,6 +45,9 @@ async function request<T>(
   return (await response.json()) as T;
 }
 
+/** No data at all on a reply stream for this long means the connection is gone. */
+const STREAM_IDLE_TIMEOUT_MS = 90_000;
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -62,16 +65,47 @@ export const api = {
     thread_id: string | null;
   }): AsyncGenerator<
     | { type: "chunk"; text: string }
+    /** Discard the streamed draft; the saved reply arrives in `done`. */
+    | { type: "reset" }
     | { type: "done"; thread_id: string; thread_title: string; message: unknown }
     | { type: "error"; status: number; detail: string }
   > {
-    const response = await fetch("/api/chat/messages/stream", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    // A phone that loses signal often leaves the request hanging instead of
+    // failing. If nothing arrives for this long, give up with a clear message
+    // rather than waiting forever.
+    const controller = new AbortController();
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, STREAM_IDLE_TIMEOUT_MS);
+    };
+    const connectionError = () =>
+      new ApiError(
+        0,
+        timedOut
+          ? "The reply is taking too long. Check your connection and try again."
+          : "Could not reach LabTutor. Check your internet connection and try again.",
+      );
+    arm();
+    let response: Response;
+    try {
+      response = await fetch("/api/chat/messages/stream", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch {
+      clearTimeout(timer);
+      throw connectionError();
+    }
     if (!response.ok) {
+      clearTimeout(timer);
       let detail = response.statusText;
       try {
         const b = await response.json();
@@ -83,8 +117,19 @@ export const api = {
     const decoder = new TextDecoder();
     let buf = "";
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        arm();
+        chunk = await reader.read();
+      } catch {
+        clearTimeout(timer);
+        throw connectionError();
+      }
+      const { done, value } = chunk;
+      if (done) {
+        clearTimeout(timer);
+        break;
+      }
       buf += decoder.decode(value, { stream: true });
       const lines = buf.split("\n");
       buf = lines.pop()!;
@@ -305,6 +350,10 @@ export interface Experiment {
   /** Evaluation priority, not a restriction -- all 10 experiments are
    * available; "P0+"/"P0" got the most testing effort. */
   priority: string;
+  /** Example questions for an empty chat (authored per experiment). */
+  suggestions?: string[];
+  /** The guided key-ideas session ("Test my understanding") is available. */
+  guided_learning?: boolean;
 }
 
 export type TutorIntent =
@@ -397,12 +446,37 @@ export interface WalkthroughUi {
 
 export type ConversationMode = "initial" | "theory" | "practice";
 
+/** One thread's practical progress (GET /api/chat/threads/{id}/practical). */
+export interface PracticalStep {
+  index: number;
+  title: string;
+  detail: string;
+  status: "completed" | "current" | "upcoming";
+}
+export type PracticalProgress =
+  | { available: false; experiment_id: string }
+  | {
+      available: true;
+      experiment_id: string;
+      /** "verified": steps move on only when the engine checks reported data.
+       * "self_report": the student marks a step done, one at a time. */
+      kind: "verified" | "self_report";
+      steps: PracticalStep[];
+      total: number;
+      completed: number;
+      current: number | null;
+      status: "not_started" | "in_progress" | "complete";
+    };
+
 export interface ChatMessageMetadata {
   type?: "qa" | "socratic" | "diagnostic" | "triage" | "walkthrough" | "mode" | "clarification";
   /** The thread's conversation mode after this turn. */
   mode?: ConversationMode;
   detected_intent?: string;
   status?: string;
+  /** The answer drew on general chemistry knowledge (real-world uses or
+   * examples), not only the lab material. Its sources are still the material. */
+  general_knowledge?: boolean;
   tier?: number;
   action?: string;
   explanation?: string;
