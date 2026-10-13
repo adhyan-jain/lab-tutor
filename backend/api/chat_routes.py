@@ -58,6 +58,7 @@ from backend.config import get_settings
 from backend.pipeline import run_diagnosis
 from backend.socratic_engine import conversation
 from backend.socratic_engine import practical, procedure, theory
+from backend.socratic_engine.suggestions import starter_questions
 from backend.socratic_engine.realise import realise_turn
 from backend.socratic_engine.walkthrough import controller as walkthrough_controller
 from backend.socratic_engine.walkthrough import grader
@@ -469,6 +470,37 @@ async def _conversation_turn_phone(
     return None, False
 
 
+def _vague_opening(
+    state: conversation.ConversationState, message: str, history_text: str, experiment_id: str, title: str
+) -> tuple[str, ChatMessageKind, dict] | None:
+    """"I don't know what to ask" and a bare "what is this?" with nothing to
+    point at: an authored orientation plus starter questions the student has
+    not already asked. Never during a guided session or a pending follow-up
+    (those are answers, not openers), never graded, no model call."""
+    if state.pending or state.mode == conversation.Mode.PRACTICE.value:
+        return None
+    lost = conversation.is_lost(message)
+    no_referent = (
+        conversation.is_bare_referent(message)
+        and (state.mode == conversation.Mode.INITIAL.value or "TUTOR: " not in history_text)
+    )
+    if not (lost or no_referent):
+        return None
+    asked = history_text.lower()
+    starters = [q for q in starter_questions(experiment_id) if q.lower() not in asked][:3]
+    text = (
+        conversation.lost_text(title, attempt=history_text.count("TUTOR: "))
+        if lost
+        else conversation.referent_clarify_text()
+    )
+    return text, ChatMessageKind.QA, {
+        "type": "mode",
+        "mode": state.mode,
+        "transition_reason": "vague opener",
+        "ui": {"kind": "theory", "chips": starters},
+    }
+
+
 async def _conversation_turn(
     db: AsyncSession,
     principal: Principal,
@@ -488,6 +520,9 @@ async def _conversation_turn(
     Mode, Intent = conversation.Mode, conversation.Intent
     wants_practice = intent is Intent.SWITCH_TO_PRACTICE
     title = _experiment_title(experiment_id)
+    vague = _vague_opening(state, message, history_text, experiment_id, title)
+    if vague is not None:
+        return vague, False
     if _phone_exp07(experiment_id):
         return await _conversation_turn_phone(db, state, intent, thread=thread, message=message, title=title)
 
@@ -1515,6 +1550,8 @@ async def _process_message(
                                 if struggling
                                 else theory.next_step_chips(body.message)
                             )
+                            # Not a question the student has already asked.
+                            chips = [c for c in chips if c.lower() not in history_text.lower()]
                             if chips:
                                 meta["ui"] = {"kind": "theory", "chips": chips}
             elif (

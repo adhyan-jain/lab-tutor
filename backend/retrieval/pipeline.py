@@ -603,6 +603,13 @@ SUPPORT = {
 }
 
 
+#: "What is this?" / "explain this" / "why?" with a tutor message to point at.
+REFERENT = (
+    "REFERENT: the student's message refers to your last message (below). Explain its main "
+    "idea simply; do not ask them to clarify what 'this' means. Do not repeat it word for word."
+)
+
+
 OVERVIEW_FOCUS = (
     "FOCUS: the student wants a short conceptual OVERVIEW of the experiment before "
     "starting, not a full explanation. The material above is supporting evidence, "
@@ -992,9 +999,10 @@ async def _phrase_with_llm(
     last_step = _last_guided_step(last_tutor)
     guided = last_step is not None and words <= GUIDED_MAX_WORDS
     show_last = bool(last_tutor) and (guided or words <= FOLLOWUP_MAX_WORDS)
-    from backend.socratic_engine.conversation import difficulty_kind
+    from backend.socratic_engine.conversation import difficulty_kind, is_bare_referent
 
     difficulty = difficulty_kind(question)
+    referent = is_bare_referent(question)
     comparison = is_comparison_request(question)
     overview = not followup_topic and not comparison and is_overview_request(question)
 
@@ -1004,6 +1012,8 @@ async def _phrase_with_llm(
             parts += [focus, ""]
         if difficulty:
             parts += [SUPPORT[difficulty], ""]
+        elif referent and last_tutor:
+            parts += [REFERENT, ""]
         if comparison:
             parts += [COMPARISON_FORMAT, ""]
         if is_general_knowledge_request(question):

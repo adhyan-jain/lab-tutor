@@ -5,6 +5,61 @@ and how it was verified. Newest entry first.
 
 ---
 
+## 2026-10-13 — Vague openers: "I don't know what to ask", bare "what is this?"
+
+### Inspection findings
+
+Most of the brief already shipped in `fb2e072` (shared persona, difficulty
+kinds with per-kind strategy, authored starters, next-step and support chips,
+hint-before-reveal in quizzes, pause/resume, English-only gate, practical
+tracker). Remaining gaps found:
+
+- "I don't know what to ask" matched the *uncertain* difficulty pattern and
+  went to the model as if it were a failed answer.
+- A bare "what is this?" / "explain this" / "why?" in a new chat reached the
+  model with nothing to point at; with a previous tutor reply there was no
+  instruction to explain *that* rather than ask for clarification.
+- Next-step chips could repeat a question the student had already asked.
+
+### Changes
+
+- `socratic_engine/conversation.py`: `is_lost`, `is_bare_referent`, authored
+  `lost_text` (three rotating openers) and `referent_clarify_text`. Deterministic.
+- `api/chat_routes.py`: `_vague_opening`, called first in `_conversation_turn`.
+  Authored orientation plus up to three of the experiment's own starter
+  questions the student has not already asked, as ordinary chips (sent as
+  normal messages, never graded). Skipped during a guided session or a pending
+  follow-up. Next-step chips drop anything already in the thread.
+- `retrieval/pipeline.py`: `REFERENT` line when a bare referent follows a tutor
+  reply: explain that message's main idea simply, do not ask what "this" means.
+  Difficulty kinds still take priority.
+
+No change to Tier 1, grading, walkthrough state, auth, rate limits or the
+English gate. No extra model call for either new path.
+
+### Tests
+
+New `backend/tests/test_vague_openers.py` (22): detection and non-over-matching,
+English authored text, and end to end (scripted model): lost student gets
+starters, bare "what is this?" in a new chat clarifies with chips, an
+already-asked starter is not offered again.
+
+Backend (local `.env` moved aside, `-o addopts=""`): 2512 passed, 1 skipped,
+17 failed. The 17 are the same pre-existing failures as the previous entry
+(`test_chat_routes` x7, `test_router` x4, `test_context_cache` x4,
+`test_openai_provider` x1, `test_research_export` x1). Frontend untouched, so
+typecheck/build were not re-run.
+
+### Limitations
+
+- Viva practice ("Test my understanding") still exists only for Exp7: it needs
+  an authored key per experiment, and grading must not be a model call. Other
+  experiments need authored viva content before this can extend.
+- Detection is a pattern list; unusual phrasings fall through to normal Q&A.
+- Model-written warmth was not sampled live (no paid calls).
+
+---
+
 ## 2026-10-11 — Compassionate tutoring, struggle-aware teaching, concise steps, temperature 0.5
 
 ### Inspection findings

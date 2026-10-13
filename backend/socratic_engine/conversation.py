@@ -527,6 +527,58 @@ def is_help_opener(message: str) -> bool:
     return bool(_HELP_OPENER.match(message or ""))
 
 
+# A student who does not know what to ask, or who asks a bare "what is this?"
+# with nothing to point at. Deterministic; nothing here is a model call.
+_LOST_RE = re.compile(
+    r"\b(?:(?:not\s+sure|don'?t\s+know|do\s+not\s+know|no\s+idea|dunno|unsure)\s+(?:what|where|how)\s+(?:to\s+)?(?:ask|start|begin|do|learn)"
+    r"|what\s+(?:should|can|do)\s+i\s+(?:ask|learn|study)|where\s+(?:do|should|can)\s+i\s+(?:start|begin)"
+    r"|how\s+(?:do|should)\s+i\s+(?:start|begin)|what\s+can\s+(?:you|i)\s+(?:do|ask)|kya\s+(?:puchu|poochu|pucha)\w*)\b",
+    re.I,
+)
+_REFERENT_RE = re.compile(
+    r"^\W*(?:(?:ok|okay|so|hmm+)\W+)?(?:(?:what|whats|what'?s)\s+(?:is|are)?\s*(?:this|that|it|these)"
+    r"|what\s+does\s+(?:this|that|it)\s+mean|(?:explain|describe)\s+(?:this|that|it)(?:\s+(?:to\s+me|please|pls))?"
+    r"|(?:but\s+)?why(?:\s+(?:is\s+that|though|so))?|how\s+(?:so|come))\W*$",
+    re.I,
+)
+
+
+def is_lost(text: str) -> bool:
+    """"I don't know what to ask" / "where do I start": orient, never grade."""
+    t = (text or "").strip()
+    return bool(t) and len(t.split()) <= 14 and bool(_LOST_RE.search(t))
+
+
+def is_bare_referent(text: str) -> bool:
+    """"What is this?", "explain this", "why?": it points at something, so
+    the previous tutor message is what it refers to (if there is one)."""
+    return bool(_REFERENT_RE.match((text or "").strip()))
+
+
+_LOST_OPENERS = (
+    "That's completely fine, plenty of people don't know where to begin. ",
+    "No worries, you don't need a perfect question. ",
+    "Not sure where to start? That's okay. ",
+)
+
+
+def lost_text(experiment_title: str = "", *, attempt: int = 0) -> str:
+    on = f" **{experiment_title}**" if experiment_title else " this experiment"
+    return (
+        _LOST_OPENERS[attempt % len(_LOST_OPENERS)]
+        + f"We could look at what makes{on} work, why each step matters, "
+        "or what you might be asked in your viva. Tap one of these, or just type "
+        "whatever comes to mind."
+    )
+
+
+def referent_clarify_text() -> str:
+    return (
+        "I'm not sure which part you mean yet. Could you tell me the term or step you're "
+        "looking at? Or pick one of these to get going."
+    )
+
+
 def help_opener_text(experiment_title: str = "", *, conceptual: bool = False) -> str:
     on = f" with **{experiment_title}**" if experiment_title else ""
     return (
