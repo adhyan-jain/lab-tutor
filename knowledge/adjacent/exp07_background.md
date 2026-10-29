@@ -6,7 +6,7 @@ topic: everything needed to understand Experiment 7 -- terms, concepts, why the 
 
 # Exp 7 background: orbitals, HOMO/LUMO, the methods, and reading a run
 
-This is general chemistry and software background written for LabTutor,
+This is general chemistry and software background written for Catalyst,
 not the manual's procedure. It explains what the words in Experiment 7
 mean, why the calculations are done the way they are, how to make sense
 of a finished run, and what commonly goes wrong. It contains no menu

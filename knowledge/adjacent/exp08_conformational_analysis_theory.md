@@ -6,7 +6,7 @@ topic: conformational analysis background for ethane and cyclohexane -- basic te
 
 # Exp 8 background: conformers of ethane and cyclohexane
 
-General organic chemistry background written for LabTutor. It explains the
+General organic chemistry background written for Catalyst. It explains the
 terms and the "why"; the manual's own steps and the values a student
 reports come from the manual and from the student's own runs. Nothing here
 is the manual's procedure.

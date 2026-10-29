@@ -280,8 +280,8 @@ async def _cli(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage LabTutor's Vertex context caches")
-    parser.add_argument("--list", action="store_true", help="list LabTutor caches")
+    parser = argparse.ArgumentParser(description="Manage Catalyst's Vertex context caches")
+    parser.add_argument("--list", action="store_true", help="list Catalyst caches")
     parser.add_argument("--refresh", action="store_true", help="create/verify current caches")
     parser.add_argument(
         "--delete-stale",

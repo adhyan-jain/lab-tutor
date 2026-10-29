@@ -40,7 +40,7 @@ that is standard enough to appear in an undergraduate textbook or public
 software documentation for the tool in question — it does not encode
 IACHY102-specific wording, tables, tolerances, or exact required steps
 (those must come from the manual once it is available; see
-`docs/current_state_audit.md` §0). Each file is scoped to one topic and
+`docs/final_audit.md` §0). Each file is scoped to one topic and
 tagged in its front-matter comment with the experiment(s) it supports.
 
 ## Files
@@ -49,6 +49,7 @@ tagged in its front-matter comment with the experiment(s) it supports.
 | --- | --- | --- |
 | `exp02_reaction_kinetics_theory.md` | exp02 | Basic kinetics terms, pseudo-order, what the titration measures, why the log plot is linear, Arrhenius, sources of error |
 | `exp03_beer_lambert_and_color_science.md` | exp03 | Basic colorimetry terms, Beer-Lambert law, Ni-DMG chemistry, dilution arithmetic, RGB method and its limits |
+| `exp04_potentiometric_titration.md` | exp04 | Potentiometry terms, Nernst-based S-curve, derivative endpoint, endpoint to iron content, sanity checks, sources of error |
 | `exp07_background.md` | exp07 | Orbitals, HOMO/LUMO/gap, spin, DFT and basis sets, SCF, optimization, reading a run, troubleshooting |
 | `exp08_conformational_analysis_theory.md` | exp08 | Basic terms, ethane and cyclohexane (chair, twist-boat, boat, half-chair), energy units, optimizing saddle-point shapes |
 

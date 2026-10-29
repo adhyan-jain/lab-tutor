@@ -21,7 +21,7 @@ greenlet==3.1.1
 # it optionally and degrades to "no page image available" without it, the
 # same way pypdf's absence degrades text retrieval. Uncomment once the
 # manual PDF is in place and page-image grounding (brief section 5) is
-# wired up for real -- see docs/handoff_phase2.md item 3.
+# wired up for real -- see docs/final_audit.md item 3.
 # pymupdf==1.25.1
 
 # --- test/dev ---

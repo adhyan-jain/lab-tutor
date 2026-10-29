@@ -6,7 +6,7 @@ topic: reaction kinetics background for the acid-catalysed hydrolysis of ethyl a
 
 # Exp 2 background: reaction kinetics and the ester hydrolysis titration
 
-General chemistry background written for LabTutor. It explains the terms
+General chemistry background written for Catalyst. It explains the terms
 and the reasoning behind the experiment; the manual's own procedure,
 formula, volumes and table are the authority for what to do and report,
 and nothing here replaces them.

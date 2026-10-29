@@ -1,7 +1,7 @@
 """Versioned native context caching -- no real Vertex call is made.
 
 A fake `google.genai` client stands in for the cache API and for
-`generate_content`, so these tests check what LabTutor *asks Google to do*:
+`generate_content`, so these tests check what Catalyst *asks Google to do*:
 which cache it selects, when it creates one, what it sends per message, and
 that a message still costs exactly one generation.
 """

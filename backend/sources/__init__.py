@@ -1,6 +1,6 @@
 """Source hierarchy: which document is allowed to answer what.
 
-LabTutor answers from several kinds of material, and they are not
+Catalyst answers from several kinds of material, and they are not
 interchangeable. A sentence from the official lab manual and a sentence
 from a general chemistry explainer may both be true, but only one of
 them is what the student will be assessed against, and only one of them

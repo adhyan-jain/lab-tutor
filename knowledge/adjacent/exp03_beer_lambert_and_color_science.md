@@ -6,7 +6,7 @@ topic: colorimetry background for the Ni(II) determination -- basic terms, Beer-
 
 # Exp 3 background: colorimetry, Beer-Lambert law and the smartphone/RGB method
 
-General chemistry background written for LabTutor. It explains the terms
+General chemistry background written for Catalyst. It explains the terms
 and the reasoning behind the experiment; the manual's own procedure,
 wavelength, volumes and table are the authority for what to do and
 report, and nothing here replaces them.

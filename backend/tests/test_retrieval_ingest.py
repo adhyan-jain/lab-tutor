@@ -336,7 +336,7 @@ def test_adjacent_knowledge_directory_ingests_with_correct_attribution():
         "every curated adjacent file names its experiment by filename "
         f"convention; unexpected unattributed chunks: {unattributed}"
     )
-    assert {c.experiment_id for c in report.chunks} == {"exp02", "exp03", "exp07", "exp08"}
+    assert {c.experiment_id for c in report.chunks} == {"exp02", "exp03", "exp04", "exp07", "exp08"}
     assert all(c.tier == SourceTier.CURATED_ADJACENT for c in report.chunks)
 
 

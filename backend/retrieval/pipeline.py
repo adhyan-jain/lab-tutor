@@ -58,6 +58,7 @@ from backend.retrieval.grounding import overlap_terms
 from backend.retrieval.index import HybridIndex, ScoredChunk, get_index
 from backend.retrieval.rerank import rerank
 from backend.scope.classifier import EvidenceSummary, ScopeDecision, classify_scope, resolve_status
+from backend.scope.ontology import ALL_EXPERIMENT_IDS
 from backend.scope.statuses import AnswerStatus, ScopeLevel, fallback_text
 from backend.sources.tiers import SourceTier, Usage, citation_for
 
@@ -423,6 +424,28 @@ def _followup_topic(message: str, conversation_history: str) -> str:
     return _recent_student_topic(conversation_history)
 
 
+def _rephrase_topic(message: str, conversation_history: str) -> str:
+    """The earlier questions behind "can you explain that again more simply?" or
+    "i dont understand". Used only to know what to search for and which experiment
+    it is about: it is never put in the prompt, so an "explain again" reply still
+    sees only the tutor's own last explanation."""
+    from backend.socratic_engine.conversation import difficulty_kind
+
+    if difficulty_kind(message) in ("repeat", "confused"):
+        # Only the last real question: two can span unrelated topics and find nothing,
+        # and an earlier "explain again" is not a question about anything.
+        parts = _HISTORY_TURN_RE.split(conversation_history or "")
+        students = [
+            parts[i + 1].strip()[:300]
+            for i in range(1, len(parts) - 1, 2)
+            if parts[i] == "STUDENT" and parts[i + 1].strip()
+        ]
+        for earlier in reversed(students):
+            if difficulty_kind(earlier) not in ("repeat", "confused"):
+                return earlier
+    return ""
+
+
 #: Words that carry no topic on their own. A reply made only of these (plus
 #: numbers) refers to whatever was said before; anything else names its own
 #: subject and is a new question.
@@ -493,7 +516,7 @@ _IDENTITY_RE = re.compile(
 )
 
 IDENTITY_REPLY = (
-    "I'm LabTutor, the lab assistant for this course. I can't share details about "
+    "I'm Catalyst, the lab assistant for this course. I can't share details about "
     "the system behind me, but I can help you understand this experiment: its "
     "concepts, the formulas, and how to think through your results."
 )
@@ -642,6 +665,16 @@ def _last_guided_step(last_tutor_message: str) -> int | None:
     return int(steps[-1]) if steps else None
 
 
+
+def _phone_only_theory(experiment_id: str) -> bool:
+    """Phone-only theory mode applies to any experiment with authored knowledge
+    (backend/socratic_engine/knowledge/): Exp7, Exp2, Exp4."""
+    from backend.config import get_settings
+    from backend.socratic_engine.knowledge import get_knowledge
+
+    return bool(get_settings().phone_only and get_knowledge(experiment_id) is not None)
+
+
 async def answer_question(
     message: str,
     *,
@@ -661,22 +694,48 @@ async def answer_question(
         _validate(result)
         return result
 
+    from backend.socratic_engine.knowledge import get_knowledge
+
+    # Follow-ups ("why?", "explain that again") are resolved from the thread for the
+    # software experiments and for any experiment with authored theory content.
     topic = (
         _followup_topic(message, conversation_history)
-        if active_experiment in QUALITATIVE_EXPERIMENTS
+        if active_experiment in QUALITATIVE_EXPERIMENTS or get_knowledge(active_experiment) is not None
+        else ""
+    )
+    # A rephrase request ("explain that again more simply") is searched on the topic
+    # alone: its own words match nothing in the course material and break the search.
+    # The prompt still carries the request itself.
+    rephrase = (
+        _rephrase_topic(message, conversation_history)
+        if active_experiment in QUALITATIVE_EXPERIMENTS or get_knowledge(active_experiment) is not None
         else ""
     )
     decision = classify_scope(
-        f"{topic} {message}" if topic else message, active_experiment=active_experiment
+        rephrase if rephrase else (f"{topic} {message}" if topic else message),
+        active_experiment=active_experiment,
     )
 
-    # A student in an Exp7/Exp8 session who names a different experiment
-    # ("can you do experiment 5 instead") is told plainly what this session
-    # covers -- not that the material for experiment 5 could not be found.
+    # A class session is tied to ONE experiment. A student who names a
+    # different experiment ("can you do experiment 5 instead"), or whose
+    # question is decisively about another one (strong-term routing, not the
+    # shared weak vocabulary like "titration"), is told plainly what this
+    # session covers -- not answered from the other experiment's material.
     named_elsewhere = [
         e for e in decision.query.explicit_experiments if e != active_experiment
     ]
-    if active_experiment in QUALITATIVE_EXPERIMENTS and named_elsewhere:
+    # Exp7 and Exp8 share their software vocabulary (ORCA, Avogadro, B3LYP),
+    # so routing between that pair is not trustworthy enough to refuse on;
+    # the classifier already prefers the session's own experiment there.
+    _shares_vocabulary = {decision.experiment_id, active_experiment} <= QUALITATIVE_EXPERIMENTS
+    routed_elsewhere = (
+        decision.experiment_id is not None
+        and decision.experiment_id != active_experiment
+        and decision.confidence >= 0.85
+        and not _shares_vocabulary
+        and active_experiment in ALL_EXPERIMENT_IDS
+    )
+    if active_experiment and (named_elsewhere or routed_elsewhere):
         label = active_experiment.replace("exp0", "Experiment ").replace("exp", "Experiment ")
         result = AnswerResult(
             status=AnswerStatus.OUT_OF_SCOPE,
@@ -684,7 +743,9 @@ async def answer_question(
             text=(
                 f"This session is for {label}, so that is the one I can help with "
                 "right now. I can walk you through it step by step, explain the "
-                "chemistry behind it, or help you work out what went wrong in a run."
+                "chemistry behind it, or help you work out what went wrong in a run. "
+                "If you need a different experiment, ask your demonstrator to switch "
+                "the class session."
             ),
         )
         _validate(result)
@@ -1051,6 +1112,31 @@ async def _phrase_with_llm(
                     ),
                     "",
                 ]
+        elif _phone_only_theory(experiment_id):
+            # Exp2 / Exp4 for students with only a phone: no apparatus, no
+            # software. Same prose-only rule as Exp7's phone-only block.
+            parts += [
+                "PHONE-ONLY: the student has only a phone and this chat, no laboratory apparatus, no "
+                "computer and no software. Explain ideas, reasons and calculations in prose. Do NOT give "
+                "numbered or step-by-step instructions for doing the practical unless they explicitly ask "
+                "how it is performed, and never ask them to look at, measure, open, run, check, count or "
+                "read anything outside this chat. "
+                + (
+                    "Apart from the one closing sentence the FOCUS asks for, do not end with an offer "
+                    "or a question: the app adds one short follow-up question itself."
+                    if overview
+                    else "Do not end with an offer or a question: the app adds one short follow-up "
+                    "question itself."
+                ),
+                "",
+                "BREVITY (overrides every other length rule above): the student reads this on a phone and "
+                "is not strong at chemistry. Answer in at most 3 short sentences, about 40 words, covering "
+                "ONE idea only. Use simple everyday words and explain any technical term in a few words. "
+                "No headings, no bullet lists, no tables, no display equations ($$...$$): write a formula "
+                "inline in plain text, e.g. rate = k'[ester]. Do not list everything you know; the student "
+                "will ask for more, and the app asks one follow-up question after your answer.",
+                "",
+            ]
         elif experiment_id in QUALITATIVE_EXPERIMENTS:
             if guided:
                 parts += [

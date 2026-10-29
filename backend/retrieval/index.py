@@ -22,7 +22,7 @@ order, e.g. "output file location" vs "where does the output go"),
 without adding a dependency. `backend/llm/client.py` already has a
 provider-swappable interface; wiring a real embedding provider behind
 `SemanticLayer` is a contained Phase 2 change (see
-`docs/handoff_phase2.md` item 4) that does not touch this module's
+`docs/final_audit.md` item 4) that does not touch this module's
 public surface.
 
 ## Source filtering, structurally

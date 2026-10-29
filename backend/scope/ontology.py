@@ -253,6 +253,9 @@ _add(
             "potentiometric", "kmno4", "permanganate", "fe2+", "fe3+",
             "fe2", "fe3", "endpoint from emf", "derivative plot",
             "delta e", "delta v", "s-curve", "s curve",
+            "emf", "nernst", "nernst equation", "redox", "calomel",
+            "reference electrode", "indicator electrode", "platinum electrode",
+            "electrode potential", "self indicator",
         ),
         weak_terms=_t(
             "titration", "titre", "normality", "equivalence point",

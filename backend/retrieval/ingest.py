@@ -66,7 +66,7 @@ class IngestReport:
     absent), and declared-but-excluded (superseded or non-indexable).
     Only the first contributes chunks; the other two are still reported,
     because a pipeline that quietly indexes nothing must not look
-    identical to one that is working -- see `docs/current_state_audit.md`.
+    identical to one that is working -- see `docs/final_audit.md`.
     """
 
     document_id: str
@@ -413,7 +413,7 @@ def _word_in(term: str, lowered_text: str) -> bool:
 def render_all_page_images(output_dir: str | Path) -> dict[str, bool]:
     """Coverage summary: which manifest documents got real page images.
 
-    Used by the coverage-report tooling (`docs/handoff_phase2.md`) to
+    Used by the coverage-report tooling (`docs/final_audit.md`) to
     show, per document, whether visual grounding is actually available or
     only architecturally supported.
     """
