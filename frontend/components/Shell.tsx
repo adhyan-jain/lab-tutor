@@ -33,33 +33,48 @@ export function Shell({
   const [me, setMe] = useState<Me | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "anonymous">("loading");
 
+  const [slow, setSlow] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
-    api
-      .get<Me>("/api/auth/me")
-      .then((identity) => {
-        if (cancelled) return;
-        setMe(identity);
-        setState("ready");
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-          setState("anonymous");
-        } else {
-          setState("anonymous");
+    // The server scales to zero when idle, so the first request after a quiet spell can
+    // take a while and may fail once while it starts. Only a real 401/403 means "signed
+    // out"; anything else is retried before we give up.
+    const check = async () => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const identity = await api.get<Me>("/api/auth/me");
+          if (cancelled) return;
+          setMe(identity);
+          setState("ready");
+          return;
+        } catch (error) {
+          if (cancelled) return;
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            setState("anonymous");
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 3000));
         }
-      });
+      }
+      if (!cancelled) setState("anonymous");
+    };
+    check();
+    const slowTimer = setTimeout(() => setSlow(true), 4000);
     return () => {
       cancelled = true;
+      clearTimeout(slowTimer);
     };
   }, []);
 
   if (state === "loading") {
     return (
       <AuthCard busy>
-        <p className="auth-wordmark">LabTutor</p>
+        <p className="auth-wordmark">Catalyst</p>
         <p className="auth-tagline">Checking your session…</p>
+        {slow && (
+          <p className="auth-body">Starting up. The first load of the day can take up to 30 seconds.</p>
+        )}
       </AuthCard>
     );
   }
@@ -67,7 +82,7 @@ export function Shell({
   if (state === "anonymous" || !me) {
     return (
       <AuthCard>
-        <p className="auth-wordmark">LabTutor</p>
+        <p className="auth-wordmark">Catalyst</p>
         <p className="auth-tagline">Applied Chemistry Lab, VIT</p>
         <hr className="auth-divider" />
         <p className="auth-body">Sign in with your institutional Google account to continue.</p>
@@ -88,7 +103,7 @@ export function Shell({
   if (!permitted) {
     return (
       <AuthCard>
-        <p className="auth-wordmark">LabTutor</p>
+        <p className="auth-wordmark">Catalyst</p>
         <p className="auth-tagline">This page isn't available to you</p>
         <hr className="auth-divider" />
         <p className="auth-body">
@@ -105,7 +120,7 @@ export function Shell({
   if (!me.profile_complete) {
     return (
       <AuthCard>
-        <p className="auth-wordmark">LabTutor</p>
+        <p className="auth-wordmark">Catalyst</p>
         <p className="auth-tagline">One last step</p>
         <hr className="auth-divider" />
         <ProfileCompletionForm me={me} onDone={setMe} />
@@ -117,7 +132,7 @@ export function Shell({
     <>
       {chrome && (
         <header className="bar">
-          <strong>LabTutor</strong>
+          <strong>Catalyst</strong>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span className="muted">
               {me.email} · {me.role}

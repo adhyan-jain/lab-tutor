@@ -33,7 +33,9 @@ export function ClassroomPanel({
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
 
-  const [selectedExp, setSelectedExp] = useState(classroom.active_experiment_id || experiments[0]?.id || "exp01");
+  const [selectedExps, setSelectedExps] = useState<string[]>([
+    classroom.active_experiment_id || experiments[0]?.id || "exp01",
+  ]);
   const [joinOpen, setJoinOpen] = useState(classroom.join_open ?? true);
   const [newName, setNewName] = useState(classroom.name);
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -121,8 +123,8 @@ export function ClassroomPanel({
     setError("");
     setMsg("");
     try {
-      await api.post(`/api/classrooms/${classroom.id}/sessions/start`, { experiment_id: selectedExp });
-      setMsg(`Class session started for ${selectedExp}!`);
+      await api.post(`/api/classrooms/${classroom.id}/sessions/start`, { experiment_ids: selectedExps });
+      setMsg(`Class session started for ${selectedExps.join(", ")}!`);
       onClassroomUpdated();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -215,16 +217,17 @@ export function ClassroomPanel({
 
         <div className="panel-body">
           {error && <div className="error">{error}</div>}
-          {msg && <div className="notice" style={{ background: "var(--success-weak)", color: "var(--success)" }}>{msg}</div>}
+          {msg && <div className="notice notice-ok">{msg}</div>}
 
           {/* Roster Tab */}
           {tab === "roster" && (
             <div>
-              <h3 style={{ fontSize: "0.95rem", margin: "0 0 8px" }}>Classroom Faculty / Co-Faculty</h3>
+              <h3 className="panel-h">Classroom faculty and co-faculty</h3>
               {faculty.length === 0 ? (
                 <p className="muted">No faculty rows.</p>
               ) : (
-                <table style={{ marginBottom: "20px" }}>
+                <div className="panel-table">
+                <table>
                   <thead>
                     <tr>
                       <th>Name / Email</th>
@@ -259,12 +262,14 @@ export function ClassroomPanel({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
 
-              <h3 style={{ fontSize: "0.95rem", margin: "16px 0 8px" }}>Enrolled Students ({students.length})</h3>
+              <h3 className="panel-h">Enrolled students ({students.length})</h3>
               {students.length === 0 ? (
                 <p className="muted">No students enrolled yet.</p>
               ) : (
+                <div className="panel-table">
                 <table>
                   <thead>
                     <tr>
@@ -292,6 +297,7 @@ export function ClassroomPanel({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}
@@ -300,12 +306,18 @@ export function ClassroomPanel({
           {tab === "session" && (
             <div>
               <div className="card">
-                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Class Session Status</h3>
+                <h3 className="panel-h">Class Session Status</h3>
                 {classroom.active_session_id ? (
                   <div>
-                    <span className="pill pill-pass">ACTIVE SESSION</span>
-                    <p style={{ margin: "8px 0" }}>
-                      Active experiment: <strong>{classroom.active_experiment_id}</strong>
+                    <span className="pill pill-pass">Session active</span>
+                    <p className="panel-p">
+                      Active experiments:{" "}
+                      <strong>
+                        {(classroom.active_experiment_ids?.length
+                          ? classroom.active_experiment_ids
+                          : [classroom.active_experiment_id]
+                        ).join(", ")}
+                      </strong>
                     </p>
                     <button className="btn btn-danger btn-sm" onClick={handleEndSession}>
                       End Class Session
@@ -313,26 +325,33 @@ export function ClassroomPanel({
                   </div>
                 ) : (
                   <div>
-                    <span className="pill pill-warn">NO ACTIVE SESSION</span>
-                    <p className="muted" style={{ margin: "8px 0 12px" }}>
-                      Select an experiment to start a lab meeting for your students:
+                    <span className="pill pill-warn">No active session</span>
+                    <p className="muted panel-p">
+                      Select one or more experiments for this lab meeting. Students can open any of them:
                     </p>
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                      <select
-                        value={selectedExp}
-                        onChange={(e) => setSelectedExp(e.target.value)}
-                        style={{ flex: 1 }}
-                      >
-                        {experiments.map((exp) => (
-                          <option key={exp.id} value={exp.id}>
-                            {exp.id.toUpperCase()}: {exp.title} ({exp.priority})
-                          </option>
-                        ))}
-                      </select>
-                      <button className="btn btn-primary btn-sm" onClick={handleStartSession}>
-                        Start Session
-                      </button>
+                    <div role="group" aria-label="Experiments" className="exp-checks">
+                      {[...experiments].sort((a, b) => a.id.localeCompare(b.id)).map((exp) => (
+                        <label key={exp.id} className={`exp-check${selectedExps.includes(exp.id) ? " is-on" : ""}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedExps.includes(exp.id)}
+                            onChange={(e) =>
+                              setSelectedExps((cur) =>
+                                e.target.checked ? [...cur, exp.id] : cur.filter((id) => id !== exp.id)
+                              )
+                            }
+                          />
+                          {exp.id.toUpperCase()}: {exp.title} ({exp.priority})
+                        </label>
+                      ))}
                     </div>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={handleStartSession}
+                      disabled={selectedExps.length === 0}
+                    >
+                      Start Session
+                    </button>
                   </div>
                 )}
               </div>
@@ -343,7 +362,7 @@ export function ClassroomPanel({
           {tab === "settings" && (
             <div>
               <div className="card">
-                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Class name</h3>
+                <h3 className="panel-h">Class name</h3>
                 <div className="inline-form">
                   <input
                     value={newName}
@@ -362,10 +381,10 @@ export function ClassroomPanel({
               </div>
 
               <div className="card">
-                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Join Settings</h3>
+                <h3 className="panel-h">Join Settings</h3>
                 <p className="muted">Control student enrollment for this classroom section.</p>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span>Student Joining is: <strong>{joinOpen ? "OPEN" : "CLOSED"}</strong></span>
+                <div className="row-between">
+                  <span>Student joining is <strong>{joinOpen ? "open" : "closed"}</strong></span>
                   <button className="btn btn-secondary btn-sm" onClick={handleToggleJoin}>
                     {joinOpen ? "Close Joining" : "Open Joining"}
                   </button>
@@ -373,33 +392,25 @@ export function ClassroomPanel({
               </div>
 
               <div className="card">
-                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Join Codes</h3>
-                <div style={{ marginBottom: "12px" }}>
-                  <span className="muted">Student Code: </span>
+                <h3 className="panel-h">Join Codes</h3>
+                <div className="join-code panel-p">
+                  <span className="muted">Student code</span>
                   <strong className="mono">{classroom.student_join_code || "N/A"}</strong>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    style={{ marginLeft: "10px" }}
-                    onClick={() => handleRegenCode("student")}
-                  >
+                  <button className="btn btn-secondary btn-sm" onClick={() => handleRegenCode("student")}>
                     Regenerate
                   </button>
                 </div>
-                <div>
-                  <span className="muted">Faculty Code: </span>
+                <div className="join-code">
+                  <span className="muted">Faculty code</span>
                   <strong className="mono">{classroom.faculty_join_code || "N/A"}</strong>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    style={{ marginLeft: "10px" }}
-                    onClick={() => handleRegenCode("faculty")}
-                  >
+                  <button className="btn btn-secondary btn-sm" onClick={() => handleRegenCode("faculty")}>
                     Regenerate
                   </button>
                 </div>
               </div>
 
-              <div className="card" style={{ borderColor: "var(--danger)" }}>
-                <h3 style={{ margin: "0 0 6px", fontSize: "0.95rem" }}>Delete this class</h3>
+              <div className="card card-danger">
+                <h3 className="panel-h">Delete this class</h3>
                 <p className="muted">
                   The class is hidden and students can no longer join or chat in it. Any live session
                   is ended. <strong>Nothing is erased</strong>: every session, prompt, mark and
@@ -427,7 +438,7 @@ export function ClassroomPanel({
           {/* Activity Tab: submissions + escalations */}
           {tab === "review" && (
             <div>
-              <h3 style={{ fontSize: "0.95rem", margin: "0 0 8px" }}>
+              <h3 className="panel-h">
                 Review queue {escalations.filter((e) => !e.resolved).length > 0 && (
                   <span className="pill pill-warn">
                     {escalations.filter((e) => !e.resolved).length} unresolved
@@ -437,17 +448,17 @@ export function ClassroomPanel({
               {escalations.length === 0 ? (
                 <p className="muted">Nothing has needed human review yet.</p>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
+                <div className="review-list">
                   {escalations.map((e) => (
-                    <div key={e.id} className="card" style={{ padding: "10px", margin: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div key={e.id} className="card review-item">
+                      <div className="row-between">
                         <strong>{e.student_email}</strong>
                         <span className={e.resolved ? "pill pill-pass" : "pill pill-warn"}>
                           {e.resolved ? "resolved" : "needs review"}
                         </span>
                       </div>
-                      <p style={{ margin: "4px 0" }}>{e.reason}</p>
-                      <p className="muted" style={{ margin: "0 0 6px", fontSize: "0.8rem" }}>
+                      <p className="panel-p">{e.reason}</p>
+                      <p className="muted review-values">
                         Reported {e.reported_value ?? "—"} · Expected {e.expected_value ?? "—"}
                       </p>
                       {!e.resolved && (
@@ -463,12 +474,13 @@ export function ClassroomPanel({
                 </div>
               )}
 
-              <h3 style={{ fontSize: "0.95rem", margin: "16px 0 8px" }}>
+              <h3 className="panel-h">
                 All submissions ({submissions.length})
               </h3>
               {submissions.length === 0 ? (
                 <p className="muted">No submissions yet.</p>
               ) : (
+                <div className="panel-table">
                 <table>
                   <thead>
                     <tr>
@@ -491,6 +503,7 @@ export function ClassroomPanel({
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}

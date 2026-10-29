@@ -39,8 +39,28 @@ export function ChatWorkspace({ me }: { me: Me }) {
   // A stale closure of `activeThreadId` is exactly how a reply from chat A used
   // to be appended into chat B, so every async result checks this ref first.
   const activeThreadRef = useRef<string | null>(null);
+  // True once a student has tapped an experiment tab; a background reload then stays on that tab.
+  const tabPicked = useRef(false);
   const loadSeq = useRef(0);
   const sending = Boolean(sendingKeys[activeThreadId ?? "__new__"]);
+  // A chat belongs to one experiment. The open chat's own experiment drives
+  // sends and the header; `selectedExpId` is only the target for the next new chat.
+  const chatExpId = threads.find((t) => t.id === activeThreadId)?.experiment_id ?? selectedExpId;
+  // A student whose class session covers several experiments gets big tabs to switch.
+  const sessionExps = sessionInfo.experiment_ids ?? [];
+  const multiExp = me.role === "student" && sessionInfo.active && sessionExps.length > 1;
+  const switchExperiment = (expId: string) => {
+    if (expId === chatExpId) return;
+    tabPicked.current = true;
+    // Latest chat for that experiment (the list is newest first), else a blank one.
+    const latest = threads.find((t) => t.experiment_id === expId);
+    setSelectedExpId(expId);
+    setError("");
+    setInput("");
+    activateThread(latest ? latest.id : null);
+    if (!latest) setMessages([]);
+  };
+  const visibleThreads = multiExp ? threads.filter((t) => t.experiment_id === chatExpId) : threads;
   // Bumped after each reply so the practical tracker re-reads the backend.
   const [progressKey, setProgressKey] = useState(0);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -54,11 +74,17 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const [renameThreadId, setRenameThreadId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
 
+  // The message list itself scrolls; the window never does (scrollIntoView
+  // would also scroll the page on iOS and push the header off screen).
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Follow new text only while the student is already at the bottom, so
   // scrolling up to re-read an answer is never yanked away by streaming.
   const pinnedToBottom = useRef(true);
+  const scrollToEnd = (smooth: boolean) => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const narrow = useNarrow();
 
@@ -82,7 +108,9 @@ export function ChatWorkspace({ me }: { me: Me }) {
   }, [sidebarOpen]);
 
   // iOS Safari does not resize the layout viewport for the keyboard, so the
-  // app height follows the visual viewport to keep the composer in view.
+  // app is pinned to the VISUAL viewport: its height and its top offset
+  // (iOS scrolls the page under an open keyboard). The header stays on
+  // screen and the composer sits right above the keyboard.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -90,21 +118,23 @@ export function ChatWorkspace({ me }: { me: Me }) {
     const sync = () => {
       if (Math.abs(vv.scale - 1) > 0.01) return; // pinch-zoom: leave the layout alone
       root.style.setProperty("--app-h", `${Math.round(vv.height)}px`);
-      if (pinnedToBottom.current) scrollRef.current?.scrollIntoView({ block: "end" });
+      root.style.setProperty("--app-top", `${Math.round(vv.offsetTop)}px`);
+      if (pinnedToBottom.current) scrollToEnd(false);
     };
     sync();
     vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
     return () => {
       vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
       root.style.removeProperty("--app-h");
+      root.style.removeProperty("--app-top");
     };
   }, []);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
-    if (pinnedToBottom.current) {
-      scrollRef.current?.scrollIntoView({ behavior: sending ? "auto" : "smooth", block: "end" });
-    }
+    if (pinnedToBottom.current) scrollToEnd(!sending);
   }, [messages, sending]);
 
   // Composer grows with its text up to a cap, then scrolls inside itself.
@@ -116,7 +146,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
   }, [input]);
 
   // Load classrooms on mount
-  const loadClassrooms = async () => {
+  const loadClassrooms = async (preferId?: string) => {
     setError("");
     try {
       let list: Classroom[] = [];
@@ -137,7 +167,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
         try {
           savedId = localStorage.getItem(STORAGE_KEY_CLASSROOM);
         } catch {}
-        const match = list.find((c) => c.id === savedId);
+        const match = list.find((c) => c.id === (preferId ?? savedId));
         setActiveClassroom(match || list[0]);
       } else {
         setActiveClassroom(null);
@@ -178,7 +208,9 @@ export function ChatWorkspace({ me }: { me: Me }) {
       const info = await api.get<ActiveSessionInfo>(`/api/classrooms/${classroomId}/active-session`);
       setSessionInfo(info);
       if (info.active && info.experiment_id) {
-        setSelectedExpId(info.experiment_id);
+        // Keep the student's current pick when the session still covers it.
+        const allowed = info.experiment_ids?.length ? info.experiment_ids : [info.experiment_id];
+        setSelectedExpId((cur) => (allowed.includes(cur) ? cur : info.experiment_id!));
       }
     } catch (e) {
       setSessionInfo({ active: false });
@@ -197,14 +229,29 @@ export function ChatWorkspace({ me }: { me: Me }) {
     setActiveThreadId(id);
   };
 
+  // Students see every chat for the experiments in the active session, so they
+  // can switch between experiments by switching chats. Faculty keep the
+  // per-experiment list driven by the experiment dropdown.
+  const fetchThreads = async (): Promise<ChatThread[]> => {
+    const isStudent = me.role === "student";
+    const filter = isStudent ? "" : `&experiment_id=${selectedExpId}`;
+    const res = await api.get<{ threads: ChatThread[] }>(
+      `/api/chat/threads?classroom_id=${activeClassroom!.id}${filter}`
+    );
+    if (!isStudent) return res.threads;
+    const allowed = sessionInfo.experiment_ids?.length
+      ? sessionInfo.experiment_ids
+      : sessionInfo.experiment_id
+        ? [sessionInfo.experiment_id]
+        : null;
+    return allowed ? res.threads.filter((t) => allowed.includes(t.experiment_id)) : res.threads;
+  };
+
   // Refresh the sidebar list only; never changes which thread is open.
   const refreshThreadList = async () => {
     if (!activeClassroom || !selectedExpId) return;
     try {
-      const res = await api.get<{ threads: ChatThread[] }>(
-        `/api/chat/threads?classroom_id=${activeClassroom.id}&experiment_id=${selectedExpId}`
-      );
-      setThreads(res.threads);
+      setThreads(await fetchThreads());
     } catch (e) {
       console.error("Failed to refresh chat threads", e);
     }
@@ -214,12 +261,21 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const loadThreads = async () => {
     if (!activeClassroom || !selectedExpId) return;
     try {
-      const res = await api.get<{ threads: ChatThread[] }>(
-        `/api/chat/threads?classroom_id=${activeClassroom.id}&experiment_id=${selectedExpId}`
-      );
-      setThreads(res.threads);
-      if (res.threads.length > 0) {
-        activateThread(res.threads[0].id);
+      const list = await fetchThreads();
+      setThreads(list);
+      // A background refresh must never close the chat the student is in.
+      const open = activeThreadRef.current;
+      if (open && list.some((t) => t.id === open)) return;
+      if (list.length > 0) {
+        if (me.role === "student" && tabPicked.current) {
+          // The student chose an experiment tab: stay on it (blank if it has no chat yet).
+          const mine = list.find((t) => t.experiment_id === selectedExpId);
+          activateThread(mine ? mine.id : null);
+          if (!mine) setMessages([]);
+          return;
+        }
+        activateThread(list[0].id);
+        if (me.role === "student") setSelectedExpId(list[0].experiment_id);
       } else {
         activateThread(null);
         setMessages([]);
@@ -231,7 +287,8 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
   useEffect(() => {
     loadThreads();
-  }, [activeClassroom, selectedExpId]);
+    // Students' list spans experiments, so picking an experiment must not reload it.
+  }, [activeClassroom?.id, me.role === "student" ? "" : selectedExpId, sessionInfo.session_id]);
 
   // Load messages for active thread
   const loadMessages = async (threadId: string) => {
@@ -271,8 +328,9 @@ export function ChatWorkspace({ me }: { me: Me }) {
       });
       setShowJoinModal(false);
       setJoinCode("");
-      await loadClassrooms();
-      setActiveClassroom(joined);
+      // Switch to the joined class using the full record from the list, so its
+      // session shows straight away without a reload.
+      await loadClassrooms(joined.id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }
@@ -289,8 +347,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
       });
       setShowCreateModal(false);
       setNewClassroomName("");
-      await loadClassrooms();
-      setActiveClassroom(created);
+      await loadClassrooms(created.id);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
     }
@@ -394,7 +451,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
       for await (const event of api.streamMessage({
         classroom_id: activeClassroom.id,
-        experiment_id: selectedExpId,
+        experiment_id: chatExpId,
         message: text,
         thread_id: originThread,
       })) {
@@ -492,7 +549,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
   const settingsHref = activeClassroom
     ? `/settings/classroom?classroom=${encodeURIComponent(activeClassroom.id)}`
     : "/settings/classroom";
-  const selectedExp = experiments.find((e) => e.id === selectedExpId);
+  const selectedExp = experiments.find((e) => e.id === chatExpId);
   // Example questions for an empty chat, from the experiment catalogue (no
   // extra request). Four fit a phone screen without pushing the actions away.
   const starters = (selectedExp?.suggestions ?? []).slice(0, 4);
@@ -519,14 +576,8 @@ export function ChatWorkspace({ me }: { me: Me }) {
         {/* Brand + identity */}
         <div className="sb-section sb-head">
           <div className="sb-brand-row">
-            <strong className="sb-brand">LabTutor</strong>
-            <span
-              className={`pill ${
-                me.role === "admin" ? "pill-escalated" : me.role === "faculty" ? "pill-pass" : "pill-p1"
-              }`}
-            >
-              {me.role.toUpperCase()}
-            </span>
+            <strong className="sb-brand">Catalyst</strong>
+            <span className="sb-role">{me.role}</span>
             <button
               type="button"
               className="icon-btn sb-close"
@@ -579,10 +630,11 @@ export function ChatWorkspace({ me }: { me: Me }) {
         </div>
 
         {/* Experiment Selector */}
-        <div className="sb-section">
+        {/* Students in a multi-experiment session switch with the tabs above the chat, not here. */}
+        <div className="sb-section" hidden={multiExp}>
           <span className="sb-label">IACHY102 experiment</span>
           {me.role === "student" ? (
-            sessionInfo.active && sessionInfo.experiment_id ? (
+            multiExp ? null : sessionInfo.active && sessionInfo.experiment_id ? (
               <div className="sb-exp is-active">
                 <span className="exp-code">{sessionInfo.experiment_id.toUpperCase()}</span>
                 <span>{experiments.find((e) => e.id === sessionInfo.experiment_id)?.title || "Experiment"}</span>
@@ -618,10 +670,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
         </div>
 
         <nav className="sb-threads" aria-label="Chat threads">
-          {threads.length === 0 ? (
-            <p className="sb-empty sb-empty-center">No chats for this experiment yet. Tap “New chat” to start.</p>
+          {visibleThreads.length === 0 ? (
+            <p className="sb-empty sb-empty-center">No chats yet. Tap “New chat” to start.</p>
           ) : (
-            threads.map((t) => {
+            visibleThreads.map((t) => {
               const isActive = t.id === activeThreadId;
               return (
                 <div key={t.id} className={`thread-item ${isActive ? "active" : ""}`}>
@@ -629,7 +681,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
                     type="button"
                     className="thread-main"
                     aria-current={isActive ? "page" : undefined}
-                    onClick={() => activateThread(t.id)}
+                    onClick={() => {
+                      activateThread(t.id);
+                      setSelectedExpId(t.experiment_id);
+                    }}
                   >
                     <ChatIcon size={14} />
                     <span className="thread-title">{t.title}</span>
@@ -703,7 +758,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
           </button>
           <div className="chat-heading">
             <div className="chat-heading-row">
-              <span className="exp-code">{selectedExpId.toUpperCase()}</span>
+              <span className="exp-code">{chatExpId.toUpperCase()}</span>
               <h1 className="chat-title" title={selectedExp?.title}>
                 <span className="title-full">{selectedExp?.title || "Experiment"}</span>
                 <span className="title-short">{shortTitle(selectedExp?.title)}</span>
@@ -744,6 +799,27 @@ export function ChatWorkspace({ me }: { me: Me }) {
           </div>
         </header>
 
+        {multiExp && (
+          <nav className="exp-tabs" aria-label="Today's experiments">
+            {sessionExps.map((id) => {
+              const exp = experiments.find((e) => e.id === id);
+              const on = id === chatExpId;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`exp-tab${on ? " is-on" : ""}`}
+                  aria-current={on ? "true" : undefined}
+                  onClick={() => switchExperiment(id)}
+                >
+                  <span className="exp-tab-num">Experiment {parseInt(id.replace(/\D/g, ""), 10) || id}</span>
+                  <span className="exp-tab-name">{shortTitle(exp?.title)}</span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
+
         {/* Error Banner */}
         {error && (
           <div className="error chat-error" role="alert">
@@ -760,6 +836,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
 
         {/* Messages Container */}
         <div
+          ref={scrollRef}
           className="chat-scroll"
           onScroll={(e) => {
             const el = e.currentTarget;
@@ -768,7 +845,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
         >
           {!activeClassroom ? (
             <div className="card empty-state">
-              <h2>Welcome to LabTutor</h2>
+              <h2>Welcome to Catalyst</h2>
               <p className="muted">You are not in a classroom section yet.</p>
               <button className="btn btn-primary" onClick={() => setShowJoinModal(true)}>
                 Enter Join Code
@@ -848,7 +925,6 @@ export function ChatWorkspace({ me }: { me: Me }) {
               );
             })
           )}
-          <div ref={scrollRef} />
         </div>
 
         {/* Composer */}
@@ -882,7 +958,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
               }}
               placeholder={
                 !activeClassroom
-                  ? "Join a classroom to ask questions…"
+                  ? "Join a classroom to ask…"
                   : chatBlockedForStudent
                   ? "Waiting for a session…"
                   : narrow
@@ -907,10 +983,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
       {/* Join Code Modal */}
       {showJoinModal && (
         <div className="modal-backdrop" onClick={() => setShowJoinModal(false)}>
-          <div className="modal-content" style={{ maxWidth: "400px" }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ margin: 0, fontSize: "1rem" }}>Join Classroom</h2>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowJoinModal(false)} aria-label="Close" style={{ display: "flex" }}><CloseIcon size={14} /></button>
+              <h2 className="modal-title">Join Classroom</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowJoinModal(false)} aria-label="Close"><CloseIcon size={14} /></button>
             </div>
             <div className="modal-body">
               {error && <div className="error">{error}</div>}
@@ -925,7 +1001,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
                 />
 
               </label>
-              <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleJoinClassroom}>
+              <button className="btn btn-primary btn-block" onClick={handleJoinClassroom}>
                 Join Classroom
               </button>
             </div>
@@ -936,10 +1012,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
       {/* Create Classroom Modal */}
       {showCreateModal && (
         <div className="modal-backdrop" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" style={{ maxWidth: "400px" }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ margin: 0, fontSize: "1rem" }}>Create Section</h2>
-              <button className="btn btn-secondary btn-sm" onClick={() => setShowCreateModal(false)} aria-label="Close" style={{ display: "flex" }}><CloseIcon size={14} /></button>
+              <h2 className="modal-title">Create Section</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setShowCreateModal(false)} aria-label="Close"><CloseIcon size={14} /></button>
             </div>
             <div className="modal-body">
               {error && <div className="error">{error}</div>}
@@ -952,7 +1028,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
                   onChange={(e) => setNewClassroomName(e.target.value)}
                 />
               </label>
-              <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleCreateClassroom}>
+              <button className="btn btn-primary btn-block" onClick={handleCreateClassroom}>
                 Create Section
               </button>
             </div>
@@ -963,10 +1039,10 @@ export function ChatWorkspace({ me }: { me: Me }) {
       {/* Rename Thread Modal */}
       {renameThreadId && (
         <div className="modal-backdrop" onClick={() => setRenameThreadId(null)}>
-          <div className="modal-content" style={{ maxWidth: "400px" }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content modal-sm" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ margin: 0, fontSize: "1rem" }}>Rename Chat Thread</h2>
-              <button className="btn btn-secondary btn-sm" onClick={() => setRenameThreadId(null)} aria-label="Close" style={{ display: "flex" }}><CloseIcon size={14} /></button>
+              <h2 className="modal-title">Rename Chat Thread</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setRenameThreadId(null)} aria-label="Close"><CloseIcon size={14} /></button>
             </div>
             <div className="modal-body">
               <label>
@@ -977,7 +1053,7 @@ export function ChatWorkspace({ me }: { me: Me }) {
                   onChange={(e) => setRenameTitle(e.target.value)}
                 />
               </label>
-              <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleRenameThread}>
+              <button className="btn btn-primary btn-block" onClick={handleRenameThread}>
                 Save Title
               </button>
             </div>

@@ -6,18 +6,18 @@ import { MoonIcon, SunIcon } from "./Icons";
 const STORAGE_KEY = "labtutor:theme";
 type Theme = "dark" | "light";
 
-/** Mirrors the inline script in app/layout.tsx that sets this before
- * first paint -- this component just needs to read that same result so
- * its icon matches on mount, then keeps both in sync on click. */
+/** The theme on screen: a saved choice (data-theme, set before first paint by
+ * the inline script in app/layout.tsx) or, without one, the device setting. */
 function currentTheme(): Theme {
-  if (typeof document === "undefined") return "dark";
-  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  if (typeof document === "undefined") return "light";
+  const set = document.documentElement.getAttribute("data-theme");
+  if (set === "light" || set === "dark") return set;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export function ThemeToggle() {
-  // Dark is the default rendered on the server; synced to the real
-  // value (which may be "light", from a saved preference) once mounted.
-  const [theme, setTheme] = useState<Theme>("dark");
+  // Synced to the real value once mounted (the server cannot know it).
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
     setTheme(currentTheme());
@@ -41,7 +41,6 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      style={{ display: "flex", alignItems: "center", gap: "6px" }}
     >
       {theme === "dark" ? <SunIcon size={14} /> : <MoonIcon size={14} />}
       {theme === "dark" ? "Light" : "Dark"}

@@ -134,7 +134,7 @@ export function MarksWorkspace({ me }: { me: Me }) {
       const classroomName = classrooms.find((c) => c.id === classroomId)?.name || "classroom";
       await api.download(
         `/api/marks/classrooms/${classroomId}/export.xlsx`,
-        `labtutor_marks_${classroomName.replace(/\s+/g, "_")}.xlsx`
+        `catalyst_marks_${classroomName.replace(/\s+/g, "_")}.xlsx`
       );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
@@ -152,14 +152,14 @@ export function MarksWorkspace({ me }: { me: Me }) {
 
       {error && <div className="error">{error}</div>}
       {msg && (
-        <div className="notice" style={{ background: "var(--success-weak)", color: "var(--success)" }}>
+        <div className="notice notice-ok">
           {msg}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", margin: "16px 0" }}>
-        <div>
-          <label className="muted" style={{ fontSize: "0.8rem", display: "block", marginBottom: "4px" }}>
+      <div className="toolbar">
+        <div className="filter-field">
+          <label className="muted filter-label">
             Classroom
           </label>
           <select value={classroomId} onChange={(e) => setClassroomId(e.target.value)}>
@@ -170,8 +170,8 @@ export function MarksWorkspace({ me }: { me: Me }) {
             ))}
           </select>
         </div>
-        <div>
-          <label className="muted" style={{ fontSize: "0.8rem", display: "block", marginBottom: "4px" }}>
+        <div className="filter-field">
+          <label className="muted filter-label">
             Experiment
           </label>
           <select value={experimentId} onChange={(e) => setExperimentId(e.target.value)}>
@@ -182,7 +182,7 @@ export function MarksWorkspace({ me }: { me: Me }) {
             ))}
           </select>
         </div>
-        <div style={{ display: "flex", alignItems: "flex-end", gap: "8px" }}>
+        <div className="row-wrap">
           <button className="btn btn-primary btn-sm" onClick={handleSaveAll} disabled={saving || loading}>
             {saving ? "Saving..." : "Save all"}
           </button>

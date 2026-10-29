@@ -48,6 +48,22 @@ export function SendIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function ChevronLeftIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+export function ChevronRightIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
 export function PlusIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

@@ -22,7 +22,7 @@ const plexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "LabTutor",
+  title: "Catalyst",
   description: "Chemistry lab learning support for BACHY105",
 };
 
@@ -34,16 +34,20 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   interactiveWidget: "resizes-content",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f5f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#131416" },
+  ],
 };
 
-// Runs before React hydrates, so a saved "light" preference (or dark,
-// the default) applies before first paint -- without this, the page
-// would flash dark-then-light for anyone who chose light mode.
+// Runs before React hydrates, so a saved choice applies before first paint.
+// With no saved choice the device setting decides (globals.css
+// prefers-color-scheme), so nothing flashes either way.
 const themeInitScript = `
 (function () {
   try {
     var saved = localStorage.getItem("labtutor:theme");
-    if (saved === "light") document.documentElement.setAttribute("data-theme", "light");
+    if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
   } catch (e) {}
 })();
 `;

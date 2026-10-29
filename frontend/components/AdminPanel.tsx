@@ -69,7 +69,7 @@ export function AdminPanel() {
       </p>
         <div>
           {error && <div className="error">{error}</div>}
-          {msg && <div className="notice" style={{ background: "var(--success-weak)", color: "var(--success)" }}>{msg}</div>}
+          {msg && <div className="notice notice-ok">{msg}</div>}
 
           <div style={{ marginBottom: "16px", display: "flex", gap: "8px" }}>
             <input
@@ -83,10 +83,11 @@ export function AdminPanel() {
             />
           </div>
 
-          <h3 style={{ fontSize: "0.95rem", margin: "0 0 8px" }}>User Platform Roles</h3>
+          <h3 className="panel-h">User platform roles</h3>
           {users.length === 0 ? (
             <p className="muted">No users found.</p>
           ) : (
+            <div className="panel-table">
             <table>
               <thead>
                 <tr>
@@ -113,16 +114,16 @@ export function AdminPanel() {
                             : "pill pill-p1"
                         }
                       >
-                        {u.role.toUpperCase()}
+                        {u.role}
                       </span>
                       {u.role_override && (
-                        <div style={{ fontSize: "0.7rem", color: "var(--warn)", marginTop: "2px" }}>
+                        <div className="role-override">
                           (Overridden)
                         </div>
                       )}
                     </td>
                     <td>
-                      <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                      <div className="row-wrap">
                         {u.role !== "admin" && (
                           <button
                             className="btn btn-sm btn-secondary"
@@ -161,6 +162,7 @@ export function AdminPanel() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
     </div>

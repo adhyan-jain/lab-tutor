@@ -6,31 +6,23 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { UnifiedChatMessage } from "@/lib/api";
-import { BookIcon, CheckIcon, LightbulbIcon, WarningIcon } from "@/components/Icons";
+import {
+  BookIcon,
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  LightbulbIcon,
+  WarningIcon,
+} from "@/components/Icons";
 
+// Spacing and colours for these live in globals.css (.msg-body ...), so they
+// follow the theme; only the element mapping is decided here.
 const markdownComponents = {
-  p: (props: React.ComponentProps<"p">) => <p style={{ margin: "0 0 0.75em" }} {...props} />,
-  ul: (props: React.ComponentProps<"ul">) => <ul style={{ margin: "0 0 0.75em", paddingLeft: "1.3em" }} {...props} />,
-  ol: (props: React.ComponentProps<"ol">) => <ol style={{ margin: "0 0 0.75em", paddingLeft: "1.5em" }} {...props} />,
-  li: (props: React.ComponentProps<"li">) => <li style={{ margin: "3px 0" }} {...props} />,
-  h1: (props: React.ComponentProps<"h1">) => <h3 style={{ margin: "0.9em 0 0.4em", fontSize: "1.05rem" }} {...props} />,
-  h2: (props: React.ComponentProps<"h2">) => <h3 style={{ margin: "0.9em 0 0.4em", fontSize: "1.05rem" }} {...props} />,
-  h3: (props: React.ComponentProps<"h3">) => <h4 style={{ margin: "0.8em 0 0.3em", fontSize: "0.98rem" }} {...props} />,
-  code: (props: React.ComponentProps<"code">) => (
-    <code
-      style={{
-        backgroundColor: "rgba(128, 128, 128, 0.15)",
-        padding: "2px 5px",
-        borderRadius: "4px",
-        fontFamily: "monospace",
-        fontSize: "0.9em",
-      }}
-      {...props}
-    />
-  ),
-  pre: (props: React.ComponentProps<"pre">) => (
-    <pre style={{ margin: "0 0 0.75em", overflowX: "auto", padding: "8px 10px", borderRadius: "6px", backgroundColor: "rgba(128, 128, 128, 0.15)" }} {...props} />
-  ),
+  h1: (props: React.ComponentProps<"h1">) => <h3 {...props} />,
+  h2: (props: React.ComponentProps<"h2">) => <h3 {...props} />,
+  h3: (props: React.ComponentProps<"h3">) => <h4 {...props} />,
+  code: (props: React.ComponentProps<"code">) => <code className="md-code" {...props} />,
+  pre: (props: React.ComponentProps<"pre">) => <pre className="md-pre" {...props} />,
   // Wide tables scroll inside the bubble instead of stretching the page.
   table: (props: React.ComponentProps<"table">) => (
     <div className="md-table-wrap">
@@ -39,7 +31,7 @@ const markdownComponents = {
   ),
   img: (props: React.ComponentProps<"img">) => (
     // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-    <img style={{ maxWidth: "100%", height: "auto" }} {...props} />
+    <img {...props} />
   ),
   a: (props: React.ComponentProps<"a">) => <a target="_blank" rel="noopener noreferrer" {...props} />,
 };
@@ -64,6 +56,13 @@ function normalizeMath(text: string): string {
     .replace(/\[\s+(\\[A-Za-z][^\]\n]*?)\s+\]/g, (_m, body: string) => `$$${body.trim()}$$`);
 }
 
+/** Markdown merges single line breaks into spaces, which runs a multiple-choice
+ * question's options together ("a) ... b) ... c) ..."). Keep each option, and the
+ * "Reply with" line, on its own line with a markdown hard break. */
+function keepOptionLines(content: string): string {
+  return content.replace(/\n(?=(?:[a-d]\) |Reply with a, b, c or d))/g, "  \n");
+}
+
 function renderFormattedContent(content: string) {
   if (!content) return null;
   // react-markdown does not render raw HTML by default, so model output
@@ -74,7 +73,7 @@ function renderFormattedContent(content: string) {
       rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
       components={cleanMarkdownComponents}
     >
-      {normalizeMath(content)}
+      {normalizeMath(keepOptionLines(content))}
     </ReactMarkdown>
   );
 }
@@ -129,87 +128,65 @@ export function MessageBubble({
       <div className={`msg-bubble ${isStudent ? "is-student" : "is-tutor"}`}>
         {/* Diagnostic Metadata Badge Card */}
         {meta.type === "diagnostic" && meta.status && (
-          <div
-            style={{
-              padding: "8px 12px",
-              marginBottom: "10px",
-              borderRadius: "8px",
-              fontSize: "0.85rem",
-              backgroundColor:
-                meta.status === "pass"
-                  ? "var(--success-weak)"
-                  : meta.status === "fail"
-                  ? "var(--danger-weak)"
-                  : meta.status === "escalated"
-                  ? "var(--purple-weak)"
-                  : "var(--warn-weak)",
-              border: `1px solid ${
-                meta.status === "pass"
-                  ? "var(--success)"
-                  : meta.status === "fail"
-                  ? "var(--danger)"
-                  : meta.status === "escalated"
-                  ? "var(--purple)"
-                  : "var(--warn)"
-              }`,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+          <div className={`diag-card is-${meta.status}`}>
+            <div className="diag-head">
               <span className={`pill pill-${meta.status}`}>
-                {meta.status.toUpperCase()} (Tier {meta.tier})
+                {meta.status.charAt(0).toUpperCase() + meta.status.slice(1)} · Tier {meta.tier}
               </span>
               {meta.action && meta.action !== "none" && (
-                <span className="muted" style={{ fontSize: "0.75rem", textTransform: "capitalize" }}>
-                  Remedy: {meta.action.replace(/_/g, " ")}
-                </span>
+                <span className="muted diag-remedy">Remedy: {meta.action.replace(/_/g, " ")}</span>
               )}
             </div>
             {meta.low_confidence && (
-              <p className="muted" style={{ fontSize: "0.75rem", margin: "2px 0 0", display: "flex", alignItems: "center", gap: "4px" }}>
+              <p className="muted diag-note">
                 <WarningIcon size={12} /> Low-confidence qualitative check — human review requested.
               </p>
             )}
           </div>
         )}
 
-        {/* Walkthrough progress rail */}
+        {/* Walkthrough progress: where you are, with back / next one tap away.
+            The buttons send the same words a student would type, so they go
+            through the server's deterministic navigation like anything else. */}
         {meta.type === "walkthrough" && ui?.progress && (
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px",
-              fontSize: "0.75rem", color: "var(--muted)",
-            }}
-          >
-            <div
-              aria-hidden
-              style={{
-                flex: 1, height: "4px", borderRadius: "2px", background: "var(--border)", position: "relative", overflow: "hidden",
-              }}
-            >
+          <div className="wt-progress">
+            <div className="wt-progress-bar" aria-hidden>
               <div
-                style={{
-                  position: "absolute", inset: 0, width: `${Math.min(100, (ui.progress.index / Math.max(1, ui.progress.total)) * 100)}%`,
-                  background: "var(--accent)", borderRadius: "2px",
-                }}
+                className="wt-progress-fill"
+                style={{ width: `${Math.min(100, ((ui.progress.index + 1) / Math.max(1, ui.progress.total)) * 100)}%` }}
               />
             </div>
-            <span>{ui.progress.label}</span>
+            <span className="wt-progress-label">{ui.progress.label}</span>
+            {onQuickReply && ui.kind !== "done" && (
+              <span className="wt-nav">
+                <button
+                  type="button"
+                  className="icon-btn wt-nav-btn"
+                  aria-label="Previous step"
+                  title="Previous step"
+                  disabled={ui.progress.index <= 0 && ui.kind !== "assessment"}
+                  onClick={() => onQuickReply("Previous step")}
+                >
+                  <ChevronLeftIcon size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn wt-nav-btn"
+                  aria-label="Next step"
+                  title="Next step"
+                  onClick={() => onQuickReply("Next step")}
+                >
+                  <ChevronRightIcon size={16} />
+                </button>
+              </span>
+            )}
           </div>
         )}
 
         {/* Concept card: inline, shown only when a core concept is raised */}
         {conceptCard && (
-          <div
-            role="note"
-            aria-label={`Concept: ${conceptCard.name}`}
-            style={{
-              borderLeft: "3px solid var(--accent)", background: "var(--surface-2, rgba(127,127,127,0.08))",
-              borderRadius: "6px", padding: "8px 12px", margin: "0 0 10px", fontSize: "0.85rem", lineHeight: 1.5,
-            }}
-          >
-            <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)" }}>
-              Concept worth knowing
-            </div>
+          <div role="note" aria-label={`Concept: ${conceptCard.name}`} className="concept-card">
+            <div className="concept-card-label">Concept worth knowing</div>
             <strong>{conceptCard.name}.</strong> {conceptCard.text}
           </div>
         )}
@@ -230,17 +207,16 @@ export function MessageBubble({
 
         {/* Walkthrough option buttons (MCQ / checkpoint) */}
         {meta.type === "walkthrough" && ui?.options && ui.options.length > 0 && (
-          <div role="group" aria-label="Answer options" className="reply-stack" style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "10px" }}>
+          <div role="group" aria-label="Answer options" className="reply-stack">
             {ui.options.map((opt) => (
               <button
                 key={opt.key}
                 type="button"
-                className="btn btn-secondary btn-sm touch-btn"
+                className="btn btn-secondary btn-sm touch-btn opt-btn"
                 disabled={!onQuickReply}
                 onClick={() => onQuickReply?.(`${opt.key.toUpperCase()}. ${opt.text}`)}
-                style={{ textAlign: "left", justifyContent: "flex-start", whiteSpace: "normal" }}
               >
-                <strong style={{ marginRight: "6px" }}>{opt.key.toUpperCase()}.</strong> {opt.text}
+                <strong className="opt-key">{opt.key.toUpperCase()}.</strong> {opt.text}
               </button>
             ))}
           </div>
@@ -248,19 +224,18 @@ export function MessageBubble({
 
         {/* Checkpoint quiz: two questions, each with its own option group */}
         {meta.type === "walkthrough" && ui?.quiz && ui.quiz.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+          <div className="quiz-stack">
             {ui.quiz.map((item) => (
-              <div key={item.n} role="group" aria-label={`Question ${item.n}`} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div key={item.n} role="group" aria-label={`Question ${item.n}`} className="reply-stack">
                 {item.options.map((opt) => (
                   <button
                     key={opt.key}
                     type="button"
-                    className="btn btn-secondary btn-sm touch-btn"
+                    className="btn btn-secondary btn-sm touch-btn opt-btn"
                     disabled={!onQuickReply}
                     onClick={() => onQuickReply?.(`${item.n}${opt.key}`)}
-                    style={{ textAlign: "left", justifyContent: "flex-start", whiteSpace: "normal" }}
                   >
-                    <strong style={{ marginRight: "6px" }}>{item.n}{opt.key}.</strong> {opt.text}
+                    <strong className="opt-key">{item.n}{opt.key}.</strong> {opt.text}
                   </button>
                 ))}
               </div>
@@ -289,7 +264,7 @@ export function MessageBubble({
 
         {/* Diagnostic Citation */}
         {meta.type === "diagnostic" && meta.citation && (
-          <div style={{ marginTop: "8px", fontSize: "0.8rem", color: "var(--muted)", display: "flex", alignItems: "flex-start", gap: "6px" }}>
+          <div className="diag-citation">
             <BookIcon size={13} className="muted" />
             <span><strong>Manual reference:</strong> {meta.citation}</span>
           </div>
@@ -343,7 +318,7 @@ export function MessageBubble({
               aria-label={copied ? "Copied to clipboard" : "Copy reply"}
             >
               {copied ? (
-                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span className="copied">
                   <CheckIcon size={12} /> Copied
                 </span>
               ) : (

@@ -88,7 +88,7 @@ export const api = {
         0,
         timedOut
           ? "The reply is taking too long. Check your connection and try again."
-          : "Could not reach LabTutor. Check your internet connection and try again.",
+          : "Could not reach Catalyst. Check your internet connection and try again.",
       );
     arm();
     let response: Response;
@@ -203,6 +203,8 @@ export interface Classroom {
   student_join_code?: string;
   faculty_join_code?: string;
   active_experiment_id: string | null;
+  /** Every experiment the active session covers (primary first); [] when none. */
+  active_experiment_ids?: string[];
   active_session_id: string | null;
   student_count?: number;
   /** True when the current (student) caller reaches this classroom via a
@@ -330,6 +332,8 @@ export interface ActiveSessionInfo {
   active: boolean;
   session_id?: string;
   experiment_id?: string;
+  /** All experiments students may open this session (primary first). */
+  experiment_ids?: string[];
   started_at?: string;
 }
 
@@ -426,7 +430,18 @@ export interface ActionContext {
 }
 
 export interface WalkthroughUi {
-  kind: "hook" | "step" | "quiz" | "concept" | "paused" | "done" | "greeting" | "mode" | "theory";
+  kind:
+    | "hook"
+    | "step"
+    | "quiz"
+    | "concept"
+    | "assessment"
+    | "paused"
+    | "done"
+    | "greeting"
+    | "mode"
+    | "theory"
+    | "theory_followup";
   progress?: { label: string; index: number; total: number; chapter: string };
   /** Conceptual moment: a short authored question about why / what to expect. */
   concept_id?: string;

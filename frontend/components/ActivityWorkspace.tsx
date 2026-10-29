@@ -88,7 +88,7 @@ export function ActivityWorkspace({ me }: { me: Me }) {
       const name = classrooms.find((c) => c.id === classroomId)?.name || "classroom";
       await api.download(
         `/api/dashboard/classrooms/${classroomId}/research-export.xlsx`,
-        `labtutor_research_export_${name.replace(/\s+/g, "_")}.xlsx`
+        `catalyst_research_export_${name.replace(/\s+/g, "_")}.xlsx`
       );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
