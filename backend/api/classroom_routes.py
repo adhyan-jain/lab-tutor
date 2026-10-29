@@ -45,7 +45,9 @@ class JoinRequest(BaseModel):
 
 
 class StartSessionRequest(BaseModel):
-    experiment_id: str
+    # Either one experiment (legacy) or several; the first is the primary.
+    experiment_id: str | None = None
+    experiment_ids: list[str] | None = None
 
 
 class JoinOpenRequest(BaseModel):
@@ -115,6 +117,7 @@ async def _classroom_payload(db: AsyncSession, classroom: Classroom, *, include_
         "name": classroom.name,
         "join_open": classroom.join_open,
         "active_experiment_id": active_session.experiment_id if active_session else None,
+        "active_experiment_ids": active_session.allowed_experiments if active_session else [],
         "active_session_id": active_session.id if active_session else None,
         "student_count": await classroom_service.student_count(db, classroom.id),
         "archived": classroom.archived_at is not None,
@@ -549,6 +552,7 @@ async def active_session(
         "active": True,
         "session_id": session.id,
         "experiment_id": session.experiment_id,
+        "experiment_ids": session.allowed_experiments,
         "started_at": session.started_at.isoformat(),
     }
 
@@ -563,7 +567,11 @@ async def start_class_session(
     await _get_classroom_or_404(db, classroom_id)
     try:
         session = await classroom_service.start_session(
-            db, classroom_id, experiment_id=body.experiment_id, started_by=principal.id
+            db,
+            classroom_id,
+            experiment_id=body.experiment_id,
+            experiment_ids=body.experiment_ids,
+            started_by=principal.id,
         )
     except classroom_service.SessionAlreadyActive as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -572,10 +580,15 @@ async def start_class_session(
 
     await audit.record(
         db, audit.SESSION_STARTED, user_id=principal.id, classroom_id=classroom_id,
-        class_session_id=session.id, detail={"experiment_id": session.experiment_id},
+        class_session_id=session.id,
+        detail={"experiment_id": session.experiment_id, "experiment_ids": session.allowed_experiments},
     )
     await db.commit()
-    return {"session_id": session.id, "experiment_id": session.experiment_id}
+    return {
+        "session_id": session.id,
+        "experiment_id": session.experiment_id,
+        "experiment_ids": session.allowed_experiments,
+    }
 
 
 @router.post("/{classroom_id}/sessions/{session_id}/end")

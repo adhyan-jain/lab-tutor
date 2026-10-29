@@ -120,7 +120,7 @@ async def test_3_the_model_context_for_b_contains_nothing_from_a(client, make_us
 
 
 async def test_4_no_server_side_conversation_state_is_ever_sent_to_openai():
-    """LabTutor builds each model request from its own thread's messages. It
+    """Catalyst builds each model request from its own thread's messages. It
     never uses previous_response_id or a Conversations API id, so a new thread
     cannot inherit one. Proved on the real request construction."""
     from backend.llm import client as llm_client

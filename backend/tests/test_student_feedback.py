@@ -386,7 +386,7 @@ def test_tapping_a_chip_with_a_reflection_pending_is_answered_and_keeps_the_refl
 
 async def test_an_answer_without_a_reflection_offers_next_steps(client, make_user, scripted, monkeypatch):
     scripted(ENGLISH)
-    monkeypatch.setattr(theory, "open_followup", lambda state, message: None)
+    monkeypatch.setattr(theory, "open_followup", lambda state, message, *a, **k: None)
     classroom_id, _, token = await _setup(client, make_user, "fb-chips")
     out = await _send(client, token, classroom_id, "What is a basis set?")
     assert out["message"]["metadata"]["ui"]["chips"] == theory.next_step_chips("What is a basis set?")

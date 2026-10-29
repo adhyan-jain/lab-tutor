@@ -1,6 +1,6 @@
 """The Q&A chat route: /api/qa/ask and /api/qa/history.
 
-Covers the gap flagged in docs/handoff_phase2.md item 5 -- there was no
+Covers the gap flagged in docs/final_audit.md item 5 -- there was no
 HTTP surface for the retrieval pipeline (backend/retrieval/pipeline.py)
 at all. These tests exercise the route, not the pipeline's own grounding
 guarantees (see test_retrieval.py / test_scope_classifier.py for those).

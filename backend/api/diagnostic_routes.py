@@ -93,7 +93,11 @@ async def submit(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="No active class session is set for this classroom yet.",
             )
-        experiment_id = active.experiment_id
+        experiment_id = (
+            body.experiment_id
+            if body.experiment_id in active.allowed_experiments
+            else active.experiment_id
+        )
         class_session_id = active.id
     else:
         fscope = FacultyScope(db, principal.id)
@@ -108,7 +112,7 @@ async def submit(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No active class session; name experiment_id explicitly for a test submission.",
             )
-        class_session_id = active.id if (active and active.experiment_id == experiment_id) else None
+        class_session_id = active.id if (active and experiment_id in active.allowed_experiments) else None
 
     try:
         plugin = get_plugin(experiment_id)

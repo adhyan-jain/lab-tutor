@@ -182,7 +182,14 @@ class TestChatThreads:
         assert meta["total_steps"] == 2
         assert "could not find enough" not in data["message"]["content"]
 
-    async def test_exp02_socratic_and_diagnostic_flow(self, client, make_user):
+    async def test_exp02_socratic_and_diagnostic_flow(self, client, make_user, monkeypatch):
+        # The numeric-entry Socratic flow is for a lab WITH apparatus. Phone-only
+        # mode (the default) gives Exp2 theory tutoring instead -- see
+        # test_theory_modes.py -- so this flow is exercised with it switched off.
+        from backend.config import reload_settings
+
+        monkeypatch.setenv("LABTUTOR_PHONE_ONLY", "false")
+        reload_settings()
         _, prof = await make_user("prof.exp02@vit.ac.in")
         classroom_id, student_code, _ = await _classroom_with_active_session(client, prof, "exp02")
         _, student = await make_user("student.exp02@vitstudent.ac.in")

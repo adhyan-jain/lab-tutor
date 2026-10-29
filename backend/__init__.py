@@ -1,3 +1,3 @@
-"""LabTutor backend package. TODO: implement."""
+"""Catalyst backend package. TODO: implement."""
 
 # TODO: implement

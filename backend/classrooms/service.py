@@ -443,16 +443,29 @@ async def get_active_session(db: AsyncSession, classroom_id: str) -> ClassSessio
 
 
 async def start_session(
-    db: AsyncSession, classroom_id: str, *, experiment_id: str, started_by: str
+    db: AsyncSession,
+    classroom_id: str,
+    *,
+    experiment_id: str | None = None,
+    experiment_ids: list[str] | None = None,
+    started_by: str,
 ) -> ClassSession:
-    """Start a class. Validates the experiment, then inserts the ACTIVE
+    """Start a class. Validates every experiment, then inserts the ACTIVE
     session inside the same flush that would collide with a concurrent
     start -- two faculty pressing Start at once must not both succeed.
+
+    A session can cover several experiments (`experiment_ids`); the first is
+    the primary `experiment_id` that reports key on.
     """
-    try:
-        get_plugin(experiment_id)
-    except UnknownExperimentError as exc:
-        raise ClassroomError(str(exc)) from exc
+    chosen = list(dict.fromkeys(experiment_ids or ([experiment_id] if experiment_id else [])))
+    if not chosen:
+        raise ClassroomError("Pick at least one experiment.")
+    for exp in chosen:
+        try:
+            get_plugin(exp)
+        except UnknownExperimentError as exc:
+            raise ClassroomError(str(exc)) from exc
+    experiment_id = chosen[0]
 
     classroom = await db.get(Classroom, classroom_id)
     if classroom is not None and classroom.archived_at is not None:
@@ -468,6 +481,7 @@ async def start_session(
     session = ClassSession(
         classroom_id=classroom_id,
         experiment_id=experiment_id,
+        experiment_ids=chosen if len(chosen) > 1 else None,
         status=SessionStatus.ACTIVE,
         started_by=started_by,
     )

@@ -1,6 +1,6 @@
 """Q&A (chat) routes -- the general theory/procedure/troubleshooting
 assistant, shared by students and faculty/admin (brief item 1: "Students
-and faculty must use the SAME LabTutor system; faculty must not need
+and faculty must use the SAME Catalyst system; faculty must not need
 student mode.").
 
 Unlike Socratic mode, this path has no step machine, no student answer to

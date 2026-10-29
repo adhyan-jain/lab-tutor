@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
     active_backend = get_backend().name
     log.info(
-        "LabTutor starting: %d experiments registered, %d ready, LLM backend=%s",
+        "Catalyst starting: %d experiments registered, %d ready, LLM backend=%s",
         total, ready, active_backend,
     )
     if ready < total:
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="LabTutor",
+        title="Catalyst",
         description=(
             "Chemistry lab learning support for IACHY102. Diagnosis is "
             "deterministic; language models only phrase what has already been "

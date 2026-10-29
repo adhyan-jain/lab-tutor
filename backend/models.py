@@ -228,12 +228,21 @@ class ClassSession(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     classroom_id: Mapped[str] = mapped_column(ForeignKey("classrooms.id"), index=True)
+    # The session's primary (first-picked) experiment. Reports and exports key on
+    # this; `experiment_ids` is the full set students may work on.
     experiment_id: Mapped[str] = mapped_column(String(64), index=True)
+    # NULL on sessions started before multi-experiment support: only `experiment_id`.
+    experiment_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     status: Mapped[SessionStatus] = mapped_column(Enum(SessionStatus), index=True)
     started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
     ended_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     started_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     ended_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    @property
+    def allowed_experiments(self) -> list[str]:
+        """Every experiment a student may open during this session."""
+        return list(self.experiment_ids) if self.experiment_ids else [self.experiment_id]
 
 
 class Submission(Base):
