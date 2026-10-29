@@ -10,8 +10,6 @@
 }
 
 {$LABTUTOR_DOMAIN} {
-	encode gzip
-
 	# Security headers. HSTS is deliberately omitted for localhost, where
 	# Caddy serves its own CA; add it once a real domain is in use.
 	header {
@@ -21,8 +19,17 @@
 		-Server
 	}
 
-	# The API, including the OAuth callback.
+	# The chat reply stream (Server-Sent Events) must reach the browser as it
+	# is produced: never compressed, never buffered.
+	handle /api/chat/messages/stream {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+	}
+
+	# The rest of the API, including the OAuth callback.
 	handle /api/* {
+		encode gzip
 		reverse_proxy backend:8000
 	}
 
@@ -33,6 +40,7 @@
 
 	# Everything else is the Next.js app.
 	handle {
+		encode gzip
 		reverse_proxy frontend:3000
 	}
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Aggregate evaluation/run_evaluation.py's saved results into the report
-set. Reads only saved files -- never re-runs LabTutor or Qwen, so it is
+set. Reads only saved files -- never re-runs Catalyst or Qwen, so it is
 safe to call repeatedly (e.g. after a partial run) and never fabricates
 a number for a case that has no saved result.
 """
@@ -126,7 +126,7 @@ def main() -> None:
         "judge_model": "qwen3:8b (Ollama, local)",
         "generation_model": "qwen3:8b (Ollama, local) -- SAME as judge; see judge_independence note",
         "judge_independence": (
-            "NOT independent. LabTutor's own generation LLM and the judge LLM are "
+            "NOT independent. Catalyst's own generation LLM and the judge LLM are "
             "the same qwen3:8b instance in this run, because no other model is "
             "configured in this checkout (LABTUTOR_LLM_BACKEND defaults to "
             "'hosted' with no API key). Scores below should be read as a "
@@ -221,7 +221,7 @@ def main() -> None:
 
     # --- evaluation_report.md -------------------------------------------
     lines = [
-        "# LabTutor Evaluation Report (smoke test)",
+        "# Catalyst Evaluation Report (smoke test)",
         "",
         f"Dataset: {len(all_cases)} cases (evaluation/dataset.json) across 5 "
         "experiments (exp01, exp02, exp03, exp07, exp08) -- the only ones with "
@@ -230,7 +230,7 @@ def main() -> None:
         "",
         "## Judge independence",
         "",
-        "**Not independent.** LabTutor's generation model and the Qwen judge "
+        "**Not independent.** Catalyst's generation model and the Qwen judge "
         "model are the same local `qwen3:8b` (Ollama), because no other model "
         "is configured in this checkout. Read every score below as a "
         "self-consistency check.",
@@ -243,7 +243,7 @@ def main() -> None:
         f"- Cases succeeded: {len(succeeded_ids)}",
         f"- Cases with a generation error: {len(failed_ids)} {failed_ids}",
         f"- Cases not run at all: {len(skipped_ids)} {skipped_ids}",
-        f"- Cases blocked (no image asset -- see docs/exp07_image_gap.md): "
+        f"- Cases blocked (no image asset -- see docs/exp07.md): "
         f"{len(blocked_ids)} {blocked_ids}",
         f"- Cases where the judge never returned valid JSON after retries: "
         f"{len(judge_failed_ids)} {judge_failed_ids}",

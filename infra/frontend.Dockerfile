@@ -1,4 +1,4 @@
-# LabTutor frontend (Next.js)
+# Catalyst frontend (Next.js)
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./

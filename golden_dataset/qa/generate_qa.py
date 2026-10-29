@@ -68,7 +68,7 @@ PRIORITY_TARGETS = {
     "exp08": 115,
 }
 #: The remaining six experiments now have real ontology vocabulary too
-#: (backend/scope/ontology.py populated all 10 -- see docs/handoff_phase2.md
+#: (backend/scope/ontology.py populated all 10 -- see docs/final_audit.md
 #: item 2), so they get the same template-driven case generation as the
 #: priority four, just at the brief's smaller P1-baseline volume rather
 #: than a full priority allocation.

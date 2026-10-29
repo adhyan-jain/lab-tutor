@@ -4,7 +4,7 @@ routing vocabulary has zero question coverage.
 The brief asks (section 10) for "Experiment 7 page/section -> number of
 golden questions -> pass rate", with the explicit requirement that no
 important screenshot/page go uncovered. There are no pages yet -- the
-IACHY102 manual is not in this repository (`docs/current_state_audit.md`
+IACHY102 manual is not in this repository (`docs/final_audit.md`
 §0) -- so a page-level report would be fabricated structure over nothing.
 
 What this script reports instead, honestly, at the level actually

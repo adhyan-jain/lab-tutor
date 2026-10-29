@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""LabTutor smoke-test evaluation: real product code + local Qwen3:8B judge.
+"""Catalyst smoke-test evaluation: real product code + local Qwen3:8B judge.
 
 Scope (see docs/final_audit.md and this file's own final report for the
 full honesty accounting):
@@ -7,7 +7,7 @@ full honesty accounting):
 * Runs every case in evaluation/dataset.json through the REAL
   `backend.socratic_engine.chat.tutor_reply` (triage -> retrieval ->
   LLM -> answer gate), not a simulation of it.
-* LabTutor's own generation LLM is pointed at the local Ollama qwen3:8b
+* Catalyst's own generation LLM is pointed at the local Ollama qwen3:8b
   model for this run, because no other model is configured in this
   checkout (LABTUTOR_LLM_BACKEND defaults to "hosted" with no API key,
   which would make every case fall back to a fixed template and defeat
@@ -41,7 +41,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-# --- Point LabTutor's OWN generation backend at local Ollama qwen3:8b,  ---
+# --- Point Catalyst's OWN generation backend at local Ollama qwen3:8b,  ---
 # --- before backend.config is imported anywhere.                       ---
 os.environ.setdefault("LABTUTOR_LLM_BACKEND", "ollama")
 os.environ.setdefault("LABTUTOR_OLLAMA_BASE_URL", "http://localhost:11434")
@@ -258,7 +258,7 @@ async def main() -> None:
         if case.get("blocked_no_image_asset"):
             print(
                 f"[{i}/{len(cases)}] {cid}: BLOCKED (no image asset available -- "
-                "see docs/exp07_image_gap.md), not executed"
+                "see docs/exp07.md), not executed"
             )
             existing_raw[cid] = {
                 "case_id": cid,

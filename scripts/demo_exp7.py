@@ -1,7 +1,7 @@
 """Runnable Experiment 7 demo conversation.
 
 Drives `backend.retrieval.pipeline.answer_question` through the
-conversation scripted in `docs/demo_exp7.md`, printing each turn's
+conversation scripted in `docs/exp07.md`, printing each turn's
 status, routed experiment, answer text and citations exactly as the
 pipeline produces them today -- no service, database, or LLM API key
 required (`use_llm=False` forces the deterministic extractive path,
@@ -9,7 +9,7 @@ which is also what happens automatically whenever no LLM backend is
 configured; see `backend/retrieval/pipeline.py::_generate_answer`).
 
 This demonstrates the plumbing honestly: with the IACHY102 manual not
-yet in the repository (`docs/current_state_audit.md` §0), the direct
+yet in the repository (`docs/final_audit.md` §0), the direct
 procedural questions correctly resolve to
 `IN_SCOPE_RETRIEVAL_INSUFFICIENT` rather than a guessed answer. The
 adjacent-theory question resolves to `ADJACENT_SUPPORTED` from the real
@@ -78,7 +78,7 @@ async def main() -> None:
                 print(f"       - {citation.text}")
         print(_rule())
 
-    print("Demo complete. See docs/demo_exp7.md for what each turn is meant to show.")
+    print("Demo complete. See docs/exp07.md for what each turn is meant to show.")
 
 
 if __name__ == "__main__":

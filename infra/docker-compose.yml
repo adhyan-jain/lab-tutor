@@ -1,9 +1,14 @@
-# LabTutor stack.
+# Catalyst stack.
 #
 # One file of credentials is the whole deployment procedure:
 #
 #     cp .env.example .env        # then fill in real values
-#     docker compose -f infra/docker-compose.yml up -d --build
+#     docker compose --env-file .env -f infra/docker-compose.yml up -d --build
+#
+# --env-file .env matters: Compose reads variable substitutions (the database
+# password, LABTUTOR_DOMAIN) from the .env next to the compose FILE, not from
+# the repo root, so without it the database and the backend end up with
+# different passwords and the proxy serves "localhost".
 #
 # Caddy terminates HTTPS and obtains a certificate automatically from
 # Let's Encrypt for LABTUTOR_DOMAIN. Nothing but the proxy is published on
