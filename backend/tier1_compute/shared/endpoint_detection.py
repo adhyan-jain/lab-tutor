@@ -37,6 +37,20 @@ class NoEndpointError(ValueError):
     """Raised when the data admits no endpoint at all."""
 
 
+def first_derivative(xs: np.ndarray, ys: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """dy/dx at the midpoint of each consecutive pair of readings.
+
+    This is the manual's DeltaE/DeltaV against average volume table for a
+    potentiometric titration. Pairs with no volume change are skipped (a
+    repeated reading has no slope).
+    """
+    dx = np.diff(xs)
+    keep = dx != 0
+    mid = ((xs[:-1] + xs[1:]) / 2.0)[keep]
+    slope = (np.diff(ys)[keep]) / dx[keep]
+    return mid, slope
+
+
 class EndpointDetectionChecker(Checker):
     """Locate an endpoint, optionally derive a final value, then compare.
 
@@ -54,6 +68,12 @@ class EndpointDetectionChecker(Checker):
             the run is treated as flat (``intersection`` geometry only).
         min_branch_points: least-squares needs at least this many points
             on each branch (``intersection`` geometry only).
+        series_transform: optional ``(x, y) -> (x', y')`` applied to the
+            recorded readings before the endpoint is located, e.g.
+            :func:`first_derivative` to turn an EMF-vs-volume S-curve into
+            DeltaE/DeltaV against average volume. Range and spacing checks
+            still use the raw volumes; peak prominence uses the transformed
+            response.
     """
 
     def __init__(
@@ -70,6 +90,10 @@ class EndpointDetectionChecker(Checker):
         min_prominence: float | None = None,
         min_span: float | None = None,
         min_branch_points: int = 3,
+        series_transform: Callable[
+            [np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]
+        ]
+        | None = None,
         label: str = "",
     ) -> None:
         if geometry not in (PEAK, INTERSECTION):
@@ -88,6 +112,7 @@ class EndpointDetectionChecker(Checker):
         self.min_prominence = min_prominence
         self.min_span = min_span
         self.min_branch_points = min_branch_points
+        self._series_transform = series_transform
 
     # -- data access ------------------------------------------------------
 
@@ -124,8 +149,15 @@ class EndpointDetectionChecker(Checker):
 
     # -- endpoint geometry ------------------------------------------------
 
-    def find_endpoint(self, inputs: dict[str, Any]) -> float:
+    def _response(self, inputs: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+        """The series the endpoint is located on (transformed if configured)."""
         xs, ys = self._series(inputs)
+        if self._series_transform is not None:
+            xs, ys = self._series_transform(xs, ys)
+        return xs, ys
+
+    def find_endpoint(self, inputs: dict[str, Any]) -> float:
+        xs, ys = self._response(inputs)
         if self.geometry == PEAK:
             return _peak_endpoint(xs, ys)
         return _intersection_endpoint(xs, ys, self.min_branch_points)
@@ -153,14 +185,15 @@ class EndpointDetectionChecker(Checker):
         written on the record sheet.
         """
         xs, ys = self._series(inputs)
+        rx, ry = self._response(inputs)
 
         if self.min_span is not None:
-            hit = signatures.detect_flat_response(ys, self.min_span)
+            hit = signatures.detect_flat_response(ry, self.min_span)
             if hit:
                 return hit
 
         if self.geometry == PEAK and self.min_prominence is not None:
-            hit = signatures.detect_unresolved_peak(xs, ys, self.min_prominence)
+            hit = signatures.detect_unresolved_peak(rx, ry, self.min_prominence)
             if hit:
                 return hit
 

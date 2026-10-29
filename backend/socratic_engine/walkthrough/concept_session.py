@@ -1,15 +1,15 @@
 """Phone-only conceptual session for Experiment 7.
 
-For a class whose students have only a phone and the LabTutor page (no
+For a class whose students have only a phone and the Catalyst page (no
 Gabedit, ORCA, Avogadro, second screen or output file), the Exp7 "practical"
 is a thinking session built around the experiment instead of a software
 walkthrough: six short parts (knowledge/exp07.py `STAGES`), each a factual
-context card that LabTutor itself provides, followed by one or two reasoning
+context card that Catalyst itself provides, followed by one or two reasoning
 questions chosen by pedagogy/policy.py from the student's concept state, then
 the nine-question final reflection.
 
 Nothing here asks the student to look at, open, run or read anything outside
-this page, and nothing implies they have seen something LabTutor did not show
+this page, and nothing implies they have seen something Catalyst did not show
 them. Every question is gated by knowledge/phone_safe.py (source metadata AND
 a wording scan) before it can be asked. There is no model call in this module.
 
@@ -25,20 +25,18 @@ from typing import Any
 
 from backend.socratic_engine.knowledge import get_knowledge
 from backend.socratic_engine.walkthrough import controller as ctl
+from backend.socratic_engine.walkthrough.navigation import Nav, NavCommand
 
-EXPERIMENT_ID = "exp07"
-
-
-def _stages():
-    return get_knowledge(EXPERIMENT_ID).stages
+def _stages(state: ctl.WalkState):
+    return get_knowledge(state.experiment_id).stages
 
 
 def _stage_index(state: ctl.WalkState) -> int:
-    return max(0, min(state.stage, len(_stages()) - 1))
+    return max(0, min(state.stage, len(_stages(state)) - 1))
 
 
 def progress(state: ctl.WalkState) -> dict[str, Any]:
-    stages = _stages()
+    stages = _stages(state)
     i = _stage_index(state)
     return {
         "label": f"Part {i + 1} of {len(stages)}: {stages[i].title}",
@@ -49,12 +47,12 @@ def progress(state: ctl.WalkState) -> dict[str, Any]:
 
 
 def stage_title(state: ctl.WalkState) -> str:
-    return _stages()[_stage_index(state)].title
+    return _stages(state)[_stage_index(state)].title
 
 
 def _open_question(state: ctl.WalkState, lead: str) -> tuple[str, dict[str, Any]] | None:
     """Ask the next question of the current part, if one is due."""
-    stage = _stages()[_stage_index(state)]
+    stage = _stages(state)[_stage_index(state)]
     if state.stage_asked >= stage.max_questions:
         return None
     return ctl._concept_moment(state, "stage", lead, resume="stage", step_id=stage.id)
@@ -64,7 +62,7 @@ def enter_stage(state: ctl.WalkState, lead: str = "") -> tuple[str, dict[str, An
     """Show the current part's context card and its first question. A part whose
     ideas the student has already shown they understand is skipped, with a
     one-line note, so a strong student is not re-tested."""
-    stages = _stages()
+    stages = _stages(state)
     notes: list[str] = [lead] if lead else []
     while state.stage < len(stages):
         stage = stages[state.stage]
@@ -96,10 +94,9 @@ def start(state: ctl.WalkState) -> ctl.TurnResult:
     state.stage = 0
     state.stage_asked = 0
     intro = (
-        "**Experiment 7, as a thinking session.** You do not need any software for this: "
-        "everything you need is on this page. There are "
-        f"{len(_stages())} short parts, each with a question or two about the ideas behind the experiment, "
-        "then a few closing questions. Short answers are fine, and you can skip any question."
+        f"**{ctl.exp_label(state)}, as a thinking session.** No apparatus or software needed. "
+        f"There are {len(_stages(state))} short parts with a question or two each, then a few closing questions. "
+        "Short answers are fine, and you can skip any."
     )
     text, ui = enter_stage(state, intro)
     return ctl.TurnResult(text, state, {"step_id": state.step_id, "verdict": "start", "mode": "concept"}, ui)
@@ -117,14 +114,63 @@ def show_current(state: ctl.WalkState, lead: str = "") -> ctl.TurnResult:
     return ctl.TurnResult(text, state, {"step_id": state.step_id, "verdict": "resume"}, ui)
 
 
+def _jump_to_part(state: ctl.WalkState, n: int, lead: str) -> ctl.TurnResult:
+    stages = _stages(state)
+    newly: list[str] = []
+    if state.status != "done" and state.phase != "assess":
+        for stage in stages[_stage_index(state):n - 1]:
+            key = f"part:{stage.id}"
+            if key not in state.skipped:
+                state.skipped.append(key)
+                newly.append(key)
+    ctl._leave_detours(state)
+    state.stage = n - 1
+    text, ui = enter_stage(state, lead)
+    return ctl.TurnResult(text, state, {"step_id": state.step_id, "verdict": "goto", "target": n, "jumped_past": newly}, ui)
+
+
+def navigate(state: ctl.WalkState, cmd: NavCommand) -> ctl.TurnResult | None:
+    """Navigation in the key-ideas session. Its numbered units are the six
+    parts, so "go to step 3" and "part 3" both mean Part 3; "next" skips the
+    question on screen (no penalty), "next part" moves to the next part."""
+    stages = _stages(state)
+    total = len(stages)
+    current = _stage_index(state) + 1
+    if cmd.kind is Nav.REPEAT:
+        return ctl._repeat(state, "Here it is again.", "repeat")
+    if cmd.kind is Nav.NEXT:
+        if cmd.unit == "part":
+            if current >= total:
+                return ctl._repeat(state, "This is the last part.", "next_at_end")
+            return _jump_to_part(state, current + 1, f"On to Part {current + 1}.")
+        if state.status == "done":
+            return None
+        if state.phase == "concept" and state.concept:
+            return ctl._turn_concept(state, "skip")
+        if state.phase == "assess" and state.assess:
+            return ctl._turn_assess(state, "skip")
+        return show_current(state, "Here is where you are.")
+    if cmd.kind is Nav.BACK:
+        target = total if (state.phase == "assess" or state.status == "done") else current - 1
+        if target < 1:
+            return ctl._repeat(state, "This is the first part.", "back_at_start")
+        return _jump_to_part(state, target, f"Going back to Part {target}.")
+    n = cmd.target or 0
+    if not 1 <= n <= total:
+        return ctl._repeat(state, f"There are {total} parts. Say a part number from 1 to {total}.", "goto_out_of_range")
+    if n == current and state.phase == "concept" and state.status == "active":
+        return ctl._repeat(state, f"You are already on Part {n}.", "goto_same")
+    return _jump_to_part(state, n, f"Jumping to Part {n}.")
+
+
 def step_context(state: ctl.WalkState) -> str:
     """Grounding line for a side question: authored text only, no software."""
     if state.phase == "assess":
-        return "The student is answering short closing questions about the ideas in Experiment 7."
+        return f"The student is answering short closing questions about the ideas in {ctl.exp_label(state)}."
     return (
-        f"The student is in a phone-only conceptual session on Experiment 7, in the part "
+        f"The student is in a phone-only conceptual session on {ctl.exp_label(state)}, in the part "
         f"'{stage_title(state)}', and was just asked a short question about the ideas. "
-        "They have no software or output in front of them."
+        "They have no apparatus, software or output in front of them."
     )
 
 

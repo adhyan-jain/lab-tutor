@@ -67,7 +67,7 @@ def test_questions_that_need_external_software_or_a_screen_are_rejected(ask):
     assert not is_phone_safe(q(ask))
 
 
-# TEST H -- information LabTutor itself provides, then asks the student to interpret it
+# TEST H -- information Catalyst itself provides, then asks the student to interpret it
 def test_a_question_that_states_its_own_information_is_accepted():
     question = q(
         "Suppose the calculated C-H bond length changes from 1.10 angstrom to 1.09 angstrom after optimization. What changed?",

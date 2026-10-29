@@ -86,8 +86,14 @@ _SKIP_PROC_NOUN = r"(?:steps|procedures?|walk-?through|instructions?|practical|l
 _EXIT_RE = re.compile(
     rf"\b{_EXIT_VERB}\s+(?:all\s+)?(?:about\s+)?(?:the\s+|these\s+|those\s+|this\s+|that\s+|any\s+)?{_PROC_NOUN}\b"
     rf"|\bskip\s+(?:all\s+)?(?:the\s+|these\s+|those\s+)?{_SKIP_PROC_NOUN}\b"
-    rf"|\b(?:don.?t|do not|dont|no)\s+(?:want|need|wish)\s+(?:to\s+(?:do|follow|see)\s+)?(?:the\s+|any\s+|a\s+)?{_PROC_NOUN}\b"
-    r"|\b(?:explain|teach|tell me|show me|help me understand|just explain)\b[^.?!]{0,30}\b(?:the\s+)?"
+    rf"|\b(?:don.?t|do not|dont|no)\s+(?:want|need|wish)\s+(?:to\s+(?:do|follow|see)\s+)?(?:the\s+|any\s+|a\s+)?{_PROC_NOUN}\b",
+    re.IGNORECASE,
+)
+# Asking for the idea behind something. Outside a guided walkthrough this is a
+# move to theory; DURING one it is a question about the step, answered in place
+# with the walkthrough kept where it is (see `is_idea_question`).
+_IDEA_RE = re.compile(
+    r"\b(?:explain|teach|tell me|show me|help me understand|just explain)\b[^.?!]{0,30}\b(?:the\s+)?"
     r"(?:theory|concepts?|chemistry|science|ideas?|principles?)\b"
     r"|\bwhy\s+does\s+(?:this|it|that)\s+work\b",
     re.IGNORECASE,
@@ -122,6 +128,8 @@ _PROCEDURE_RE = re.compile(
     r"|\b(?:what\s+are|what\s+is|what.?s|give\s+me|show\s+me|tell\s+me|list|explain|describe|outline)\s+(?:me\s+)?"
     r"(?:all\s+)?(?:the\s+)?(?:practical\s+|lab\s+|experimental\s+)?(?:steps?|procedure|workflow)\b"
     r"|\bwhere\s+do\s+i\s+start\b"
+    r"|\bhow\s+(?:is|are)\s+(?:the|this)\s+(?:practical|experiment|lab|procedure)\s+(?:performed|done|carried\s+out|conducted|run)\b"
+    r"|\bwhat\s+(?:do|should|must)\s+(?:i|we)\s+do\s+first\b|\bwhat.?s\s+the\s+first\s+step\b"
     r"|\blet.?s\s+(?:start|begin|do)\s+(?:the\s+)?(?:experiment|lab|practical|procedure)\b"
     r"|\bstart\s+the\s+(?:experiment|lab|practical)\b"
     r"|\b(?:i\s+)?(?:want|need|would like|.d like)\s+to\s+(?:do|perform|run|start|conduct)\s+(?:the\s+|this\s+)?(?:experiment|lab|practical)\b",
@@ -132,15 +140,70 @@ _PROCEDURE_RE = re.compile(
 def is_procedure_request(text: str) -> bool:
     """True only when the student explicitly asks how the practical is
     performed or to be walked through it. Theory questions are not."""
-    return bool(_PROCEDURE_RE.search(text or "")) and not _EXIT_RE.search(text or "")
+    t = text or ""
+    return bool(_PROCEDURE_RE.search(t)) and not (_EXIT_RE.search(t) or _IDEA_RE.search(t))
+
+
+#: "What is this experiment about?", "what are we measuring?", "the aim of this
+#: lab": a generic orientation question. Keyword retrieval often finds nothing
+#: for it (it names no concept), so the caller names the experiment in the
+#: search and, failing that, answers from authored text rather than refusing.
+_ORIENT_RE = re.compile(
+    r"\bwhat(?:\s+is|.?s)\s+(?:this|the|our)\s+(?:experiment|lab|practical)\s+(?:about|for)\b"
+    r"|\bwhat\s+(?:are|do)\s+we\s+(?:measuring|measure|finding|find|determining|determine|calculating|calculate|doing)\b"
+    r"|\b(?:aim|objective|purpose|goal)\s+of\s+(?:this|the|our)\s+(?:experiment|lab|practical)\b"
+    r"|\bwhat\s+(?:is|are)\s+(?:the\s+)?(?:aim|objective|purpose|goal)\b",
+    re.IGNORECASE,
+)
+
+
+def is_orientation_request(text: str) -> bool:
+    return len((text or "").split()) <= 14 and bool(_ORIENT_RE.search(text or ""))
+
+
+def orientation_query(experiment_title: str) -> str:
+    """A search that names the experiment, for a question that named nothing."""
+    return f"What is the aim of the experiment {experiment_title}, and what is measured?"
+
+
+def support_fallback_text(starters: list[str]) -> str:
+    """For a confused student when there is nothing to re-explain: kind, short,
+    and a way forward. Never the 'goes past the manual' refusal."""
+    text = "That's okay, we'll take it slowly. Tell me which part feels unclear, or try one of these:"
+    return "\n".join([text] + [f"- {q}" for q in starters[:3]])
+
+
+def orientation_text(experiment_title: str, topics_hint: str, starters: list[str]) -> str:
+    """Authored orientation, used only when retrieval found nothing: says what
+    the experiment is and what can be asked, and claims no facts beyond that."""
+    lines = [f"This practical is **{experiment_title}**."]
+    if topics_hint:
+        lines.append(f"Here I can help you with {topics_hint}.")
+    if starters:
+        lines.append("A few good places to start:")
+        lines += [f"- {q}" for q in starters[:3]]
+    return "\n\n".join([lines[0], " ".join(lines[1:2])] + (["\n".join(lines[2:])] if len(lines) > 2 else [])).strip()
 
 
 def exit_spans(text: str) -> list[str]:
     """The phrases in `text` that switch to theory (for stripping them to see
     whether a real question remains)."""
     spans = [m.group(0) for m in _EXIT_RE.finditer(text or "")]
+    spans += [m.group(0) for m in _IDEA_RE.finditer(text or "")]
     spans += [m.group(0) for m in _THEORY_RE.finditer(text or "")]
     return spans
+
+
+def is_idea_question(text: str) -> bool:
+    """"Explain the concept behind this step", "why does this work?": a
+    question about the idea, NOT a request to leave the walkthrough (no "I want
+    theory", "forget the steps", "pause"). Mid-walkthrough it is answered as a
+    side question and the walkthrough stays on the same step, so a "next step"
+    right after it moves on from there instead of starting over."""
+    t = text or ""
+    return bool(_IDEA_RE.search(t)) and not (
+        _THEORY_RE.search(t) or _EXIT_RE.search(t) or _PAUSE_RE.search(t) or _PAUSE_WISH_RE.search(t)
+    )
 
 
 _PRACTICE_NOUN = r"(?:experiment|practical|practice|lab|procedure|walkthrough|guide|steps?|hands.on)"
@@ -246,6 +309,9 @@ _DIFFICULTY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("repeat", re.compile(
         _LEAD + r"(?:(?:can|could)\s+you\s+)?(?:explain|say|go\s+(?:through|over))\s+(?:it|that|this)\s+again\b"
         r"|\bstill\s+(?:don'?t|do not|can'?t)\s+(?:get|understand|follow)\b|\bone\s+more\s+time\b"
+        r"|\b(?:explain|say)\s+again\b|\b(?:can|could)\s+you\s+(?:repeat|rephrase)\s+(?:that|it|this)\b"
+        r"|\bonce\s+more\b|\b(?:say|put|explain)\s+(?:it|that)\s+(?:differently|another\s+way)\b"
+        r"|^\s*what\s+do\s+you\s+mean\W*$|\bstill\s+(?:confused|lost)\b"
         r"|\b(?:dobara|phir\s+se)\s+(?:samjha|bata|explain)\w*|^\s*again\s*\??\s*$", re.I)),
     ("confused", re.compile(
         _LEAD + r"(?:i'?m|i\s+am)\s+(?:so\s+|really\s+|a\s+bit\s+|kind\s+of\s+|totally\s+)?(?:confused|lost|stuck)\b"
@@ -296,7 +362,7 @@ def classify(text: str) -> Intent:
         return Intent.SWITCH_TO_THEORY
     if _GUIDED_RE.search(t):
         return Intent.GUIDED_CONCEPTS
-    if _THEORY_RE.search(t) or _EXIT_RE.search(t):
+    if _THEORY_RE.search(t) or _EXIT_RE.search(t) or _IDEA_RE.search(t):
         return Intent.SWITCH_TO_THEORY
     if _PRACTICE_RE.search(t) and not _REFUSE_RE.search(t):
         return Intent.SWITCH_TO_PRACTICE
@@ -343,6 +409,10 @@ ACTIONS: dict[str, str] = {
     "example": "Show an example",
     "pause_session": "Pause",
     "resume_key_ideas": "Resume the key ideas",
+    # Navigation chips: their text is exactly what walkthrough/navigation.py
+    # parses, so tapping one and typing it are the same message.
+    "next_step": "Next step",
+    "prev_step": "Previous step",
 }
 
 #: Which intent each action expresses. Two actions with the same intent are
@@ -456,6 +526,10 @@ class ConversationState:
     #: practical.py): how many of the experiment's steps the student has
     #: marked done, in order. Separate from the quiz state above.
     practical_done: int = 0
+    #: Where the student is in the phone-only procedure overview (procedure.py):
+    #: None before it is shown, 0 on the overview, 1-6 on a stage. Kept across
+    #: questions asked in between, so "next" carries on from the same stage.
+    procedure_item: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

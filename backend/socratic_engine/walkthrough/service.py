@@ -24,11 +24,24 @@ from backend.config import get_settings
 from backend.models import ActorType, WalkthroughProgress
 from backend.socratic_engine import conversation as conv
 from backend.socratic_engine.walkthrough import controller as ctl
-from backend.socratic_engine.walkthrough import grader
+from backend.socratic_engine.walkthrough import grader, navigation
+from backend.socratic_engine.walkthrough.navigation import Nav
 
 log = logging.getLogger("labtutor.walkthrough")
 
+#: Experiments with the step-by-step SOFTWARE walkthrough (Gabedit/ORCA/Avogadro).
 SUPPORTED_EXPERIMENTS = frozenset({"exp07"})
+
+
+def supports(experiment_id: str) -> bool:
+    """Whether a guided session can run for this experiment: the software
+    walkthrough (Exp7 only) or, in phone-only mode, the conceptual key-ideas
+    session, which any experiment with authored knowledge has."""
+    if experiment_id in SUPPORTED_EXPERIMENTS:
+        return True
+    from backend.socratic_engine.knowledge import get_knowledge
+
+    return _mode() == "concept" and get_knowledge(experiment_id) is not None
 
 _RESUME_PREVIOUS_RE = re.compile(
     r"\b(resume|continue|pick up|load)\s+(my\s+|the\s+)?(previous|last|earlier|old|other)\s+"
@@ -132,7 +145,7 @@ async def handle_turn(
     message: str,
     entering_practice: bool = False,
 ) -> ctl.TurnResult | None:
-    if experiment_id not in SUPPORTED_EXPERIMENTS:
+    if not supports(experiment_id):
         return None
 
     row = await get_progress(db, thread_id)
@@ -152,8 +165,12 @@ async def handle_turn(
             )
         if not starts:
             return None
-        state = ctl.new_state(seed_key, mode=_mode())
+        state = ctl.new_state(seed_key, mode=_mode(), experiment_id=experiment_id)
         result = ctl.start(state)
+        first_cmd = navigation.parse(message)
+        if first_cmd is not None and first_cmd.kind is Nav.GOTO:
+            # "take me to step 5" as the opening message: start there.
+            result = ctl.take_turn(state, message)
         previous = await previous_progress(db, **scope, exclude_thread_id=thread_id)
         if previous is not None and wants_previous:
             state = ctl.WalkState.from_dict(previous.state)
@@ -192,19 +209,27 @@ async def handle_turn(
     if grader.is_restart(message) and (
         state.status != "active" or grader.wants_answer(message) or len(message.split()) <= 4
     ):
-        state = ctl.new_state(seed_key, mode=_mode())
+        state = ctl.new_state(seed_key, mode=_mode(), experiment_id=experiment_id)
         result = ctl.start(state)
         _save(row, state)
         result.events["verdict"] = "restart"
         return result
 
+    cmd = navigation.parse(message)
     if state.status == "paused":
+        if cmd is not None:
+            # "step 3" or "next" after pausing: carry on, and do what was asked
+            # (never a fresh session at step one, never the Q&A path).
+            state.status = "active"
+            result = ctl.take_turn(state, message)
+            _save(row, state)
+            return result
         if entering_practice or grader.is_resume(message) or grader.is_start_request(message) or grader.is_resume_phrase(message):
             result = resume(row, "Welcome back. Here is where we were.")
             return result
         return None
 
-    if state.status == "done":
+    if state.status == "done" and (cmd is None or cmd.kind not in (Nav.GOTO, Nav.BACK)):
         return None
 
     if grader.is_stop(message):

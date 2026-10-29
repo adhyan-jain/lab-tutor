@@ -105,7 +105,7 @@ class StepKnowledge:
 @dataclass(frozen=True)
 class Stage:
     """One part of the phone-only conceptual session: a short factual context
-    card (information LabTutor itself provides) and the concepts to probe."""
+    card (information Catalyst itself provides) and the concepts to probe."""
 
     id: str
     title: str
@@ -129,6 +129,12 @@ class ExperimentKnowledge:
     # what to ask. Every one is a normal message: it goes through the same
     # routing, scope and grounding as anything typed.
     starter_questions: tuple[str, ...] = ()
+    # "the shape of methane, how a calculation is set up, ...": the ideas the key-ideas
+    # session covered, finishing "You reasoned through the ideas behind Experiment N: <this>"
+    closing_summary: str = ""
+    # "HOMO and LUMO, geometry optimisation, ...": what the tutor can help with, used when
+    # a theory answer has to be replaced by a safe fallback
+    topics_hint: str = ""
     concept_by_id: dict[str, Concept] = field(default_factory=dict, compare=False)
     step_by_id: dict[str, StepKnowledge] = field(default_factory=dict, compare=False)
     misconception_by_id: dict[str, Misconception] = field(default_factory=dict, compare=False)
@@ -206,6 +212,8 @@ def build(
     assessment: tuple[str, ...] = (),
     stages: tuple[Stage, ...] = (),
     starter_questions: tuple[str, ...] = (),
+    closing_summary: str = "",
+    topics_hint: str = "",
 ) -> ExperimentKnowledge:
     # A stage is probed through the same policy as a checkpoint step, so it is
     # registered as one (not listed in `steps`, which map to the software script).
@@ -222,6 +230,8 @@ def build(
         assessment=assessment,
         stages=stages,
         starter_questions=starter_questions,
+        closing_summary=closing_summary,
+        topics_hint=topics_hint,
         concept_by_id={c.id: c for c in concepts},
         step_by_id={**{s.step_id: s for s in steps}, **stage_steps},
         misconception_by_id={m.id: m for m in misconceptions},

@@ -27,6 +27,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.config import get_settings
+from backend.socratic_engine.knowledge import get_knowledge
 
 #: Experiments whose step machine cannot advance (see module docstring).
 SELF_REPORT_EXPERIMENTS = frozenset({"exp07", "exp08"})
@@ -63,7 +64,10 @@ def kind(experiment_id: str) -> str | None:
     """"verified", "self_report", or None when there is no practical to track."""
     if not steps(experiment_id):
         return None
-    if experiment_id == "exp07" and get_settings().phone_only:
+    settings = get_settings()
+    # Phone-only: students have no apparatus, so there is no practical to track
+    # for any experiment that has a conceptual (key-ideas) session.
+    if settings.phone_only and get_knowledge(experiment_id) is not None:
         return None
     return "self_report" if experiment_id in SELF_REPORT_EXPERIMENTS else "verified"
 

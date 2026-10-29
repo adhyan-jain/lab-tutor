@@ -20,6 +20,7 @@ from backend.tier1_compute.shared.endpoint_detection import (
     INTERSECTION,
     PEAK,
     EndpointDetectionChecker,
+    first_derivative,
 )
 from backend.tier1_compute.shared.regression_slope import RegressionSlopeChecker
 from backend.tier1_compute.shared.types import (
@@ -39,6 +40,7 @@ __all__ = [
     "RegressionSlopeChecker",
     "PEAK",
     "INTERSECTION",
+    "first_derivative",
     "Action",
     "Outcome",
     "SignatureHit",

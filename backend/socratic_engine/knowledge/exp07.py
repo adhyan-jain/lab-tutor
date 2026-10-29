@@ -383,7 +383,7 @@ STEPS = (
 )
 
 # The phone-only session: six parts, each a short factual context card (what the
-# experiment does, stated by LabTutor, never an instruction to the student) and
+# experiment does, stated by Catalyst, never an instruction to the student) and
 # a few concepts to probe. Which question is asked, and whether a part is asked
 # about at all, is decided by pedagogy/policy.py from the student's concept state.
 STAGES = (
@@ -438,5 +438,10 @@ STARTER_QUESTIONS = (
 )
 
 KNOWLEDGE = build(
-    "exp07", CONCEPTS, STEPS, MISCONCEPTIONS, QUESTIONS, ASSESSMENT, STAGES, STARTER_QUESTIONS
+    "exp07", CONCEPTS, STEPS, MISCONCEPTIONS, QUESTIONS, ASSESSMENT, STAGES, STARTER_QUESTIONS,
+    closing_summary=(
+        "the shape of methane, how a calculation is set up, geometry optimisation, orbitals and the HOMO "
+        "and LUMO, oxygen compared with methane, and comparing methods."
+    ),
+    topics_hint="HOMO and LUMO, geometry optimisation, basis sets, and what the results mean",
 )

@@ -1,4 +1,4 @@
-"""Theory-first Socratic follow-ups for Experiment 7 (phone-only).
+"""Theory-first Socratic follow-ups for phone-only experiments (Exp 7, 2 and 4).
 
 Theory is the default. A student who asks "what is geometry optimization?"
 gets an ordinary grounded answer; this module then adds ONE short authored
@@ -25,7 +25,8 @@ from backend.socratic_engine.knowledge import get_knowledge, phone_safe
 from backend.socratic_engine.pedagogy import policy
 from backend.socratic_engine.pedagogy import state as pstate
 from backend.socratic_engine.walkthrough import controller as ctl
-from backend.socratic_engine.walkthrough import grader
+from backend.socratic_engine.walkthrough import grader, navigation
+from backend.socratic_engine.walkthrough.navigation import Nav
 
 EXPERIMENT_ID = "exp07"
 
@@ -42,10 +43,10 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _LIST_MARKER = re.compile(r"\s*(?:[-*•]|\d+[.)]|#+)\s+")
 
 
-def concept_for_message(text: str) -> str | None:
+def concept_for_message(text: str, experiment_id: str = EXPERIMENT_ID) -> str | None:
     """The concept a student's wording is about, or None. Specific phrases
     score higher than generic ones; ties go to the more important concept."""
-    knowledge = get_knowledge(EXPERIMENT_ID)
+    knowledge = get_knowledge(experiment_id)
     lowered = (text or "").lower()
     best: tuple[tuple[int, int], str] | None = None
     for concept in knowledge.concepts:
@@ -59,7 +60,7 @@ def concept_for_message(text: str) -> str | None:
     return best[1] if best else None
 
 
-def has_substance(text: str) -> bool:
+def has_substance(text: str, experiment_id: str = EXPERIMENT_ID) -> bool:
     """After removing the phrases that merely switch to theory, is there a real
     question left? ("Forget the steps. Explain why optimisation works" yes;
     "Explain the theory instead" no.)"""
@@ -67,10 +68,10 @@ def has_substance(text: str) -> bool:
     for span in conv.exit_spans(rest):
         rest = rest.replace(span, " ")
     tokens = [w for w in re.findall(r"[a-z0-9\-]+", rest.lower()) if w not in _STOP]
-    return len(tokens) >= 2 or concept_for_message(rest) is not None
+    return len(tokens) >= 2 or concept_for_message(rest, experiment_id) is not None
 
 
-def guard_answer(text: str, message: str, *, strict: bool = False) -> str:
+def guard_answer(text: str, message: str, *, strict: bool = False, experiment_id: str = EXPERIMENT_ID) -> str:
     """Theory answers must not send a phone-only student to external software.
     Unless they asked how the practical is performed, drop any sentence that
     names software/screens/files or numbers a step; if little is left, fall back
@@ -99,19 +100,20 @@ def guard_answer(text: str, message: str, *, strict: bool = False) -> str:
     cleaned = "\n".join(lines).strip()
     if len(cleaned) >= 60:
         return cleaned
-    cid = concept_for_message(message)
+    cid = concept_for_message(message, experiment_id)
     if cid:
-        base = get_knowledge(EXPERIMENT_ID).concept_by_id[cid].description
+        base = get_knowledge(experiment_id).concept_by_id[cid].description
         return f"{base} The practical software steps are normally done on a lab computer, so here we will stick to the ideas."
     if cleaned:
         return cleaned
+    topics = get_knowledge(experiment_id).topics_hint
     return (
-        "I can help with the ideas behind this experiment: HOMO and LUMO, geometry "
-        "optimisation, basis sets, and what the results mean. Which of those would you like to start with?"
+        f"I can help with the ideas behind this experiment: {topics}. "
+        "Which of those would you like to start with?"
     )
 
 
-def next_step_chips(message: str) -> list[str]:
+def next_step_chips(message: str, experiment_id: str = EXPERIMENT_ID) -> list[str]:
     """Next steps offered after a theory answer that carries no reflection:
     a worked example, the concept's role in the experiment, and an explicit
     understanding check. Each names the concept, so it is a self-contained
@@ -120,10 +122,10 @@ def next_step_chips(message: str) -> list[str]:
     reflection that is still pending.
     "Test my understanding" starts the existing key-ideas session; nothing
     starts on its own. Empty if the message maps to no known concept."""
-    cid = concept_for_message(message)
+    cid = concept_for_message(message, experiment_id)
     if cid is None:
         return []
-    name = get_knowledge(EXPERIMENT_ID).concept_by_id[cid].name
+    name = get_knowledge(experiment_id).concept_by_id[cid].name
     # "Geometry optimization" -> "geometry optimization"; "HOMO", "DFT" stay.
     first = name.split()[0]
     term = name if first.isupper() else name[0].lower() + name[1:]
@@ -134,30 +136,30 @@ def next_step_chips(message: str) -> list[str]:
     ]
 
 
-def _term(cid: str) -> str:
-    name = get_knowledge(EXPERIMENT_ID).concept_by_id[cid].name
+def _term(cid: str, experiment_id: str = EXPERIMENT_ID) -> str:
+    name = get_knowledge(experiment_id).concept_by_id[cid].name
     # "Geometry optimization" -> "geometry optimization"; "HOMO", "DFT" stay.
     return name if name.split()[0].isupper() else name[0].lower() + name[1:]
 
 
-def support_chips(message: str) -> list[str]:
+def support_chips(message: str, experiment_id: str = EXPERIMENT_ID) -> list[str]:
     """For a student who said they are struggling: two other ways into the
     same idea, each naming the concept so it stands on its own when tapped."""
-    cid = concept_for_message(message)
+    cid = concept_for_message(message, experiment_id)
     if cid is None:
         return []
-    term = _term(cid)
+    term = _term(cid, experiment_id)
     return [f"Explain {term} more simply", f"Explain {term} with a simple example"]
 
 
-def fallback_explanation(message: str) -> str | None:
+def fallback_explanation(message: str, experiment_id: str = EXPERIMENT_ID) -> str | None:
     """A short, authored, phone-safe explanation of the concept the student
     asked about, for when no model answer is available. Better than showing an
     unrelated manual excerpt; None if the wording maps to no known concept."""
-    cid = concept_for_message(message)
+    cid = concept_for_message(message, experiment_id)
     if cid is None:
         return None
-    concept = get_knowledge(EXPERIMENT_ID).concept_by_id[cid]
+    concept = get_knowledge(experiment_id).concept_by_id[cid]
     return f"Here is the short version. **{concept.name}**: {concept.description}"
 
 
@@ -169,9 +171,9 @@ class TheoryTurn:
     realise: dict[str, Any] | None = None
 
 
-def _walk_state(conv_state: conv.ConversationState) -> ctl.WalkState:
+def _walk_state(conv_state: conv.ConversationState, experiment_id: str = EXPERIMENT_ID) -> ctl.WalkState:
     """A throwaway walkthrough state carrying only this thread's concept state."""
-    ws = ctl.new_state("theory", mode="theory")
+    ws = ctl.new_state("theory", mode="theory", experiment_id=experiment_id)
     ws.status = "active"
     ws.concepts = conv_state.concepts
     ws.concept = conv_state.pending
@@ -179,7 +181,9 @@ def _walk_state(conv_state: conv.ConversationState) -> ctl.WalkState:
     return ws
 
 
-def open_followup(conv_state: conv.ConversationState, message: str) -> TheoryTurn | None:
+def open_followup(
+    conv_state: conv.ConversationState, message: str, experiment_id: str = EXPERIMENT_ID
+) -> TheoryTurn | None:
     """Pick one Socratic follow-up for the concept the student just asked
     about, remember it as pending, and return its text. None if there is
     nothing worth asking (unknown concept, already understood, on cooldown, no
@@ -191,16 +195,16 @@ def open_followup(conv_state: conv.ConversationState, message: str) -> TheoryTur
         if conv_state.pending.get("reminded"):
             return None
         conv_state.pending["reminded"] = True
-        ws = _walk_state(conv_state)
+        ws = _walk_state(conv_state, experiment_id)
         _, ui = ctl._concept_message(ws, "")
         ui = {**ui, "kind": "theory_followup"}
         return TheoryTurn(
             ctl._resume_line(ws).strip(), ui, {"step_id": "theory", "verdict": "theory_followup_reminder"}
         )
-    cid = concept_for_message(message)
+    cid = concept_for_message(message, experiment_id)
     if cid is None:
         return None
-    knowledge = get_knowledge(EXPERIMENT_ID)
+    knowledge = get_knowledge(experiment_id)
     cs = pstate.ConceptStates.from_dict(conv_state.concepts)
     cs.tick()
     rec = cs.get(cid)
@@ -219,13 +223,15 @@ def open_followup(conv_state: conv.ConversationState, message: str) -> TheoryTur
         "concept_id": cid, "question_id": question.id, "step_id": "theory",
         "when": "theory", "resume": "theory", "card": False,
     }
-    ws = _walk_state(conv_state)
+    ws = _walk_state(conv_state, experiment_id)
     text, ui = ctl._concept_message(ws, "")
     ui = {**ui, "kind": "theory_followup"}
     return TheoryTurn(text, ui, {"step_id": "theory", "verdict": "theory_followup", "intervention": ui.get("intervention", {})})
 
 
-def handle_pending(conv_state: conv.ConversationState, message: str) -> TheoryTurn | None:
+def handle_pending(
+    conv_state: conv.ConversationState, message: str, experiment_id: str = EXPERIMENT_ID
+) -> TheoryTurn | None:
     """Grade the student's message against the pending follow-up. Returns the
     authored reply, or None when the message is not an attempt at it -- in
     which case it is answered by the normal Q&A path. A new question keeps the
@@ -238,12 +244,13 @@ def handle_pending(conv_state: conv.ConversationState, message: str) -> TheoryTu
     question if it matches nothing (controller._turn_concept)."""
     if not conv_state.pending:
         return None
-    if conv.classify(message) in _CHANGE_OF_DIRECTION:
+    cmd = navigation.parse(message)
+    if conv.classify(message) in _CHANGE_OF_DIRECTION or (cmd is not None and cmd.kind in (Nav.GOTO, Nav.BACK)):
         conv_state.pending = None
         return None
     if grader.is_new_request(message):
         return None
-    ws = _walk_state(conv_state)
+    ws = _walk_state(conv_state, experiment_id)
     result = ctl.take_turn(ws, message)
     conv_state.concepts = ws.concepts
     if result.reply is None:
@@ -253,17 +260,68 @@ def handle_pending(conv_state: conv.ConversationState, message: str) -> TheoryTu
     return TheoryTurn(result.reply, ui, result.events, result.realise)
 
 
-def example_query(conv_state: conv.ConversationState, message: str) -> str | None:
+def example_query(
+    conv_state: conv.ConversationState, message: str, experiment_id: str = EXPERIMENT_ID
+) -> str | None:
     """"Show an example" while a follow-up is pending names no topic of its
     own: the self-contained question to answer instead, about the pending
     question's concept. The follow-up stays pending. None otherwise."""
     pending = conv_state.pending or {}
     if not pending or not grader.is_example_request(message):
         return None
-    concept = get_knowledge(EXPERIMENT_ID).concept_by_id.get(pending.get("concept_id", ""))
+    knowledge = get_knowledge(experiment_id)
+    concept = knowledge.concept_by_id.get(pending.get("concept_id", ""))
     if concept is None:
         return None
+    question = knowledge.question_by_id.get(pending.get("question_id", ""))
+    if question is not None:
+        # The waiting question's own wording finds the right passage; a generic
+        # "example of <concept name>" alone often finds nothing and ends in a refusal.
+        return f"{question.ask.splitlines()[0]} Give a simple example of {concept.name}."
     return f"Give a simple example of {concept.name} and how it relates to this experiment."
+
+
+def next_followup(
+    conv_state: conv.ConversationState, experiment_id: str, after_concept: str | None
+) -> TheoryTurn | None:
+    """After a follow-up is settled (answered correctly, or the student asked for
+    the answer), offer the next authored question: another idea from the part of
+    the experiment just covered first, then the rest in order. Never while a
+    question is already waiting, never for ideas already understood or asked about
+    a moment ago. None when nothing is left to ask. Deterministic, no model call."""
+    if conv_state.pending:
+        return None
+    knowledge = get_knowledge(experiment_id)
+    if knowledge is None:
+        return None
+    cs = pstate.ConceptStates.from_dict(conv_state.concepts)
+    home = [s for s in knowledge.stages if after_concept in s.concepts]
+    ordered: list[str] = []
+    for stage in home + [s for s in knowledge.stages if s not in home]:
+        for cid in stage.concepts:
+            if cid != after_concept and cid not in ordered:
+                ordered.append(cid)
+    for cid in ordered:
+        rec = cs.get(cid)
+        if rec.state in pstate.UNDERSTOOD_OR_BETTER:
+            continue
+        if rec.last_seq is not None and cs.seq - rec.last_seq < policy.CONCEPT_COOLDOWN_TURNS:
+            continue
+        question = policy.choose_question(knowledge, "", cid, rec, None, phone_safe.is_phone_safe)
+        if question is None:
+            continue
+        pstate.introduce(cs, cid)
+        cs.get(cid).last_seq = cs.seq
+        conv_state.concepts = cs.to_dict()
+        conv_state.pending = {
+            "concept_id": cid, "question_id": question.id, "step_id": "theory",
+            "when": "theory", "resume": "theory", "card": False,
+        }
+        ws = _walk_state(conv_state, experiment_id)
+        text, ui = ctl._concept_message(ws, "")
+        ui = {**ui, "kind": "theory_followup"}
+        return TheoryTurn(text, ui, {"step_id": "theory", "verdict": "theory_next_followup"})
+    return None
 
 
 def apply_advisory(conv_state: conv.ConversationState, concept_id: str, suggested: str) -> str:

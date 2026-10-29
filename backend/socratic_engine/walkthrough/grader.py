@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from backend.socratic_engine.walkthrough import navigation
 from backend.socratic_engine.walkthrough.types import Choice, Question
 
 _MINUS = str.maketrans({"−": "-", "–": "-", "—": "-"})
@@ -30,11 +31,8 @@ _WANTS_ANSWER_RE = re.compile(
     re.IGNORECASE,
 )
 _SKIP_RE = re.compile(r"^\s*(skip|skip this|skip step|skip it|move on|next step)\s*[.!]*\s*$", re.IGNORECASE)
-_BACK_RE = re.compile(
-    r"^\s*(back|go back|previous( step)?|last step|repeat|repeat (that|the step)|"
-    r"say that again|again)\s*[.!]*\s*$",
-    re.IGNORECASE,
-)
+# "repeat" and "again" re-show the current step (navigation.py); not back.
+_BACK_RE = re.compile(r"^\s*(back|go back|previous( step)?|last step)\s*[.!]*\s*$", re.IGNORECASE)
 _STOP_RE = re.compile(
     r"\b(stop (the )?(guide|guidance|walkthrough|steps)|exit (the )?(guide|walkthrough)|"
     r"end (the )?(guide|walkthrough)|pause( the)? (guide|walkthrough)|quit (the )?(guide|walkthrough))\b",
@@ -204,8 +202,9 @@ def is_side_question(text: str) -> bool:
     return "?" in text and len(_tokens(text)) >= 6
 
 
+# "next step" is not here: it moves on (navigation.py), it does not re-show.
 _RESUME_PHRASES_RE = re.compile(
-    r"\b(next step|what now|what next|where was i|where do i start|guide me|what should i do|"
+    r"\b(what now|what next|where was i|where do i start|guide me|what should i do|"
     r"what do i do( now| next)?|how do i (start|begin|proceed|do this)|continue)\b",
     re.IGNORECASE,
 )
@@ -285,6 +284,10 @@ class Verdict:
 
 
 def grade(question: Question, text: str) -> Verdict:
+    if navigation.mentions_navigation(text):
+        # "go to step 5" is never an answer: not to a free-text key that
+        # accepts any words, and not to a number question (the 5 is a step).
+        return Verdict(correct=False, attempted=False)
     if question.kind == "mcq":
         chosen = parse_choice(text, question.choices)
         if chosen is None:

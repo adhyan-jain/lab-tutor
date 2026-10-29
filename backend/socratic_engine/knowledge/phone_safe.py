@@ -2,7 +2,7 @@
 with only a phone and this web page.
 
 Tomorrow's students have no Gabedit, ORCA, Avogadro, second screen or output
-file, so LabTutor must never ask them to look at, open, run or read something
+file, so Catalyst must never ask them to look at, open, run or read something
 outside the page, and must never imply they just saw something it did not show
 them. Two independent, deterministic checks (no model involved):
 

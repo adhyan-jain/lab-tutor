@@ -224,7 +224,9 @@ def test_done_done_done_never_advances_a_step_that_asks_for_evidence():
         if step.evidence is None:
             continue
         state = at_step(step.id)
-        for text in ("done", "ok", "done done", "yes", "okk done", "ok next"):
+        # "ok next" is not here: "next" is navigation and moves on, recorded as
+        # not checked (test_navigation.py). A claim of progress still never does.
+        for text in ("done", "ok", "done done", "yes", "okk done"):
             result = ctl.take_turn(state, text)
             assert state.step_id == step.id, (step.id, text)
             assert result.events["verdict"] == "probe"
