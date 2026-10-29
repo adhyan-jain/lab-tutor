@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-This is the reference document for LabTutor's pipeline, tier design,
+This is the reference document for Catalyst's pipeline, tier design,
 data flow, and stack. Any implementation decision that contradicts
 this document should either update this document (with a note on why)
 or be treated as a bug.
@@ -10,7 +10,7 @@ or be treated as a bug.
 > `BACHY105.pdf` this document and CLAUDE.md were written against. The
 > two course codes may denote different programs entirely (M.Tech vs the
 > B.Tech this repo's docs assumed); nothing in the manual PDF itself
-> says which VIT course offering this LabTutor deployment is actually
+> says which VIT course offering this Catalyst deployment is actually
 > for, so that identification was taken on the user's word, not
 > re-derived. Its text is transcribed in `manual/IACHY102_manual.md` (no
 > PDF binary was deposited in the repo — see `manual/README.md`). The 10
@@ -29,16 +29,17 @@ or be treated as a bug.
 > and the default `LABTUTOR_MANUAL_PDF` points at the transcription.
 > Retrieval is real again (19 passages, verified live) and citations now
 > read "IACHY102 manual, p. ..." rather than the old BACHY105 string.
-> Real Tier 1 plugins now exist for Experiments 1, 2, 3, 7 and 8
-> (Experiment 7 via a new `ComputationSanityPlugin` — see §2.1.1);
-> Experiments 4, 5, 6, 9, 10 still raise `PendingManualPlugin`. See
+> Real Tier 1 plugins now exist for Experiments 1, 2, 3, 4, 7 and 8
+> (Experiment 7 via a new `ComputationSanityPlugin` — see §2.1.1;
+> Experiment 4 via `EndpointDetectionChecker` with a first-derivative
+> transform); Experiments 5, 6, 9, 10 still raise `PendingManualPlugin`. See
 > `docs/final_audit.md` for the full status and for tolerance/fit-quality
 > values in Exp 2/3 that are deliberate engineering defaults, not
 > manual-derived numbers.
 
 ## 1. Pipeline overview
 
-LabTutor has two modes. Both sit on top of the same three-tier
+Catalyst has two modes. Both sit on top of the same three-tier
 diagnosis core; they differ in *when* they run (mid-experiment vs.
 after submission) and in what they're allowed to reveal.
 
@@ -168,8 +169,8 @@ still independently decide whether a `qa`-routed message is actually
 answerable. Any failure of the router (unavailable, malformed output,
 low confidence, disabled) falls back to the original keyword-based
 dispatch unchanged. See `backend/router/router.py`'s module docstring
-for the exact authority boundary, and `docs/handoff_phase4.md` for how
-and why this was built.
+for the exact authority boundary.
+
 
 ## 2. Pilot scope vs. full vision
 

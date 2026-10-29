@@ -1,4 +1,4 @@
-# Final audit — LabTutor vs the Phase 2 build/audit/hardening request
+# Final audit — Catalyst vs the Phase 2 build/audit/hardening request
 
 Date: 2026-09-12, updated 2026-09-14 (§7). Scope note up front, because
 it governs every verdict below: **the Phase 2 request describes a
@@ -17,7 +17,7 @@ cases across 10 experiments. It refers to a prior "Antigravity" build,
 `docs/current_state_audit.md`, and `docs/handoff_phase2.md`.
 
 None of that exists in this repository, and none of those files exist.
-What exists (`git log`, all first-party commits) is **LabTutor**: a
+What exists (`git log`, all first-party commits) is **Catalyst**: a
 Socratic/Diagnostic chemistry-lab tutor built around a *deterministic*
 Tier 1 compute layer (`backend/tier1_compute/`) with a thin,
 non-vector, TF-IDF-style text retrieval module (`backend/rag/
@@ -31,7 +31,7 @@ CLAUDE.md and every doc in this repo were written against — the repo
 says **BACHY105** (a B.Tech applied-chemistry lab); the manual's own
 title page says **IACHY102**, "FOR FIRST/SECOND SEMESTER M.TECH." Since
 these may be different VIT course offerings entirely, and nothing in
-the manual text says this LabTutor deployment is for the M.Tech course,
+the manual text says this Catalyst deployment is for the M.Tech course,
 that identification was taken on the user's instruction in this
 session, not independently verified. If it's wrong, everything below
 that treats IACHY102 as authoritative needs re-checking against the
@@ -381,7 +381,7 @@ improve the pipeline toward "excellent, prod level," check whether
 manual images were handled, and flag any other robustness gaps.
 
 - **Images: not handled, and cannot be from what exists in this repo.**
-  See `docs/exp07_image_gap.md` for the full account. Short version: the
+  See `docs/exp07.md` for the full account. Short version: the
   manual reached this repo as chat-rendered pages, transcribed to text
   only; the image bytes were never saved anywhere (verified: no image
   file exists in the repo or session scratch directories for this
@@ -497,4 +497,4 @@ with this system's documented safety-first design.
 Judge independence caveat applies throughout (same `qwen3:8b` model
 generates and judges) — see `reports/exp07_evaluation_report.md`.
 Still not attempted: the 150-200-case target volume, and anything
-requiring the manual's images (`docs/exp07_image_gap.md`).
+requiring the manual's images (`docs/exp07.md`).

@@ -36,6 +36,7 @@ pnpm-debug.log*
 # --- Databases / local state ---
 *.sqlite3
 *.db
+*.sql
 postgres-data/
 
 # --- Editor / OS ---
@@ -68,3 +69,4 @@ frontend/tsconfig.tsbuildinfo
 # their call. Keep the directory, ignore the PDF. See manual/README.md.
 manual/*.pdf
 manual/*.PDF
+session_exports/

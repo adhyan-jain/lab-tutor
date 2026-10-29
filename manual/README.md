@@ -38,7 +38,7 @@ experiments have real plugins so far (1, 2, 3, 7, 8) and which are still
 
 The manual is the source of truth for every formula, tolerance,
 experiment name, numbering, screenshot and worked example in this
-system — see `docs/current_state_audit.md` §0 and
+system — see `docs/final_audit.md` §0 and
 `backend/sources/tiers.py` for the full source-hierarchy rule. Nothing
 here was inferred, guessed, or filled in from a plausible textbook
 value.

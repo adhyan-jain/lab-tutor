@@ -14,7 +14,7 @@ Dataset: 34 cases (evaluation/dataset.json) across 5 experiments (exp01, exp02, 
 - Cases succeeded: 30
 - Cases with a generation error: 0 []
 - Cases not run at all: 0 []
-- Cases blocked (no image asset -- see docs/exp07_image_gap.md): 4 ['e07-31', 'e07-32', 'e07-33', 'e07-34']
+- Cases blocked (no image asset -- see docs/exp07.md): 4 ['e07-31', 'e07-32', 'e07-33', 'e07-34']
 - Cases where the judge never returned valid JSON after retries: 0 []
 
 ## Overall (measured, from reports/latest_evaluation.json)

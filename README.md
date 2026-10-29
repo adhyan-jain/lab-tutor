@@ -1,6 +1,6 @@
-# LabTutor
+# Catalyst
 
-LabTutor is a learning-support system for VIT's BACHY105 (Applied
+Catalyst is a learning-support system for VIT's BACHY105 (Applied
 Chemistry Lab). It helps students work through experiments correctly
 *while they are still doing them*, and helps staff understand why a
 submitted result is wrong — without becoming an answer-dispensing
@@ -144,113 +144,24 @@ why, per that document's own amendment rule.
 
 ## Deployment
 
-Add credentials, run one command, done.
-
 ```bash
 cp .env.example .env          # fill in every CHANGEME value
-docker compose -f infra/docker-compose.yml up -d --build
+docker compose --env-file .env -f infra/docker-compose.yml up -d --build
 ```
 
-That brings up the backend, frontend, Postgres and a Caddy reverse proxy
-that terminates HTTPS and obtains a certificate automatically for
-`LABTUTOR_DOMAIN`. Only the proxy is published on the host.
+Brings up the backend, frontend, Postgres and a Caddy proxy that terminates
+HTTPS for `LABTUTOR_DOMAIN`; only the proxy is published. A single small VM
+serves a class of ~70, since only side questions call the model. The frontend
+can optionally be hosted on Vercel; the backend cannot (long-lived SSE streams,
+in-process state). Health checks are `GET /health` (process + database) and
+`GET /health/llm` (inference, kept separate so a provider outage does not
+restart the container).
 
-Before a real pilot you also need to:
-
-1. **Put the manual in place** — drop `BACHY105.pdf` into `manual/`. See
-   [What the manual unblocks](#what-the-manual-unblocks).
-2. **Register the OAuth client** — Google Cloud Console, with the
-   redirect URI `https://<your-domain>/api/auth/callback`.
-3. **Generate a session secret** — `openssl rand -hex 32`.
-
-Health checks:
-
-- `GET /health` — process and database. Deliberately does **not** call
-  the inference backend, so a paid provider is not probed by every
-  load-balancer check.
-- `GET /health/llm` — inference connectivity, separately, so an inference
-  outage does not make the container look dead and get restarted.
-
-### Remote DB (Supabase)
-
-The bundled `db` service in `infra/docker-compose.yml` is plain Postgres
-and works fine for local dev/pilot use, but for a shared/remote database
-(e.g. for the marks-analytics data used in the paper), point the backend
-at a Supabase project instead:
-
-1. Create a Supabase project (Settings → Database has the connection
-   string).
-2. Use the **direct connection** (port 5432), not the pgbouncer
-   transaction pooler on 6543 -- that pooler doesn't reliably support the
-   prepared statements the async psycopg driver issues.
-3. Set `LABTUTOR_DATABASE_URL` in `.env` to that connection string. It
-   overrides every `POSTGRES_*` value above, so nothing else needs to
-   change.
-4. Run `alembic upgrade head` from `backend/` to create the schema on
-   Supabase (production startup does not call `create_all()` -- see
-   `backend/main.py`).
-
-### Load-testing before the pilot
-
-```bash
-python infra/loadtest.py --students 70 --turns 6
-```
-
-Drives the real tutor path at section scale against whichever backend is
-configured, reports p50/p95/p99 and error rate, and exits non-zero past
-its thresholds. `--dry-run` exercises the harness without spending
-inference. Run this against the real backend before the first session,
-not during it.
-
-## Inference backends
-
-Selected by `LABTUTOR_LLM_BACKEND`. The provider is a URL in the
-environment; no provider name is hardcoded anywhere.
-
-| | `hosted` | `ollama` |
-|---|---|---|
-| Use | **The pilot runs on this** | Development and degraded mode only |
-| Config | Any OpenAI-compatible `/chat/completions` endpoint (Cerebras, Groq, OpenAI, Together, …) | Local Ollama server |
-| Concurrency | Provider's | Whatever one lab machine can do |
-
-**Ollama on lab hardware is explicitly not a deployment target for real
-student traffic.** A single machine serving a full section will queue
-requests into timeouts. It exists so development and offline testing do
-not require an API key. If you are considering it for the pilot, run
-`infra/loadtest.py --students 70` against it first and read the p95.
-
-### Rollback plan
-
-A live pilot needs defined degraded behaviour, not a crash.
-
-**LabTutor degrades rather than failing.** Every model call in this
-system phrases something already decided, so an inference outage costs
-polish, never correctness. With no model reachable at all:
-
-- diagnoses are still computed and still shown, in deterministic template
-  prose;
-- Socratic hints are still selected by Tier 1 and shown verbatim;
-- step verification and the reveal are entirely unaffected — neither ever
-  used a model;
-- per-student summaries fall back to the deterministic rendering.
-
-If the hosted provider fails mid-session:
-
-1. **Automatic** — with `LABTUTOR_LLM_AUTO_FALLBACK=true` (the default),
-   a failed hosted call retries against the Ollama endpoint if one is
-   reachable. Start it with
-   `docker compose -f infra/docker-compose.yml --profile ollama up -d`.
-2. **Manual switch** — set `LABTUTOR_LLM_BACKEND=ollama` in `.env` and
-   `docker compose up -d backend`. Expect slower replies; the
-   deterministic paths are unchanged.
-3. **Accept template mode** — change nothing. Every call fails fast to
-   templates and the session continues, less fluently. This is a
-   legitimate way to finish a lab.
-4. **Maintenance mode** — if the backend itself is unhealthy, stop
-   `backend` and let Caddy serve the error; students fall back to the
-   paper procedure for that session.
-
-Check `GET /health/llm` to see which state you are in.
+Catalyst degrades rather than failing: with no model reachable, diagnoses,
+hints, step verification, the reveal and step navigation still work from
+deterministic templates. Full deployment steps, 70-user configuration, remote
+database, load testing, inference backends, rollback and the known
+poor-connectivity weaknesses: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Development
 
@@ -292,28 +203,31 @@ rather than at the unit level. Nothing skips silently.
 Category 1 (the manual's own worked examples) is **empty and is meant to
 be** — see below.
 
-## What the manual unblocks
+## Experiment readiness
 
-The BACHY105 PDF is not in this repository, and nothing was invented in
-its absence. Concretely, until it is added:
+The IACHY102 manual is in the repo as a text transcription (`manual/README.md`),
+so manual Q&A works for all ten experiments. Beyond that, what each experiment has:
 
-| Blocked | State |
-|---|---|
-| The 8 numeric experiment plugins | Registered as `PendingManualPlugin`; raise `ManualNotTranscribedError` on use, so a submission escalates to review instead of getting a fabricated diagnosis |
-| Socratic step decomposition for those 8 | The engine, hint ladder and gate are generic and tested, but the ordered steps come from the manual, so guided mode returns 503 for them. Only exp07/exp08 have steps today |
-| Golden dataset Category 1 | Empty, with a README explaining why and the transcription procedure |
-| Retrieval citations | Retrieval returns nothing; phrased output carries no citation |
-| Experiment titles and numbering | Placeholders; even the 7/8 assignment is unverified |
+| Experiment | Numeric checks + guided steps | Tutoring notes (Tier C) | Notes |
+|---|---|---|---|
+| 1 Thermodynamics from EMF | yes (manual-verified) | no | the only experiment with a manual worked example |
+| 2 Ester hydrolysis kinetics | yes | yes + theory mode | tolerances are engineering defaults |
+| 3 Ni2+ colorimetry | yes | yes | tolerances are engineering defaults |
+| 4 Iron in steel (potentiometry) | yes (EMF-vs-volume peak, then Fe g/100 mL) | yes + theory mode | tolerances are engineering defaults; no manual worked example |
+| 7 Orbital visualisation | sanity checks + guided walkthrough | yes + theory mode | see [docs/exp07.md](docs/exp07.md) |
+| 8 Conformers | ordering checks, escalates | yes | one narrow model note, see ARCHITECTURE |
+| 5, 6, 9, 10 | not yet (`PendingManualPlugin`, escalates to review) | no | Q&A from the manual still works |
 
-Everything else — the four shared checker types, the answer gate, auth,
-classrooms, storage, summaries, the dashboard, deployment, the test
-suite — is complete and tested against a reference plugin
-(`backend/tests/reference_plugin.py`) that wires the shared checkers
-exactly as a real experiment will.
+A class session is tied to one experiment: the tutor answers from it and politely
+redirects questions that name or clearly belong to another one.
 
-Adding an experiment is then configuration, not code: transcribe the
-formula and tolerance into one thin plugin file. See
-`backend/tier1_compute/experiments/_template.py` for a worked reference.
+**Classes without apparatus.** Experiments 2, 4 and 7 have a phone-only theory mode (on by
+default, `LABTUTOR_PHONE_ONLY=true`): theory questions get a grounded answer plus one
+Socratic follow-up, "Guide me through the key ideas" runs a six-part conceptual session with
+a closing quiz, and the practical is only described, never walked through. Set
+`LABTUTOR_PHONE_ONLY=false` for a class that does have the apparatus (numeric Socratic
+checking for Exp 2 and 4, the software walkthrough for Exp 7). See
+[docs/phone_only_mode.md](docs/phone_only_mode.md).
 
 ## Scope
 
@@ -370,9 +284,9 @@ Genuine gaps, listed because a pilot report needs them:
 - **Tier 2 matches on keywords** in student remarks. It will miss a
   mistake described in unusual words. It fails toward escalation, which
   is the safe direction.
-- **Schema is created at startup**, not migrated. Alembic is installed
-  but no migration chain exists; a schema change during the pilot means
-  a manual migration.
+- **Schema migrations run on every backend start** (`alembic upgrade head`).
+  Several instances starting at once can race; run a single backend instance
+  or migrate separately.
 - **The audit log is best-effort.** A failed audit write is logged and
   swallowed rather than failing the request it describes. Good for
   review, not tamper-evident.
@@ -393,24 +307,32 @@ described here, with what was and was not tested stated plainly above.
 ```
 backend/
   answer_gate/      the reveal guarantee; read its docstring first
-  tier1_compute/
-    shared/         four reusable checker types + signature detectors
-    experiments/    one thin config plugin per experiment
+  tier1_compute/    shared checkers + one thin plugin per experiment
   tier2_exceptions/ static curated mistake library
   tier3_escalation/ abstain and queue
-  rag/              manual retrieval + phrasing (never decides)
-  llm/              swappable hosted/Ollama backends
-  socratic_engine/  steps, verification, hint ladder
-  auth/             OAuth, per-request role derivation
-  api/              HTTP routes
+  retrieval/, rag/  manual retrieval + phrasing (never decides)
+  socratic_engine/  steps, hint ladder, Exp7 walkthrough (incl. navigation.py)
+  llm/              swappable OpenAI / Vertex / hosted / Ollama backends
+  auth/, api/       OAuth + per-request roles; HTTP routes
   tests/            the suite
+frontend/           Next.js student and staff UI (mobile-first)
 golden_dataset/     test data, categories 1-5
-frontend/           Next.js student and staff UI
+evaluation/, reports/  evaluation harness and its generated reports
 infra/              Docker, Caddy, load test
-manual/             put BACHY105.pdf here
-docs/               architecture and the dataset spec
+manual/, knowledge/, sources/   course material the tutor retrieves from
+docs/               see below
 ```
 
-Development roles and what owns what: [AGENTS.md](AGENTS.md).
-Guidance for anyone (or anything) writing code here:
-[CLAUDE.md](CLAUDE.md).
+## Documentation
+
+| File | What it covers |
+|---|---|
+| [CLAUDE.md](CLAUDE.md) | Rules for anyone (or anything) writing code here |
+| [AGENTS.md](AGENTS.md) | Development roles and what each owns |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline, tiers, Exp7/8 amendments, walkthrough |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy, configure for 70 users, rollback, networks |
+| [docs/llm.md](docs/llm.md) | Per-message LLM budget, context caching, latency audit |
+| [docs/phone_only_mode.md](docs/phone_only_mode.md) | Exp7 phone-only tutoring mode |
+| [docs/exp07.md](docs/exp07.md) | Exp7 ground truth, screenshot gap, demo script |
+| [docs/golden_dataset_plan.md](docs/golden_dataset_plan.md) | Test data categories |
+| [docs/final_audit.md](docs/final_audit.md) | Point-in-time audit of what was built vs. the target |

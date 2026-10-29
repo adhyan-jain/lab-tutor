@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0",
   "updated": "2026-09-12",
-  "note": "The authoritative list of everything LabTutor may answer from. Nothing is ingested unless it is declared here, which is what stops material of one tier being mixed into another. 'present: false' means the file is expected but absent from this checkout; ingestion reports it as blocked rather than skipping it silently.",
+  "note": "The authoritative list of everything Catalyst may answer from. Nothing is ingested unless it is declared here, which is what stops material of one tier being mixed into another. 'present: false' means the file is expected but absent from this checkout; ingestion reports it as blocked rather than skipping it silently.",
   "documents": [
     {
       "document_id": "iachy102_manual_markdown",
@@ -94,19 +94,19 @@
       "tier": "C",
       "role": "supplementary_material",
       "filename": "knowledge/adjacent/",
-      "title": "LabTutor curated adjacent knowledge",
+      "title": "Catalyst curated adjacent knowledge",
       "version": "1.0",
-      "experiments": ["exp02", "exp03", "exp07", "exp08"],
+      "experiments": ["exp02", "exp03", "exp04", "exp07", "exp08"],
       "present": true,
       "visual": false,
-      "notes": "Written for LabTutor to answer Level 2 questions: broader theory, general software concepts, background the manual does not cover. NEVER presented as the manual; every answer drawn from it carries a visible supplementary label. May not supply procedure, formula or numbering for any experiment."
+      "notes": "Written for Catalyst to answer Level 2 questions: broader theory, general software concepts, background the manual does not cover. NEVER presented as the manual; every answer drawn from it carries a visible supplementary label. May not supply procedure, formula or numbering for any experiment."
     },
     {
       "document_id": "golden_qa_v1",
       "tier": "C",
       "role": "generated_test_material",
       "filename": "golden_dataset/qa/",
-      "title": "LabTutor golden QA dataset",
+      "title": "Catalyst golden QA dataset",
       "version": "1.0",
       "experiments": ["exp01", "exp02", "exp03", "exp04", "exp05", "exp06", "exp07", "exp08", "exp09", "exp10"],
       "present": true,

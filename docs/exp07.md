@@ -1,4 +1,4 @@
-# Experiment 7 ground truth — Build atoms/molecules; orbital visualization; orbital contributions
+# Experiment 7 reference: ground truth, image gap, demo
 
 Reference for checking every gauntlet answer. Verified line-by-line
 against the text extracted from the course PDF
@@ -112,3 +112,46 @@ A correct answer touching these states what the material does say, then
 plainly says the specific detail isn't in it. Consistency checks such as
 "LUMO above HOMO" or "energy shouldn't rise after optimization" are
 general chemistry (background explainer), NOT statements of the manual.
+
+---
+
+## Image and screenshot handling (known gap)
+
+Not implemented, and not implementable from what the repo holds. Exp7's manual
+section (pp.39-42) leans on UI screenshots (Gabedit draw window, ORCA input
+dialog, periodic-table picker, Avogadro HOMO/LUMO render) more than any other
+experiment.
+
+- The manual reached the repo as pasted chat content; only the transcribed text
+  was saved (`manual/IACHY102_manual.md`). The page-image bytes were never
+  written to disk, so a question like "which button opens the ORCA input
+  generator" has no image to ground on, however good retrieval or the model is.
+  Experiments 5 (XRD/SEM figures) and 10 (colour-swatch table) have the same gap.
+- `evaluation/exp07_dataset.json` marks 4 cases `screenshot_reference` /
+  `blocked_no_image_asset`; `evaluation/run_evaluation.py` skips them
+  explicitly rather than counting a lucky answer or a miscounted failure.
+- Fixes, either suffices to start: (1) supply the real PDF and add page
+  rasterisation (`PyMuPDF` or `pdf2image`) plus storage and serving; (2) have
+  someone run Gabedit/ORCA/Avogadro and commit screenshots, e.g.
+  `manual/images/exp07/`. The tutor must not paper over the gap with a generic
+  "the button is usually..." answer (CLAUDE.md grounding rules).
+
+## Demo script
+
+`python scripts/demo_exp7.py` runs a 15-turn scripted conversation through
+`backend.retrieval.pipeline.answer_question` with `use_llm=False` (the same
+deterministic extractive path used whenever no model is configured). No service,
+database, OAuth or API key needed. The turns cover: filler-word stripping,
+Hinglish ("gabedit me ch4 kaise banau", "orca input generator kaha hai"),
+protected formulas and acronyms (CH4, HOMO), negation preservation ("nahi"),
+multi-turn context and anaphora ("which screen comes after this one"),
+Hinglish/English parity, an adjacent-theory question ("why does DFT work
+physically", must carry the supplementary label) and an out-of-scope question
+("best gpu for gaming", refused even with an active exp07 session; this turn
+caught a real bug fixed in `backend/scope/classifier.py`, guarded by
+`test_an_active_session_experiment_never_immunises_a_genuine_refusal`).
+If the demo is run with the manual not ingested, procedural turns resolve to
+`IN_SCOPE_RETRIEVAL_INSUFFICIENT` (in scope, nothing to answer from) rather
+than off-topic; with the manual ingested they should flip to
+`IN_SCOPE_SUPPORTED`. The same pattern extends to Exp 2, 3 and 8 by swapping
+`TURNS` for cases from `golden_dataset/qa/exp0N.json`.

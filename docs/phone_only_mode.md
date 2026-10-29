@@ -1,10 +1,31 @@
-# Phone-only mode for Experiment 7 (theory first, procedure on request)
+# Phone-only mode (theory first, procedure on request)
 
-Some classes have only a phone and the LabTutor website: no computer, Gabedit,
-ORCA, Avogadro, second screen or output file. For those, Exp7 must never ask the
-student to look at, open, run or read anything outside the page. This mode is on
+Applies to every experiment that has authored concept content: **Experiment 7**
+(orbitals), **Experiment 2** (ester hydrolysis kinetics) and **Experiment 4** (iron in
+steel by potentiometry). Anywhere below that says Exp7 describes the original; Exp2
+and Exp4 use the same engine with their own content (`knowledge/exp02.py`,
+`knowledge/exp04.py`, `procedure.py`).
+
+Some classes have only a phone and the Catalyst website: no apparatus, computer,
+Gabedit, ORCA, Avogadro, second screen or output file. For those, these experiments
+must never ask the student to measure, look at, open, run or read anything outside the page. This mode is on
 by default (`LABTUTOR_PHONE_ONLY=true`); set it to `false` for a class that does
 have the software, to restore the step-by-step software walkthrough.
+
+## Adding another experiment
+
+Author one `knowledge/expNN.py` (concepts, misconceptions, questions with regex answer
+keys, six stages, a closing set, starter questions, `closing_summary`, `topics_hint`),
+register it in `knowledge/__init__.py`, and add its overview and six stages to
+`procedure.py`. Every question must pass `phone_safe` (source metadata and wording scan)
+and have a model answer in `backend/tests/concept_answers_theory.py`; `test_theory_modes.py`
+then checks the content, a full simulated session and the API flow. Wording to avoid in
+authored text: "your results/readings/data", "you can see", "look at the", "on your",
+"open/click/run the", "count the", and the words screen, computer, terminal.
+
+The single advisory model call for unclassifiable free text stays **Exp7 only**
+(`controller.ADVISORY_EXPERIMENTS`, per CLAUDE.md); other experiments use the authored
+fallback, so they make no model call to grade an answer.
 
 ## The three ways to use it
 

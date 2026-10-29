@@ -1,11 +1,11 @@
-# CLAUDE.md — LabTutor development guide
+# CLAUDE.md — Catalyst development guide
 
 This file guides any Claude Code session (or human developer) working
 in this repository. Read it before writing code here.
 
 ## Project summary
 
-LabTutor is a chemistry lab learning-support system for VIT's
+Catalyst is a chemistry lab learning-support system for VIT's
 BACHY105 (Applied Chemistry Lab) course, with two modes:
 
 - **Socratic mode**: guides a student through an in-progress
@@ -128,8 +128,9 @@ confined to Exp7. Numeric results, procedural checks, sanity rules and the
 final assessment stay fully deterministic, and `pedagogy/` and `walkthrough/`
 must keep importing no LLM code. Do not extend this to another experiment.
 
-**Exp7 phone-only mode (`LABTUTOR_PHONE_ONLY`, default on).** For students with
-only a phone: theory is the default, the practical is an authored overview shown
+**Phone-only theory mode (`LABTUTOR_PHONE_ONLY`, default on; Exp7, Exp2, Exp4 --
+any experiment with authored `knowledge/expNN.py`).** For students with
+only a phone and no apparatus: theory is the default, the practical is an authored overview shown
 only when explicitly asked for, any exit to theory works at any time, and no
 student-facing question may require external software, a screen or output
 (`knowledge/phone_safe.py`, enforced by tests). Mode and procedure detection are

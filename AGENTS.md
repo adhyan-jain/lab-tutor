@@ -1,8 +1,8 @@
-# AGENTS.md — development-process roles for building LabTutor
+# AGENTS.md — development-process roles for building Catalyst
 
 This file defines roles for **Claude Code sessions doing development
-work on this repo** — it has nothing to do with LabTutor's own runtime
-behavior. LabTutor's product pipeline is deterministic, not agentic
+work on this repo** — it has nothing to do with Catalyst's own runtime
+behavior. Catalyst's product pipeline is deterministic, not agentic
 (see the hard rule in [CLAUDE.md](CLAUDE.md)): these are ways of
 dividing up *building* the system, not roles the shipped system plays.
 
