@@ -70,3 +70,9 @@ frontend/tsconfig.tsbuildinfo
 manual/*.pdf
 manual/*.PDF
 session_exports/
+
+# --- Student session data (PII) ---
+data/session_data/raw/
+data/session_data/reports/
+data/prepost_raw/
+data/vm_archive/
