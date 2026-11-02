@@ -483,5 +483,3 @@ def ready_plugins() -> list[ExperimentPlugin]:
     return [p for p in all_plugins() if p.is_ready]
 
 
-def reset_registry_for_tests() -> None:
-    _REGISTRY.clear()

@@ -220,10 +220,6 @@ _index: HybridIndex | None = None
 _index_lock = threading.Lock()
 
 
-def build_index_from_chunks(chunks: list[Chunk]) -> HybridIndex:
-    return HybridIndex(chunks)
-
-
 def get_index() -> HybridIndex:
     """The process-wide index, built from everything `ingest_all` produces.
 

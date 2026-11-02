@@ -116,15 +116,6 @@ def is_skip_quiz(text: str) -> bool:
     return bool(_SKIP_QUIZ_RE.search(text or ""))
 
 
-def is_problem(text: str) -> bool:
-    return bool(_PROBLEM_RE.search(text or ""))
-
-
-def is_question(text: str) -> bool:
-    text = (text or "").strip()
-    return text.endswith("?") or bool(_QUESTION_START_RE.match(text))
-
-
 _WH_START_RE = re.compile(
     r"^\s*(what|why|how|when|where|which|who|can|could|should|is|are|does|do|will|explain|"
     r"tell me (about|what|why|how)|kya|kyu|kyun|kaise|kaun)\b",

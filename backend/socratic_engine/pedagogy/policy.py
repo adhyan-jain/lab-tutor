@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..knowledge.types import ConceptQuestion, ExperimentKnowledge, Misconception
-from .state import RANK, UNDERSTOOD_OR_BETTER, ConceptRecord, ConceptStates
+from .state import UNDERSTOOD_OR_BETTER, ConceptRecord, ConceptStates
 
 # A concept is not re-raised for this many controller turns after an
 # intervention. A turn counter, not a clock.
@@ -213,11 +213,6 @@ def next_after_answer(
     if misses >= EXPLAIN_AFTER_MISSES:
         return Followup("explain", question.expected_reasoning)
     return Followup("scaffold", question.scaffold)
-
-
-def summarise_state(states: ConceptStates) -> dict[str, str]:
-    """Compact concept -> state map for telemetry."""
-    return {cid: rec.state for cid, rec in states.records.items() if RANK[rec.state] > 0}
 
 
 #: A four-level ladder over the authored question types: recall what was

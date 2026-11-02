@@ -102,23 +102,6 @@ export function TrashIcon({ size = 14, className }: IconProps) {
   );
 }
 
-export function GraduationCapIcon({ size = 16, className }: IconProps) {
-  return (
-    <svg {...base(size)} className={className}>
-      <path d="M22 10 12 5 2 10l10 5 10-5z" />
-      <path d="M6 12.5V17c0 1.5 3 3 6 3s6-1.5 6-3v-4.5" />
-    </svg>
-  );
-}
-
-export function BoltIcon({ size = 16, className }: IconProps) {
-  return (
-    <svg {...base(size)} className={className}>
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-    </svg>
-  );
-}
-
 export function LightbulbIcon({ size = 16, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>

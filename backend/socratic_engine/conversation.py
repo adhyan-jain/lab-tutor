@@ -434,15 +434,6 @@ ACTION_INTENT: dict[str, Intent] = {
 }
 
 
-def action_for_intent(intent: Intent) -> str | None:
-    """The action id a message with this intent stands for (None for an
-    answer or a free question -- those are not actions)."""
-    for action_id, action_intent in ACTION_INTENT.items():
-        if action_intent is intent:
-            return action_id
-    return None
-
-
 # Chip display text (lowercased) → forced intent. A tapped chip sends its
 # display text verbatim; this lookup is more reliable than classify() for
 # short strings like "Continue" that have no practice noun to anchor to.
@@ -566,11 +557,6 @@ GREETING_DETAIL = (
     "**Theory / Study**: understand the concepts behind this experiment.\n"
     "**Practical / Experiment**: work through the experiment itself, one step at a time."
 )
-
-
-def greeting_ui() -> dict[str, Any]:
-    chips, ctx = actions(["theory", "practice"])
-    return {"kind": "greeting", "chips": chips, "action_context": ctx, "mode": Mode.INITIAL.value}
 
 
 GREETING_DETAIL_CONCEPTUAL = (

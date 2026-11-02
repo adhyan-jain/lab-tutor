@@ -91,9 +91,6 @@ class Manifest:
                 return entry
         raise KeyError(f"No manifest entry for document '{document_id}'")
 
-    def by_tier(self, tier: SourceTier) -> list[ManifestEntry]:
-        return [e for e in self.entries if e.tier is tier]
-
     def ingestible(self) -> list[ManifestEntry]:
         return [e for e in self.entries if e.ingestible]
 
@@ -106,13 +103,6 @@ class Manifest:
         # Superseded and test material are *intentionally* not ingested;
         # they are not blockers, they are exclusions.
         return not entry.document.present and not entry.is_superseded
-
-    def experiments_covered(self) -> set[str]:
-        covered: set[str] = set()
-        for entry in self.ingestible():
-            covered.update(entry.document.experiments)
-        return covered
-
 
 def manifest_path() -> Path:
     return Path(__file__).resolve().parents[2] / "docs" / "source_manifest.json"
@@ -227,11 +217,6 @@ def _assert_single_current_manual(entries: list[ManifestEntry]) -> None:
 @functools.lru_cache
 def get_manifest() -> Manifest:
     return load_manifest()
-
-
-def reload_manifest() -> Manifest:
-    get_manifest.cache_clear()
-    return get_manifest()
 
 
 def current_manual() -> ManifestEntry:

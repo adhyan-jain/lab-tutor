@@ -37,7 +37,6 @@ surfaces.
 from __future__ import annotations
 
 import math
-from typing import Any
 
 from backend.tier1_compute.experiments.registry import DeterministicPlugin, register
 from backend.tier1_compute.shared import RegressionSlopeChecker, StepSpec, Tolerance

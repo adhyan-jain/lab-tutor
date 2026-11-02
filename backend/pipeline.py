@@ -65,16 +65,6 @@ class DiagnosisOutcome:
         return self.status is DiagnosisStatus.ESCALATED
 
 
-def _status_for(result: Tier1Result) -> DiagnosisStatus:
-    if result.outcome is Outcome.PASS:
-        return DiagnosisStatus.PASS
-    if result.outcome is Outcome.INVALID:
-        return DiagnosisStatus.INVALID
-    if result.outcome is Outcome.NOT_APPLICABLE:
-        return DiagnosisStatus.ESCALATED
-    return DiagnosisStatus.FAIL
-
-
 async def run_diagnosis(
     plugin: ExperimentPlugin,
     *,

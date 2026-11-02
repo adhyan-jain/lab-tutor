@@ -104,5 +104,3 @@ class Script:
         cid = self.by_id[step_id].chapter
         return next(c for c in self.chapters if c.id == cid)
 
-    def index_of(self, step_id: str) -> int:
-        return next(i for i, s in enumerate(self.steps) if s.id == step_id)

@@ -54,7 +54,6 @@ from backend.llm.client import LLMReply
 from backend.rag.language import looks_non_english
 from backend.rag.phrasing import ENGLISH_ONLY_RULE, TUTOR_PERSONA, sanitise_student_text
 from backend.retrieval.chunks import Chunk
-from backend.retrieval.grounding import overlap_terms
 from backend.retrieval.index import HybridIndex, ScoredChunk, get_index
 from backend.retrieval.rerank import rerank
 from backend.scope.classifier import EvidenceSummary, ScopeDecision, classify_scope, resolve_status

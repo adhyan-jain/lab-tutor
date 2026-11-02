@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from backend.retrieval.chunks import Chunk, ContentType, make_chunk_id
-from backend.retrieval.images import render_page_image, renderer_available
+from backend.retrieval.images import render_page_image
 from backend.scope import ontology
 from backend.sources.manifest import ManifestEntry, get_manifest
 from backend.sources.tiers import SourceDocument
@@ -410,14 +410,3 @@ def _word_in(term: str, lowered_text: str) -> bool:
     return re.search(rf"\b{re.escape(term)}\b", lowered_text) is not None
 
 
-def render_all_page_images(output_dir: str | Path) -> dict[str, bool]:
-    """Coverage summary: which manifest documents got real page images.
-
-    Used by the coverage-report tooling (`docs/final_audit.md`) to
-    show, per document, whether visual grounding is actually available or
-    only architecturally supported.
-    """
-    return {
-        entry.document_id: entry.visual and renderer_available() and entry.ingestible
-        for entry in get_manifest()
-    }
